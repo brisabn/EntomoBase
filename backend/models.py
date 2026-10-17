@@ -47,3 +47,10 @@ class Medicao(Base):
     largura_pronoto_mm = Column(Float, nullable=False)
 
     especime = relationship("Especime", back_populates="medicoes")
+
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    senha = Column(String, nullable=False)

@@ -60,3 +60,18 @@ class ProjetoResponse(ProjetoBase):
 
     class Config:
         from_attributes = True
+
+class UsuarioLogin(BaseModel):
+    email: str = Field(..., min_length=5)
+    senha: str = Field(..., min_length=3)
+
+class ProjetoUpdate(BaseModel):
+    titulo: Optional[str] = None
+    ano: Optional[int] = None
+    grupo_insetos: Optional[str] = None
+    tracos_medidos: Optional[str] = None
+    local_coleta: Optional[str] = None
+    capa_url: Optional[str] = None
+    dataset_externo_url: Optional[str] = None
+    finalizado: Optional[bool] = None
+    publicacao_vinculada: Optional[str] = None
