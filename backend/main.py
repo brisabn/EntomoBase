@@ -40,8 +40,26 @@ def criar_projeto(projeto: schemas.ProjetoCreate, db: Session = Depends(get_db))
     return db_projeto
 
 @app.get("/projetos", response_model=List[schemas.ProjetoResponse])
-def listar_projetos(db: Session = Depends(get_db)):
-    return db.query(models.Projeto).all()
+def listar_projetos(
+    ano: Optional[int] = None,
+    grupo_insetos: Optional[str] = None,
+    local_coleta: Optional[str] = None,
+    finalizado: Optional[bool] = None,
+    acesso_laboratorio: bool = False,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Projeto)
+    if not acesso_laboratorio:
+        query = query.filter(models.Projeto.finalizado == True)
+    elif finalizado is not None:
+        query = query.filter(models.Projeto.finalizado == finalizado)
+    if ano:
+        query = query.filter(models.Projeto.ano == ano)
+    if grupo_insetos:
+        query = query.filter(models.Projeto.grupo_insetos.ilike(f"%{grupo_insetos}%"))
+    if local_coleta:
+        query = query.filter(models.Projeto.local_coleta.ilike(f"%{local_coleta}%"))
+    return query.all()
 
 # --- Rotas de Espécimes ---
 @app.post("/especimes", response_model=schemas.EspecimeResponse, status_code=201)

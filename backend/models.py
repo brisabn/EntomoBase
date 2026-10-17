@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -7,10 +7,16 @@ class Projeto(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     titulo = Column(String, nullable=False, index=True)
-    status = Column(String, default="Em andamento")
+    ano = Column(Integer, nullable=False, index=True)
+    grupo_insetos = Column(String, nullable=False, index=True)
+    tracos_medidos = Column(String, nullable=True)
+    local_coleta = Column(String, nullable=True)
+    capa_url = Column(String, nullable=True)
+    dataset_externo_url = Column(String, nullable=True)
+    finalizado = Column(Boolean, default=False)
     publicacao_vinculada = Column(String, nullable=True)
 
-    especimes = relationship("Especime", back_populates="projeto")
+    especimes = relationship("Especime", back_populates="projeto", cascade="all, delete-orphan")
 
 
 class Especime(Base):
@@ -18,8 +24,10 @@ class Especime(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     codigo_etiqueta = Column(String, unique=True, index=True, nullable=False)
+    grupo_insetos = Column(String, index=True, nullable=False)
     especie = Column(String, index=True, nullable=False)
     data_coleta = Column(Date, nullable=True)
+    local_coleta = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     fotografia_url = Column(String, nullable=True)
