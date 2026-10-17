@@ -1,3 +1,6 @@
+import csv
+import io
+from fastapi.responses import StreamingResponse
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -84,3 +87,38 @@ def deletar_especime(especime_id: int, db: Session = Depends(get_db)):
     db.delete(especime)
     db.commit()
     return None
+
+@app.get("/exportar/csv")
+def exportar_especimes_csv(db: Session = Depends(get_db)):
+    especimes = db.query(models.Especime).all()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Cabeçalho da folha de cálculo
+    writer.writerow([
+        "ID", "Codigo Etiqueta", "Especie", "Data Coleta", 
+        "Latitude", "Longitude", "Projeto ID", 
+        "Tamanho Chifre (mm)", "Largura Pronoto (mm)", "Notas"
+    ])
+    
+    for esp in especimes:
+        if esp.medicoes:
+            for med in esp.medicoes:
+                writer.writerow([
+                    esp.id, esp.codigo_etiqueta, esp.especie, esp.data_coleta,
+                    esp.latitude, esp.longitude, esp.projeto_id,
+                    med.tamanho_chifre_mm, med.largura_pronoto_mm, esp.notas
+                ])
+        else:
+            writer.writerow([
+                esp.id, esp.codigo_etiqueta, esp.especie, esp.data_coleta,
+                esp.latitude, esp.longitude, esp.projeto_id,
+                None, None, esp.notas
+            ])
+            
+    output.seek(0)
+    headers = {
+        "Content-Disposition": "attachment; filename=acervo_entomobase.csv"
+    }
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers=headers)
