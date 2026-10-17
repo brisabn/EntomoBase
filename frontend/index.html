@@ -3,113 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EntomoBase - Gestão de Acervo Entomológico</title>
+  <title>EntomoBase</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body>
-  <div id="app">
-    <header class="navbar">
-      <div class="brand">
-        <span class="logo">🪲</span>
-        <h1>EntomoBase</h1>
+  <div id="app" class="page-wrapper">
+    <div v-if="showLogin" class="modal-overlay" @click.self="showLogin = false">
+      <div class="modal-content">
+        <h2>Acesso ao Laboratório</h2>
+        <form @submit.prevent="fazerLogin" class="login-form">
+          <input v-model="credenciais.email" type="email" placeholder="E-mail (ex: admin@lab.br)" required>
+          <input v-model="credenciais.senha" type="password" placeholder="Senha" required>
+          <p v-if="loginError" class="error-text">{{ loginError }}</p>
+          <button type="submit" class="btn-action">Entrar</button>
+        </form>
       </div>
-      <div class="actions">
-        <a :href="apiUrl + '/exportar/csv'" class="btn btn-outline" target="_blank">
-          📥 Exportar CSV
-        </a>
+    </div>
+    <header class="top-header">
+      <div class="header-spacer"></div>
+      <h1 class="site-title">EntomoBase</h1>
+      <div class="auth-area">
+        <span v-if="acessoLab" class="user-badge">{{ userEmail }}</span>
+        <button class="btn-link" @click="acessoLab ? fazerLogout() : (showLogin = true)">{{ acessoLab ? 'Sair' : 'Entrar' }}</button>
       </div>
     </header>
-
-    <main class="container">
-      <!-- Barra de Resumo e Filtro -->
-      <section class="toolbar">
-        <div class="stats">
-          <span>Total no Acervo: <strong>{{ especimes.length }}</strong> espécimes</span>
-          <span>Projetos Ativos: <strong>{{ projetos.length }}</strong></span>
-        </div>
-        <div class="search-box">
-          <input 
-            v-model="filtroEspecie" 
-            @input="carregarEspecimes" 
-            type="text" 
-            placeholder="Filtrar por espécie (ex: Onthophagus taurus)..."
-          >
+    <div class="tabs-bar">
+      <nav class="folder-tabs">
+        <button :class="['tab-btn', { active: abaAtiva === 'sobre' }]" @click="abaAtiva = 'sobre'">Sobre</button>
+        <button :class="['tab-btn', { active: abaAtiva === 'projetos' }]" @click="abaAtiva = 'projetos'">Projetos</button>
+        <button :class="['tab-btn', { active: abaAtiva === 'colecao' }]" @click="abaAtiva = 'colecao'">Coleção</button>
+      </nav>
+      <div class="search-wrapper">
+        <input v-model="termoBusca" type="text" placeholder="Buscar por título, espécie ou local...">
+        <button v-if="termoBusca" class="clear-btn" @click="termoBusca = ''">x</button>
+      </div>
+    </div>
+    <main class="folder-body">
+      <section v-if="abaAtiva === 'sobre'" class="tab-content">
+        <h2>Sobre o Laboratório e o Acervo</h2>
+        <p class="lead-text">O EntomoBase centraliza o acervo entomológico e unifica o fluxo de pesquisas do laboratório.</p>
+        <h3>Equipe do Laboratório</h3>
+        <div class="team-grid">
+          <div v-for="m in equipe" :key="m.nome" class="team-card"><img :src="m.foto" :alt="m.nome" class="avatar-img"><strong>{{ m.nome }}</strong><span>{{ m.papel }}</span></div>
         </div>
       </section>
-
-      <div class="grid-layout">
-        <!-- Coluna da Esquerda: Formulários (serão ligados ao Vue) -->
-        <aside class="sidebar">
-          <div class="card">
-            <h2>+ Novo Projeto</h2>
-            <form @submit.prevent="salvarProjeto">
-              <input v-model="novoProjeto.titulo" type="text" placeholder="Título do Projeto *" required>
-              <input v-model="novoProjeto.publicacao_vinculada" type="text" placeholder="DOI / Publicação (opcional)">
-              <button type="submit" class="btn btn-secondary">Criar Projeto</button>
-            </form>
+      <section v-if="abaAtiva === 'projetos'" class="tab-content">
+        <div class="filter-bar">
+          <div class="filters">
+            <select v-model="filtroAno" @change="carregarProjetos"><option :value="null">Ano</option><option v-for="a in [2026, 2025, 2024]" :key="a" :value="a">{{ a }}</option></select><span>&middot;</span>
+            <input v-model="filtroGrupo" @input="carregarProjetos" placeholder="Grupo"><span>&middot;</span>
+            <select v-if="acessoLab" v-model="filtroFinalizado" @change="carregarProjetos"><option :value="null">Status</option><option :value="true">Publicado</option><option :value="false">Em andamento</option></select><span v-if="acessoLab">&middot;</span>
+            <input v-model="filtroLocal" @input="carregarProjetos" placeholder="Local">
           </div>
-
-          <div class="card">
-            <h2>+ Cadastrar Espécime</h2>
-            <form @submit.prevent="salvarEspecime">
-              <input v-model="novoEspecime.codigo_etiqueta" type="text" placeholder="Código Etiqueta (ex: ETB-001) *" required>
-              <input v-model="novoEspecime.especie" type="text" placeholder="Espécie (ex: Onthophagus taurus) *" required>
-              
-              <label>Projeto Vinculado:</label>
-              <select v-model="novoEspecime.projeto_id">
-                <option :value="null">-- Nenhum --</option>
-                <option v-for="proj in projetos" :key="proj.id" :value="proj.id">
-                  {{ proj.titulo }}
-                </option>
-              </select>
-
-              <div class="row">
-                <input v-model.number="novoEspecime.largura_pronoto_mm" type="number" step="0.01" min="0.01" placeholder="Pronoto (mm) *" required>
-                <input v-model.number="novoEspecime.tamanho_chifre_mm" type="number" step="0.01" min="0" placeholder="Chifre (mm)">
+          <button v-if="acessoLab" class="btn-action" @click="formProjeto = !formProjeto; if(!formProjeto) resetFormProjeto()">{{ formProjeto ? 'Fechar' : '+ Novo Projeto' }}</button>
+        </div>
+        <form v-if="formProjeto && acessoLab" class="form-panel" @submit.prevent="salvarProjeto">
+          <input v-model="novoProjeto.titulo" placeholder="Título do projeto *" required>
+          <input v-model.number="novoProjeto.ano" type="number" placeholder="Ano (ex: 2026) *" required>
+          <input v-model="novoProjeto.grupo_insetos" placeholder="Grupo (ex: Coleoptera) *" required>
+          <input v-model="novoProjeto.tracos_medidos" placeholder="Traços medidos (ex: Pronoto, Chifre)">
+          <input v-model="novoProjeto.local_coleta" placeholder="Local de coleta (ex: Minas Gerais)">
+          <input v-model="novoProjeto.capa_url" placeholder="URL da foto de capa">
+          <input v-model="novoProjeto.dataset_externo_url" placeholder="URL externa do banco de imagens (Zenodo)">
+          <input v-model="novoProjeto.publicacao_vinculada" placeholder="URL ou DOI da publicação">
+          <label class="chk-label"><input type="checkbox" v-model="novoProjeto.finalizado"> Finalizado (Público)</label>
+          <button type="submit" class="btn-action">{{ novoProjeto.id ? 'Atualizar' : 'Salvar Projeto' }}</button>
+        </form>
+        <div v-if="projetosFiltrados.length === 0" class="empty-msg">Nenhum projeto encontrado.</div>
+        <div class="projects-grid">
+          <article v-for="p in projetosFiltrados" :key="p.id" class="project-card">
+            <img :src="p.capa_url || 'https://images.unsplash.com/photo-1546548970-71785318a17b?w=500'" :alt="p.titulo" class="card-img">
+            <div class="card-info">
+              <span v-if="acessoLab" class="status-tag">{{ p.finalizado ? 'Publicado' : 'Em andamento' }}</span>
+              <h4>{{ p.titulo }} ({{ p.ano }})</h4>
+              <p class="taxon">{{ p.grupo_insetos }}</p>
+              <p v-if="p.tracos_medidos" class="meta-line">Traços: {{ p.tracos_medidos }}</p>
+              <p v-if="p.local_coleta" class="meta-line">Local: {{ p.local_coleta }}</p>
+              <p class="count-line">{{ p.especimes ? p.especimes.length : 0 }} espécimes</p>
+              <div class="card-links">
+                <a v-if="p.dataset_externo_url" :href="p.dataset_externo_url" target="_blank">Banco de Imagens</a>
+                <a v-if="p.publicacao_vinculada" :href="p.publicacao_vinculada" target="_blank">Publicação</a>
               </div>
-
-              <div class="row">
-                <input v-model.number="novoEspecime.latitude" type="number" step="any" placeholder="Latitude (ex: -19.86)">
-                <input v-model.number="novoEspecime.longitude" type="number" step="any" placeholder="Longitude (ex: -43.96)">
+              <div v-if="acessoLab" class="admin-actions">
+                <button @click="editarProjeto(p)" class="btn-edit">Editar</button> | <button @click="apagarProjeto(p.id)" class="btn-del">Apagar</button>
               </div>
-
-              <input v-model="novoEspecime.fotografia_url" type="url" placeholder="URL da Fotografia (opcional)">
-              <input v-model="novoEspecime.notas" type="text" placeholder="Notas / Observações">
-
-              <button type="submit" class="btn btn-primary">Salvar Espécime</button>
-            </form>
-          </div>
-        </aside>
-
-        <!-- Coluna da Direita: Galeria do Acervo -->
-        <section class="content">
-          <h2>Acervo de Espécimes Catalogados</h2>
-          <p v-if="erro" class="error-msg">{{ erro }}</p>
-          <div v-if="especimes.length === 0" class="empty-state">
-            Nenhum espécime encontrado. Cadastre o primeiro ao lado!
-          </div>
-          <div class="cards-grid">
-            <div v-for="esp in especimes" :key="esp.id" class="specimen-card">
-              <div class="card-header">
-                <span class="badge">{{ esp.codigo_etiqueta }}</span>
-                <button @click="removerEspecime(esp.id)" class="btn-delete" title="Excluir">✕</button>
-              </div>
-              <h3><em>{{ esp.especie }}</em></h3>
-              <div v-if="esp.medicoes && esp.medicoes.length" class="measurements">
-                <span>📏 Pronoto: <strong>{{ esp.medicoes[0].largura_pronoto_mm }} mm</strong></span>
-                <span v-if="esp.medicoes[0].tamanho_chifre_mm !== null">
-                  ⚔️ Chifre: <strong>{{ esp.medicoes[0].tamanho_chifre_mm }} mm</strong>
-                </span>
-              </div>
-              <p v-if="esp.latitude && esp.longitude" class="coords">
-                📍 Coord: {{ esp.latitude }}, {{ esp.longitude }}
-              </p>
-              <p v-if="esp.notas" class="notes">📝 {{ esp.notas }}</p>
             </div>
+          </article>
+        </div>
+      </section>
+      <section v-if="abaAtiva === 'colecao'" class="tab-content">
+        <div class="collection-header">
+          <h2>Coleção Taxonômica</h2>
+          <div class="collection-actions">
+            <a :href="apiUrl + '/exportar/csv'" class="btn-action" target="_blank">Exportar Acervo Completo</a>
+            <button v-if="acessoLab" class="btn-action" @click="formEspecime = !formEspecime">{{ formEspecime ? 'Fechar' : '+ Novo Espécime' }}</button>
           </div>
-        </section>
-      </div>
+        </div>
+        <form v-if="formEspecime && acessoLab" class="form-panel" @submit.prevent="salvarEspecime">
+          <input v-model="novoEspecime.codigo_etiqueta" placeholder="Etiqueta (ex: ETB-01) *" required><input v-model="novoEspecime.grupo_insetos" placeholder="Grupo (ex: Coleoptera) *" required>
+          <input v-model="novoEspecime.especie" placeholder="Espécie (ex: Onthophagus taurus) *" required><select v-model="novoEspecime.projeto_id"><option :value="null">Sem projeto</option><option v-for="p in projetos" :key="p.id" :value="p.id">{{ p.titulo }}</option></select>
+          <input v-model.number="novoEspecime.largura_pronoto_mm" type="number" step="0.01" placeholder="Pronoto (mm) *" required><input v-model.number="novoEspecime.tamanho_chifre_mm" type="number" step="0.01" placeholder="Chifre (mm)">
+          <input v-model="novoEspecime.local_coleta" placeholder="Local de coleta"><input v-model="novoEspecime.fotografia_url" placeholder="URL da fotografia">
+          <button type="submit" class="btn-action">Salvar Espécime</button>
+        </form>
+        <div class="tree-list">
+          <details v-for="(espMap, grupo) in arvoreColecao" :key="grupo" class="tree-group">
+            <summary class="group-summary"><strong>{{ grupo }}</strong> ({{ contarPorGrupo(espMap) }} espécimes)</summary>
+            <details v-for="(lista, especie) in espMap" :key="especie" class="tree-species">
+              <summary class="species-summary"><em>{{ especie }}</em> ({{ lista.length }} espécimes)</summary>
+              <ul class="specimen-items">
+                <li v-for="item in lista" :key="item.id"><strong>{{ item.codigo_etiqueta }}</strong> | Local: {{ item.local_coleta || 'N/I' }}
+                  <span v-if="item.medicoes && item.medicoes.length"> | Pronoto: {{ item.medicoes[0].largura_pronoto_mm }} mm</span>
+                  <button v-if="acessoLab" class="btn-del" @click="removerEspecime(item.id)">[Excluir]</button>
+                </li>
+              </ul>
+            </details>
+          </details>
+        </div>
+      </section>
     </main>
   </div>
   <script src="app.js"></script>
