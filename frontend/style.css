@@ -1,0 +1,60 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+body { background-color: #f4f7f6; color: #2c3e50; }
+
+.navbar {
+  background: #1b4332; color: #fff; padding: 1rem 2rem;
+  display: flex; justify-content: space-between; align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.brand { display: flex; align-items: center; gap: 0.75rem; }
+.logo { font-size: 1.6rem; }
+
+.container { max-width: 1200px; margin: 1.5rem auto; padding: 0 1rem; }
+
+.toolbar {
+  background: #fff; padding: 1rem 1.5rem; border-radius: 8px;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.stats { display: flex; gap: 1.5rem; font-size: 0.95rem; }
+.search-box input { width: 320px; padding: 0.6rem 1rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+
+.grid-layout { display: grid; grid-template-columns: 340px 1fr; gap: 1.5rem; }
+
+.card {
+  background: #fff; padding: 1.25rem; border-radius: 8px;
+  margin-bottom: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.card h2 { font-size: 1.1rem; color: #1b4332; margin-bottom: 1rem; }
+.card form { display: flex; flex-direction: column; gap: 0.65rem; }
+.card input, .card select {
+  padding: 0.55rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%;
+}
+.card label { font-size: 0.85rem; color: #475569; font-weight: 600; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+
+.btn {
+  padding: 0.65rem 1rem; border: none; border-radius: 6px;
+  cursor: pointer; font-weight: 600; text-decoration: none; text-align: center;
+}
+.btn-primary { background: #2d6a4f; color: #fff; }
+.btn-primary:hover { background: #1b4332; }
+.btn-secondary { background: #40916c; color: #fff; }
+.btn-outline { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.4); }
+
+.content h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
+
+.specimen-card {
+  background: #fff; padding: 1rem; border-radius: 8px;
+  border-left: 4px solid #2d6a4f; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.badge { background: #d8f3dc; color: #1b4332; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 700; }
+.btn-delete { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; }
+.btn-delete:hover { color: #ef4444; }
+.specimen-card h3 { font-size: 1.05rem; margin-bottom: 0.6rem; color: #0f172a; }
+.measurements { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.88rem; background: #f8fafc; padding: 0.5rem; border-radius: 6px; margin-bottom: 0.5rem; }
+.coords, .notes { font-size: 0.82rem; color: #64748b; margin-top: 0.3rem; }
+.error-msg { background: #fee2e2; color: #b91c1c; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+.empty-state { background: #fff; padding: 2rem; text-align: center; border-radius: 8px; color: #64748b; }
