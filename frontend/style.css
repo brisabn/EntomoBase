@@ -502,3 +502,7 @@ input[type="file"]::file-selector-button { height: 2rem; border: 1.5px solid var
   .segmento { display: flex; width: 100%; overflow: visible; }
   .segmento .seg, .barra-visao .seg { flex: 1 1 0; text-align: center; padding: 0.5rem 0.2rem; font-size: 0.95rem; }
 }
+.popover-tracos { list-style: none; min-width: 230px; padding: 0.5rem 0.4rem; font-size: 0.98rem; font-weight: 500; z-index: 20; }
+.popover-tracos li { padding: 0.35rem 0.8rem; border-radius: 8px; }
+.popover-tracos li:hover { background: var(--papel); }
+.popover-tracos { left: 0; right: auto; }

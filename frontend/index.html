@@ -233,7 +233,18 @@
                 <div class="fato"><dt>Espécies</dt><dd>{{ contarEspecies(especimesDoProjeto).toLocaleString('pt-BR') }}</dd></div>
                 <div class="fato"><dt>Espécimes</dt><dd>{{ especimesDoProjeto.length.toLocaleString('pt-BR') }}</dd></div>
                 <div class="fato"><dt>Com imagem</dt><dd>{{ totalComImagem.toLocaleString('pt-BR') }}</dd></div>
-                <div class="fato" v-if="projetoAtual.tracos_medidos"><dt>Traços medidos</dt><dd>{{ projetoAtual.tracos_medidos }}</dd></div>
+                <div class="fato" v-if="tracosProjeto.length">
+                  <dt>Traços medidos</dt>
+                  <dd>
+                    {{ tracosProjeto.slice(0, 2).join(', ') }}
+                    <span v-if="tracosProjeto.length > 2" class="relativo">
+                      <button type="button" class="selo" :aria-expanded="popover === 'tracos'" @click.stop="alternarPopover('tracos')">+{{ tracosProjeto.length - 2 }} ver mais</button>
+                      <ul v-if="popover === 'tracos'" class="popover popover-tracos" @click.stop>
+                        <li v-for="t in tracosProjeto" :key="t">{{ t }}</li>
+                      </ul>
+                    </span>
+                  </dd>
+                </div>
                 <div class="fato" v-if="projetoAtual.local_coleta"><dt>Local de coleta</dt><dd>{{ projetoAtual.local_coleta }}</dd></div>
                 <div class="fato" v-if="projetoAtual.publicacao_vinculada">
                   <dt>Publicação</dt>

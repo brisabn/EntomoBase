@@ -255,6 +255,10 @@ const app = createApp({
     projetoAtual() {
       return this.rota.nome === 'projeto' ? (this.projetosPorId[this.rota.id] || null) : null;
     },
+    tracosProjeto() {
+      const p = this.projetoAtual;
+      return p && p.tracos_medidos ? p.tracos_medidos.split(',').map((t) => t.trim()).filter(Boolean) : [];
+    },
     especimesDoProjeto() {
       const p = this.projetoAtual;
       if (!p) return [];
