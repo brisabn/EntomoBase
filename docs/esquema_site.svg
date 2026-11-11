@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1010" width="1500" height="1010" font-family="Segoe UI, Arial, sans-serif">
+<rect width="1500" height="1010" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#1d2a24" text-anchor="start">EntomoBase: esquema do site</text>
+<text x="40" y="78" font-size="14" font-weight="400" fill="#5f6b65" text-anchor="start">Páginas e janelas que a pessoa vê, e como elas conversam com a API, o banco e os serviços externos</text>
+<rect x="30" y="100" width="530" height="700" rx="10" fill="#eaf1fa" stroke="#2a5f9e" stroke-width="2"/>
+<text x="46" y="126" font-size="16" font-weight="700" fill="#2a5f9e" text-anchor="start">NAVEGADOR</text>
+<text x="46" y="146" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">JavaScript (Vue 3), sem etapa de build; o mesmo site em português e em inglês</text>
+<rect x="44" y="162" width="502" height="74" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="58" y="184" font-size="13" font-weight="700" fill="#2a5f9e" text-anchor="start">Barra do topo (em todas as páginas)</text>
+<text x="58" y="206" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">logo · busca global com sugestões · botão PT/EN · Entrar / Sair</text>
+<text x="58" y="226" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">abas:  Sobre · Projetos · Coleção</text>
+<rect x="44" y="250" width="502" height="232" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="58" y="272" font-size="13" font-weight="700" fill="#2a5f9e" text-anchor="start">Páginas</text>
+<text x="292" y="272" font-size="11" font-weight="700" fill="#5f6b65" text-anchor="start">endereço em português</text>
+<text x="438" y="272" font-size="11" font-weight="700" fill="#5f6b65" text-anchor="start">em inglês</text>
+<text x="58" y="304" font-size="14" font-weight="700" fill="#1d2a24" text-anchor="start">Sobre</text>
+<text x="58" y="320" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">equipe e descrição</text>
+<text x="292" y="306" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/sobre</text>
+<text x="438" y="306" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/en/about</text>
+<line x1="58" y1="324" x2="532" y2="324" stroke="#e3e8e5"/>
+<text x="58" y="342" font-size="14" font-weight="700" fill="#1d2a24" text-anchor="start">Projetos</text>
+<text x="58" y="358" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">lista com filtros e ordem</text>
+<text x="292" y="344" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/projetos</text>
+<text x="438" y="344" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/en/projects</text>
+<line x1="58" y1="362" x2="532" y2="362" stroke="#e3e8e5"/>
+<text x="58" y="380" font-size="14" font-weight="700" fill="#1d2a24" text-anchor="start">Projeto</text>
+<text x="58" y="396" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">Tabela · Galeria · Mapa</text>
+<text x="292" y="382" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/projetos/3</text>
+<text x="438" y="382" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/en/projects/3</text>
+<line x1="58" y1="400" x2="532" y2="400" stroke="#e3e8e5"/>
+<text x="58" y="418" font-size="14" font-weight="700" fill="#1d2a24" text-anchor="start">Coleção</text>
+<text x="58" y="434" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">Árvore · Repositórios · Mapa</text>
+<text x="292" y="420" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/colecao</text>
+<text x="438" y="420" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/en/collection</text>
+<line x1="58" y1="438" x2="532" y2="438" stroke="#e3e8e5"/>
+<text x="58" y="456" font-size="14" font-weight="700" fill="#1d2a24" text-anchor="start">Busca</text>
+<text x="58" y="472" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">projetos, espécies, espécimes</text>
+<text x="292" y="458" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/busca/termo</text>
+<text x="438" y="458" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">#/en/search/term</text>
+<rect x="44" y="496" width="502" height="188" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="58" y="518" font-size="13" font-weight="700" fill="#2a5f9e" text-anchor="start">Janelas</text>
+<rect x="58" y="538" width="44" height="17" rx="4" fill="#2f6f4f"/>
+<text x="80.0" y="550.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">todos</text>
+<text x="112" y="551" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Detalhe do espécime (com fotos, medidas e mapa)</text>
+<rect x="58" y="560" width="44" height="17" rx="4" fill="#2f6f4f"/>
+<text x="80.0" y="572.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">todos</text>
+<text x="112" y="573" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Entrar</text>
+<rect x="58" y="582" width="44" height="17" rx="4" fill="#2f6f4f"/>
+<text x="80.0" y="594.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">todos</text>
+<text x="112" y="595" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Como citar · Contato</text>
+<rect x="58" y="606" width="44" height="17" rx="4" fill="#c4691a"/>
+<text x="80.0" y="618.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="112" y="619" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Formulário de projeto</text>
+<rect x="58" y="625" width="44" height="17" rx="4" fill="#c4691a"/>
+<text x="80.0" y="637.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="112" y="638" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Formulário de espécime (confere o nome no GBIF)</text>
+<rect x="58" y="644" width="44" height="17" rx="4" fill="#c4691a"/>
+<text x="80.0" y="656.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="112" y="657" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Importar CSV (mostra uma prévia antes de gravar)</text>
+<rect x="58" y="663" width="44" height="17" rx="4" fill="#c4691a"/>
+<text x="80.0" y="675.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="112" y="676" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">Confirmar exclusão</text>
+<rect x="44" y="698" width="502" height="88" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="58" y="720" font-size="13" font-weight="700" fill="#2a5f9e" text-anchor="start">Arquivos</text>
+<text x="58" y="741" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">index.html (estrutura) · style.css (aparência)</text>
+<text x="58" y="760" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">app.js (telas e comportamento) · i18n.js (textos PT/EN)</text>
+<text x="58" y="779" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">config.js (endereço da API) · bibliotecas Vue e Leaflet</text>
+<rect x="670" y="100" width="440" height="700" rx="10" fill="#e8f3ec" stroke="#2f6f4f" stroke-width="2"/>
+<text x="686" y="126" font-size="16" font-weight="700" fill="#2f6f4f" text-anchor="start">API</text>
+<text x="686" y="146" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">Python (FastAPI); responde dados em JSON</text>
+<rect x="684" y="160" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="166" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="178.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="179" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">POST  /login</text>
+<text x="752" y="194" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">entrar; 5 senhas erradas bloqueiam por 15 min</text>
+<rect x="684" y="207" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="213" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="225.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="226" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">GET  /projects</text>
+<text x="752" y="241" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">visitante: só concluídos; logado: todos</text>
+<rect x="684" y="254" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="260" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="272.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="273" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">GET  /specimens</text>
+<text x="752" y="288" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">visitante: sem os campos internos</text>
+<rect x="684" y="301" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="307" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="319.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="320" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">GET  /export/csv</text>
+<text x="752" y="335" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">?lang=pt|en; ?full=true exige login</text>
+<rect x="684" y="348" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="354" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="366.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="367" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">GET  /export/dwc</text>
+<text x="752" y="382" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">pacote Darwin Core (zip), só dados públicos</text>
+<rect x="684" y="395" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="401" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="718.0" y="413.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="752" y="414" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">GET  /demo/image/{arquivo}</text>
+<text x="752" y="429" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">imagens de demonstração</text>
+<rect x="684" y="442" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="448" width="48" height="17" rx="4" fill="#c4691a"/>
+<text x="718.0" y="460.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="752" y="461" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">POST PUT DELETE  /projects, /projects/{id}</text>
+<text x="752" y="476" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">criar, editar e excluir projetos</text>
+<rect x="684" y="489" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="495" width="48" height="17" rx="4" fill="#c4691a"/>
+<text x="718.0" y="507.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="752" y="508" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">POST PUT DELETE  /specimens, /specimens/{id}</text>
+<text x="752" y="523" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">criar, editar e excluir espécimes</text>
+<rect x="684" y="536" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="542" width="48" height="17" rx="4" fill="#c4691a"/>
+<text x="718.0" y="554.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="752" y="555" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">POST  /specimens/import</text>
+<text x="752" y="570" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">?dry_run=true só simula e mostra a prévia</text>
+<rect x="684" y="583" width="412" height="41" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<rect x="694" y="589" width="48" height="17" rx="4" fill="#c4691a"/>
+<text x="718.0" y="601.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="752" y="602" font-size="12" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">POST  /taxonomy/validate</text>
+<text x="752" y="617" font-size="11.5" font-weight="400" fill="#5f6b65" text-anchor="start">confere o nome científico no GBIF</text>
+<rect x="684" y="640" width="412" height="146" rx="7" fill="#fbfaf4" stroke="#d8d2b8"/>
+<text x="698" y="662" font-size="13" font-weight="700" fill="#5a5230" text-anchor="start">Regras que a API garante</text>
+<text x="698" y="684" font-size="12" font-weight="400" fill="#4a4630" text-anchor="start">• visitante só vê projetos concluídos e os espécimes deles</text>
+<text x="698" y="704" font-size="12" font-weight="400" fill="#4a4630" text-anchor="start">• campos internos (coletor, empréstimo...) só com login</text>
+<text x="698" y="724" font-size="12" font-weight="400" fill="#4a4630" text-anchor="start">• erros saem como código; a tela traduz para PT ou EN</text>
+<text x="698" y="744" font-size="12" font-weight="400" fill="#4a4630" text-anchor="start">• só o site autorizado (CORS) pode usar a API pelo navegador</text>
+<text x="698" y="764" font-size="12" font-weight="400" fill="#4a4630" text-anchor="start">• ao iniciar, aplica as migrações do banco (Alembic)</text>
+<rect x="1230" y="100" width="250" height="412" rx="10" fill="#eef1f4" stroke="#5a6b7b" stroke-width="2"/>
+<text x="1246" y="126" font-size="16" font-weight="700" fill="#5a6b7b" text-anchor="start">BANCO DE DADOS</text>
+<text x="1246" y="146" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">SQLite ou PostgreSQL</text>
+<rect x="1244" y="166" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="182" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">laboratories</text>
+<text x="1256" y="196" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">laboratórios</text>
+<rect x="1244" y="208" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="224" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">memberships</text>
+<text x="1256" y="238" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">quem é de qual laboratório</text>
+<rect x="1244" y="250" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="266" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">users</text>
+<text x="1256" y="280" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">usuários</text>
+<rect x="1244" y="292" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="308" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">projects</text>
+<text x="1256" y="322" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">projetos</text>
+<rect x="1244" y="334" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="350" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">specimens</text>
+<text x="1256" y="364" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">espécimes (28 campos)</text>
+<rect x="1244" y="376" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="392" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">measurements</text>
+<text x="1256" y="406" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">medidas por traço</text>
+<rect x="1244" y="418" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="434" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">taxa</text>
+<text x="1256" y="448" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">cache do GBIF</text>
+<rect x="1244" y="460" width="222" height="36" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1256" y="476" font-size="12.5" font-weight="700" fill="#1d2a24" text-anchor="start" font-family="Consolas, 'Courier New', monospace">alembic_version</text>
+<text x="1256" y="490" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="start">versão das migrações</text>
+<rect x="1230" y="540" width="250" height="168" rx="10" fill="#f6f0e2" stroke="#8a6d2f" stroke-width="2"/>
+<text x="1246" y="566" font-size="16" font-weight="700" fill="#8a6d2f" text-anchor="start">GBIF</text>
+<text x="1246" y="586" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">serviço externo</text>
+<text x="1246" y="616" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">confere nomes científicos</text>
+<text x="1246" y="636" font-size="12.5" font-weight="400" fill="#1d2a24" text-anchor="start">e sugere o nome aceito.</text>
+<text x="1246" y="666" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">A resposta fica em cache por</text>
+<text x="1246" y="684" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">30 dias, no banco (tabela taxa).</text>
+<text x="1110" y="892" font-size="14" font-weight="700" fill="#8a6d2f" text-anchor="start">Serviços externos</text>
+<text x="1110" y="912" font-size="12.5" font-weight="400" fill="#5f6b65" text-anchor="start">que o navegador acessa</text>
+<text x="1110" y="930" font-size="12.5" font-weight="400" fill="#5f6b65" text-anchor="start">direto, sem passar pela API</text>
+<rect x="30" y="850" width="335" height="84" rx="10" fill="#f6f0e2" stroke="#8a6d2f" stroke-width="2"/>
+<text x="46" y="876" font-size="16" font-weight="700" fill="#8a6d2f" text-anchor="start">Zenodo</text>
+<text x="46" y="898" font-size="13" font-weight="700" fill="#1d2a24" text-anchor="start">fotos dos espécimes</text>
+<text x="46" y="918" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">repositório de dados de cada projeto</text>
+<rect x="387" y="850" width="335" height="84" rx="10" fill="#f6f0e2" stroke="#8a6d2f" stroke-width="2"/>
+<text x="403" y="876" font-size="16" font-weight="700" fill="#8a6d2f" text-anchor="start">Esri</text>
+<text x="403" y="898" font-size="13" font-weight="700" fill="#1d2a24" text-anchor="start">mapa de fundo</text>
+<text x="403" y="918" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">imagens do mapa de coleta (Leaflet)</text>
+<rect x="744" y="850" width="335" height="84" rx="10" fill="#f6f0e2" stroke="#8a6d2f" stroke-width="2"/>
+<text x="760" y="876" font-size="16" font-weight="700" fill="#8a6d2f" text-anchor="start">CDN</text>
+<text x="760" y="898" font-size="13" font-weight="700" fill="#1d2a24" text-anchor="start">bibliotecas e fontes</text>
+<text x="760" y="918" font-size="12" font-weight="400" fill="#5f6b65" text-anchor="start">Vue, Leaflet, Google Fonts</text>
+<defs><marker id="m130261494249274064" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2a5f9e"/></marker></defs>
+<line x1="562" y1="300" x2="668" y2="300" stroke="#2a5f9e" stroke-width="2.4" marker-end="url(#m130261494249274064)"/>
+<defs><marker id="m1122882095741597941" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#2f6f4f"/></marker></defs>
+<line x1="668" y1="340" x2="562" y2="340" stroke="#2f6f4f" stroke-width="2.4" marker-end="url(#m1122882095741597941)"/>
+<text x="615.0" y="286" font-size="12" font-weight="700" fill="#2a5f9e" text-anchor="middle">pede</text>
+<text x="615.0" y="358" font-size="12" font-weight="700" fill="#2f6f4f" text-anchor="middle">responde</text>
+<text x="615.0" y="388" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="middle">JSON por HTTP</text>
+<text x="615.0" y="404" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="middle">o token de login vai</text>
+<text x="615.0" y="420" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="middle">no cabeçalho</text>
+<defs><marker id="m2850012237282830150" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#5a6b7b"/></marker></defs>
+<line x1="1112" y1="260" x2="1228" y2="260" stroke="#5a6b7b" stroke-width="2.4" marker-end="url(#m2850012237282830150)"/>
+<text x="1170.0" y="246" font-size="12" font-weight="700" fill="#5a6b7b" text-anchor="middle">lê e grava</text>
+<text x="1170.0" y="282" font-size="11" font-weight="400" fill="#5f6b65" text-anchor="middle">SQLAlchemy</text>
+<defs><marker id="m8673716010205834114" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#8a6d2f"/></marker></defs>
+<line x1="1112" y1="630" x2="1228" y2="630" stroke="#8a6d2f" stroke-width="2.4" marker-end="url(#m8673716010205834114)"/>
+<text x="1170.0" y="616" font-size="12" font-weight="700" fill="#8a6d2f" text-anchor="middle">valida nomes</text>
+<line x1="295.0" y1="802" x2="295.0" y2="824" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5"/>
+<line x1="197" y1="824" x2="911" y2="824" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5"/>
+<defs><marker id="m1481858925589891907" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#8a6d2f"/></marker></defs>
+<line x1="197" y1="824" x2="197" y2="848" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#m1481858925589891907)"/>
+<defs><marker id="m451348736613419903" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#8a6d2f"/></marker></defs>
+<line x1="554" y1="824" x2="554" y2="848" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#m451348736613419903)"/>
+<defs><marker id="m5599478831211544818" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#8a6d2f"/></marker></defs>
+<line x1="911" y1="824" x2="911" y2="848" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#m5599478831211544818)"/>
+<g transform="translate(0,70)">
+<rect x="1230" y="660" width="250" height="150" rx="7" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1246" y="684" font-size="13" font-weight="700" fill="#1d2a24" text-anchor="start">Legenda</text>
+<rect x="1246" y="696" width="48" height="17" rx="4" fill="#2f6f4f"/>
+<text x="1270.0" y="708.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">público</text>
+<text x="1302" y="709" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start">qualquer visitante</text>
+<rect x="1246" y="722" width="48" height="17" rx="4" fill="#c4691a"/>
+<text x="1270.0" y="734.5" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle">login</text>
+<text x="1302" y="735" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start">só o laboratório, com senha</text>
+<line x1="1246" y1="760" x2="1290" y2="760" stroke="#8a6d2f" stroke-width="2.4" stroke-dasharray="7 5"/>
+<text x="1302" y="764" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start">acesso direto do navegador</text>
+<line x1="1246" y1="784" x2="1290" y2="784" stroke="#2a5f9e" stroke-width="2.4"/>
+<text x="1302" y="788" font-size="12" font-weight="400" fill="#1d2a24" text-anchor="start">chamada à API</text>
+</g>
+</svg>

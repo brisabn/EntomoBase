@@ -1,11 +1,50 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date, DateTime, UniqueConstraint
+from sqlalchemy.sql import expression
 from sqlalchemy.orm import relationship
 from database import Base
+
+# roles a user can have inside a laboratory, and who can see a project
+ROLES = ("admin", "researcher")
+VISIBILITIES = ("private", "unlisted", "public")
+
+
+# a laboratory owns its projects and specimens; the site shows only what it makes public
+class Laboratory(Base):
+    __tablename__ = "laboratories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # short name used in addresses (entomobase/lab/<slug>)
+    slug = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    # Darwin Core codes and license used when the lab's data is exported
+    institution = Column(String, nullable=False)
+    collection_code = Column(String, nullable=False)
+    license = Column(String, nullable=False)
+    # whether the laboratory appears in the public list of the platform
+    listed = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+
+    memberships = relationship("Membership", back_populates="laboratory", cascade="all, delete-orphan")
+
+
+# which users belong to which laboratory, and with what role
+class Membership(Base):
+    __tablename__ = "memberships"
+    __table_args__ = (UniqueConstraint("user_id", "laboratory_id", name="uq_memberships_user_id_laboratory_id"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=False, index=True)
+    role = Column(String, nullable=False)
+
+    user = relationship("User", back_populates="memberships")
+    laboratory = relationship("Laboratory", back_populates="memberships")
+
 
 class Project(Base):
     __tablename__ = "projects"
 
     id = Column(Integer, primary_key=True, index=True)
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=False, index=True)
     title = Column(String, nullable=False, index=True)
     year = Column(Integer, nullable=False, index=True)
     insect_group = Column(String, nullable=False, index=True)
@@ -13,18 +52,28 @@ class Project(Base):
     locality = Column(String, nullable=True)
     cover_url = Column(String, nullable=True)
     dataset_url = Column(String, nullable=True)
+    # scientific status of the project (finished or still in progress)
     finished = Column(Boolean, default=False)
+    # who can see the project: private, unlisted (only with the share link) or public
+    visibility = Column(String, nullable=False, default="private", server_default="private")
+    # random code for the share link of an unlisted project; never the numeric id, which is guessable
+    share_token = Column(String, unique=True, index=True, nullable=True)
     linked_publication = Column(String, nullable=True)
     description = Column(String, nullable=True)
 
+    laboratory = relationship("Laboratory")
     specimens = relationship("Specimen", back_populates="project", cascade="all, delete-orphan")
 
 
 class Specimen(Base):
     __tablename__ = "specimens"
+    # the catalog number is unique inside a laboratory, not in the whole database
+    __table_args__ = (UniqueConstraint("laboratory_id", "catalog_number", name="uq_specimens_laboratory_id_catalog_number"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    catalog_number = Column(String, unique=True, index=True, nullable=False)
+    # always the laboratory of the specimen's project
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=False, index=True)
+    catalog_number = Column(String, index=True, nullable=False)
     insect_order = Column(String, index=True, nullable=False)
     family = Column(String, index=True, nullable=True)
     species = Column(String, index=True, nullable=False)
@@ -56,10 +105,9 @@ class Specimen(Base):
     loan_date = Column(Date, nullable=True)
     internal_notes = Column(String, nullable=True)
 
+    laboratory = relationship("Laboratory")
     project = relationship("Project", back_populates="specimens")
     measurements = relationship("Measurement", back_populates="specimen", cascade="all, delete-orphan", order_by="Measurement.id")
-    # old table, kept only so its data is not lost by the migration
-    legacy_measurements = relationship("LegacyMeasurement", back_populates="specimen", cascade="all, delete-orphan")
 
 
 class Measurement(Base):
@@ -74,22 +122,17 @@ class Measurement(Base):
     specimen = relationship("Specimen", back_populates="measurements")
 
 
-class LegacyMeasurement(Base):
-    __tablename__ = "legacy_measurements"
-
-    id = Column(Integer, primary_key=True, index=True)
-    specimen_id = Column(Integer, ForeignKey("specimens.id"), nullable=False)
-    horn_length_mm = Column(Float, nullable=True)
-    pronotum_width_mm = Column(Float, nullable=False)
-
-    specimen = relationship("Specimen", back_populates="legacy_measurements")
-
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    # can create and deactivate laboratories (platform administrator)
+    is_superadmin = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+
+    memberships = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
 
 
 # cache of scientific name lookups on GBIF

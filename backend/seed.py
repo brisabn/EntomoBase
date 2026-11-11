@@ -5,6 +5,7 @@ from datetime import date
 import models
 from database import SessionLocal
 from db_setup import initialize_database
+from laboratories import default_laboratory, visibility_from_status
 
 # demo data for the site; the text values (places, traits, sex, life stage) stay in Portuguese
 # because they are shown to the site's users
@@ -225,7 +226,9 @@ def create_project(db, cfg, rng):
     if db.query(models.Project).filter(models.Project.title == cfg["title"]).first():
         print(f"already exists: {cfg['title']}")
         return 0
+    laboratory = default_laboratory(db)
     project = models.Project(
+        laboratory_id=laboratory.id, visibility=visibility_from_status(cfg["finished"]),
         title=cfg["title"], year=cfg["year"], insect_group=cfg["group"], measured_traits=cfg["traits"], locality=cfg["locality"],
         dataset_url=f"https://zenodo.org/records/{cfg['zenodo']}" if cfg["zenodo"] else None,
         finished=cfg["finished"], linked_publication=cfg["publication"], description=cfg["description"],
@@ -259,6 +262,7 @@ def create_project(db, cfg, rng):
         extra = random.Random(number)
         on_loan = extra.random() < 0.04
         specimen = models.Specimen(
+            laboratory_id=laboratory.id,
             identified_by=extra.choice(IDENTIFIERS), identification_date=when,
             sampling_method=extra.choice(METHODS), habitat=extra.choice(HABITATS),
             collector=extra.choice(COLLECTORS), field_number=f"C{extra.randint(100, 999)}",
