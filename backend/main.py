@@ -1,6 +1,8 @@
 import csv
 import io
+import os
 import re
+import secrets
 import urllib.parse
 import zipfile
 import jwt
@@ -77,8 +79,25 @@ app.add_middleware(
 )
 
 # --- Configuração de Segurança JWT ---
-SECRET_KEY = "entomobase-secreto"
 ALGORITHM = "HS256"
+
+
+# a chave vem do ambiente; sem ela a API só sobe em modo de desenvolvimento (ENTOMOBASE_ENV=dev),
+# com uma chave aleatória que muda a cada início e invalida os logins anteriores
+def carregar_chave_secreta() -> str:
+    chave = os.getenv("SECRET_KEY")
+    if chave:
+        return chave
+    if os.getenv("ENTOMOBASE_ENV") == "dev":
+        print("AVISO: SECRET_KEY não definida; usando uma chave temporária (modo dev).")
+        return secrets.token_urlsafe(32)
+    raise RuntimeError(
+        "SECRET_KEY não definida. Defina a variável de ambiente SECRET_KEY, "
+        "ou use ENTOMOBASE_ENV=dev apenas em desenvolvimento."
+    )
+
+
+SECRET_KEY = carregar_chave_secreta()
 
 
 def verificar_acesso(authorization: str = Header(None)):
