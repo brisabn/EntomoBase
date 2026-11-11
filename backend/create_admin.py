@@ -8,9 +8,12 @@
 # --superadmin also makes the user a platform administrator, who can create laboratories (POST /labs).
 # It never takes the flag away from someone who already has it
 #
+# the e-mail of the user is marked as confirmed (the person is at the server, so there is nothing to prove)
+#
 # the password is asked in the terminal and is not shown on screen
 import getpass
 import sys
+from datetime import datetime, timezone
 
 import models
 from database import SessionLocal
@@ -47,6 +50,11 @@ def main() -> int:
             user = models.User(email=email, password_hash=hash_password(password))
             db.add(user)
             print(f"User {email} created.")
+        # whoever can run this script on the server needs no e-mail to prove who they are; the original
+        # date is kept when the address was already confirmed
+        if user.email_verified_at is None:
+            user.email_verified_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            print(f"The e-mail of {email} is marked as confirmed.")
         if make_superadmin and not user.is_superadmin:
             user.is_superadmin = True
             print(f"{email} is now a platform administrator.")

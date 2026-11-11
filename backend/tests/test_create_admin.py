@@ -105,6 +105,41 @@ def test_a_researcher_keeps_the_role_when_the_password_is_changed(run, db, passw
     assert db.query(models.Membership).one().role == "researcher"
 
 
+# ---------- e-mail confirmation ----------
+def test_a_new_user_has_a_confirmed_e_mail(run, db):
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().email_verified_at is not None
+    assert "marked as confirmed" in output
+
+
+def test_an_existing_unconfirmed_user_becomes_confirmed(run, db, password_hash):
+    from conftest import add_user
+    add_user(EMAIL, password_hash)
+    assert db.query(models.User).one().email_verified_at is None
+    run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().email_verified_at is not None
+
+
+def test_the_date_of_an_earlier_confirmation_is_kept(run, db, password_hash):
+    from datetime import datetime
+    from conftest import add_user
+    add_user(EMAIL, password_hash)
+    db.query(models.User).one().email_verified_at = datetime(2026, 1, 2, 3, 4, 5)
+    db.commit()
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    db.expire_all()
+    assert db.query(models.User).one().email_verified_at == datetime(2026, 1, 2, 3, 4, 5)
+    assert "marked as confirmed" not in output
+
+
+def test_running_again_does_not_repeat_the_message_or_move_the_date(run, db):
+    run([EMAIL], PASSWORD, PASSWORD)
+    first = db.query(models.User).one().email_verified_at
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    db.expire_all()
+    assert db.query(models.User).one().email_verified_at == first and "marked as confirmed" not in output
+
+
 # ---------- --superadmin ----------
 def test_a_user_is_not_a_platform_administrator_by_default(run, db):
     run([EMAIL], PASSWORD, PASSWORD)
