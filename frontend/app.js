@@ -6,6 +6,11 @@ const COVER_PALETTE = ['#c9d9a2', '#e9b78a', '#e3b9a3', '#b8cfc0'];
 const ORDER_COLORS = ['#c8762b', '#4f7a3a', '#8a4f7d', '#2f6f8f', '#b04a3a', '#7a6a2a'];
 const GALLERY_PAGE_SIZE = 48;
 
+// table sort keys as they appear in the address bar (?o=especie); measurement columns keep their "m:" key
+const SORT_TO_URL = { catalog: 'codigo', species: 'especie', family: 'familia', locality: 'local', date: 'data' };
+const SORT_FROM_URL = Object.fromEntries(Object.entries(SORT_TO_URL).map(([key, value]) => [value, key]));
+const sortFromUrl = (value) => SORT_FROM_URL[value] || (value && value.startsWith('m:') ? value : 'catalog');
+
 const ICONS = {
   external: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
   back: '<path d="M19 12H5m6-6-6 6 6 6"/>',
@@ -613,7 +618,7 @@ const app = createApp({
       const qs = new URLSearchParams();
       if (this.currentPage > 1) qs.set('p', this.currentPage);
       if (t.perPage !== 25) qs.set('n', t.perPage);
-      if (t.sort !== 'catalog') qs.set('o', t.sort);
+      if (t.sort !== 'catalog') qs.set('o', SORT_TO_URL[t.sort] || t.sort);
       if (t.dir !== 'asc') qs.set('d', t.dir);
       if (t.query.trim()) qs.set('q', t.query.trim());
       const s = qs.toString();
@@ -654,7 +659,7 @@ const app = createApp({
         this.table = {
           page: Math.max(1, Number(qs.get('p')) || 1),
           perPage: this.pageSizes.includes(n) ? n : 25,
-          sort: qs.get('o') || 'catalog',
+          sort: sortFromUrl(qs.get('o')),
           dir: qs.get('d') === 'desc' ? 'desc' : 'asc',
           query: qs.get('q') || ''
         };
