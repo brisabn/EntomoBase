@@ -239,3 +239,111 @@ def test_a_member_cannot_be_given_a_different_user_or_laboratory_through_the_bod
 
 def test_there_is_no_address_for_roles_without_the_laboratory(client, admin, db):
     assert client.put(f"/members/{member_id(db, EMAIL)}", json={"role": "admin"}, headers=admin).status_code == 404
+
+
+# ---------- removing a member ----------
+def test_an_admin_removes_a_researcher(client, admin, researcher, db):
+    response = client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin)
+    assert response.status_code == 204 and response.content == b""
+    assert [m["email"] for m in client.get("/labs/ufmg/members", headers=admin).json()] == [EMAIL]
+
+
+def test_the_removed_person_loses_access_at_once(client, admin, researcher, db):
+    from helpers import project_body
+    assert client.post("/labs/ufmg/projects", json=project_body(), headers=researcher).status_code == 201
+    client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin)
+    assert client.post("/labs/ufmg/projects", json=project_body(), headers=researcher).status_code == 403
+    assert client.get("/labs/ufmg/export/csv?full=true", headers=researcher).status_code == 403
+
+
+def test_removing_keeps_the_account_and_the_work_they_did(client, admin, researcher, db):
+    from helpers import create_project
+    create_project(client, researcher, title="Made by the researcher")
+    client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin)
+    assert db.query(models.User).filter_by(email=RESEARCHER_EMAIL).count() == 1
+    assert [p["title"] for p in client.get("/labs/ufmg/projects", headers=admin).json()] == ["Made by the researcher"]
+
+
+def test_removing_from_one_laboratory_keeps_the_membership_in_another(client, admin, researcher, db):
+    other = second_lab(db)
+    join(db, RESEARCHER_EMAIL, other, "researcher")
+    client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin)
+    assert role_of(db, RESEARCHER_EMAIL, "lab-b") == "researcher"
+
+
+def test_an_admin_can_remove_another_admin_when_there_is_a_second_one(client, admin, researcher, db):
+    client.put(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", json={"role": "admin"}, headers=admin)
+    assert client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin).status_code == 204
+
+
+def test_an_admin_can_leave_when_another_admin_exists(client, admin, researcher, db):
+    client.put(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", json={"role": "admin"}, headers=admin)
+    assert client.delete(f"/labs/ufmg/members/{member_id(db, EMAIL)}", headers=admin).status_code == 204
+    assert client.get("/labs/ufmg/members", headers=admin).status_code == 403
+
+
+def test_the_last_admin_cannot_be_removed(client, admin, researcher, db):
+    response = client.delete(f"/labs/ufmg/members/{member_id(db, EMAIL)}", headers=admin)
+    assert response.status_code == 400 and response.json()["detail"]["code"] == "last_admin"
+    assert role_of(db, EMAIL) == "admin"
+
+
+def test_the_last_admin_is_counted_per_laboratory_when_removing(client, admin, db):
+    other = second_lab(db)
+    join(db, EMAIL, other, "admin")
+    response = client.delete(f"/labs/ufmg/members/{member_id(db, EMAIL)}", headers=admin)
+    assert response.status_code == 400 and response.json()["detail"]["code"] == "last_admin"
+
+
+def test_a_researcher_cannot_remove_anyone_not_even_themselves(client, admin, researcher, db):
+    for email in (EMAIL, RESEARCHER_EMAIL):
+        assert client.delete(f"/labs/ufmg/members/{member_id(db, email)}", headers=researcher).status_code == 403
+    assert db.query(models.Membership).count() == 2
+
+
+def test_someone_who_is_not_a_member_cannot_remove_anyone(client, admin, outsider, db):
+    assert client.delete(f"/labs/ufmg/members/{member_id(db, EMAIL)}", headers=outsider).status_code == 403
+    assert db.query(models.Membership).count() == 1
+
+
+def test_a_visitor_cannot_remove_anyone(client, admin, db):
+    assert client.delete(f"/labs/ufmg/members/{member_id(db, EMAIL)}").status_code == 401
+    assert db.query(models.Membership).count() == 1
+
+
+def test_a_platform_administrator_without_a_membership_cannot_remove_anyone(client, superadmin, admin, researcher, db):
+    assert client.delete(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", headers=superadmin).status_code == 403
+    assert db.query(models.Membership).count() == 2
+
+
+def test_a_member_of_another_laboratory_is_a_404_and_stays(client, admin, password_hash, db):
+    other = second_lab(db)
+    add_user("elsewhere@lab.br", password_hash)
+    join(db, "elsewhere@lab.br", other, "researcher")
+    response = client.delete(f"/labs/ufmg/members/{member_id(db, 'elsewhere@lab.br', 'lab-b')}", headers=admin)
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "member_not_found"
+    assert role_of(db, "elsewhere@lab.br", "lab-b") == "researcher"
+
+
+def test_an_admin_cannot_remove_people_from_a_laboratory_they_do_not_manage(client, admin, password_hash, db):
+    other = second_lab(db)
+    add_user("elsewhere@lab.br", password_hash)
+    join(db, "elsewhere@lab.br", other, "researcher")
+    response = client.delete(f"/labs/lab-b/members/{member_id(db, 'elsewhere@lab.br', 'lab-b')}", headers=admin)
+    assert response.status_code == 403 and db.query(models.Membership).count() == 2
+
+
+def test_removing_an_unknown_member_is_a_404(client, admin):
+    response = client.delete("/labs/ufmg/members/99999", headers=admin)
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "member_not_found"
+
+
+def test_removing_the_same_member_twice_is_a_404_the_second_time(client, admin, researcher, db):
+    target = member_id(db, RESEARCHER_EMAIL)
+    assert client.delete(f"/labs/ufmg/members/{target}", headers=admin).status_code == 204
+    assert client.delete(f"/labs/ufmg/members/{target}", headers=admin).status_code == 404
+
+
+def test_there_is_no_address_for_removing_without_the_laboratory(client, admin, researcher, db):
+    assert client.delete(f"/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin).status_code == 404
+    assert db.query(models.Membership).count() == 2

@@ -206,6 +206,17 @@ def change_member_role(member_id: int, data: schemas.MemberUpdate, db: Session =
     return schemas.MemberResponse(id=membership.id, email=membership.user.email, name=membership.user.name, role=membership.role)
 
 
+# removing someone only ends their access to this laboratory; the account and any other membership stay
+@members_router.delete("/members/{member_id}", status_code=204)
+def remove_member(member_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    membership = get_membership(db, ctx, member_id)
+    if membership.role == "admin" and other_admins(db, membership) == 0:
+        raise api_error(400, "last_admin")
+    db.delete(membership)
+    db.commit()
+    return None
+
+
 # --- Project routes ---
 # who can do what is decided in authorization.py; these routes only declare the minimum role they need
 # and read data through visible_projects / visible_specimens, never straight from the tables
