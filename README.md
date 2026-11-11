@@ -44,6 +44,28 @@ python seed.py            # cria os projetos e espécimes de exemplo
 python seed.py --remove   # remove só os de exemplo
 ```
 
+## Banco de dados e migrações
+
+A estrutura do banco é controlada pelo Alembic (pasta `backend/migrations`). Em uso normal não há nada a fazer: **a API aplica as migrações pendentes ao iniciar**, e o `seed.py` e o `create_admin.py` também.
+
+Comandos, dentro de `backend` com o ambiente virtual ativo:
+
+```powershell
+alembic current                                # em que versão o banco está
+alembic upgrade head                           # aplica as migrações pendentes (a API já faz isso)
+alembic check                                  # confere se models.py e as migrações estão de acordo
+alembic downgrade -1                           # desfaz a última migração
+alembic revision --autogenerate -m "o que mudou"   # cria uma migração depois de mudar models.py
+```
+
+Para mudar uma tabela: edite `models.py`, rode `alembic revision --autogenerate -m "..."`, **leia o arquivo criado em `migrations/versions`** (o Alembic erra em casos como renomear colunas), rode `alembic upgrade head` e depois `pytest`. O teste `test_models_and_migrations_are_in_sync` falha se você esquecer de criar a migração.
+
+Bancos criados antes do Alembic (inclusive os antigos, com nomes em português e senhas em texto puro) são convertidos e adotados automaticamente na primeira vez que a API sobe, sem perder dados. **Faça um backup do `entomobase.db` antes**, por precaução.
+
+Cuidados:
+- Voltar além da primeira migração (`alembic downgrade base`) apaga todas as tabelas e os dados.
+- Rode uma única cópia da API ao atualizar o banco; duas cópias subindo juntas tentariam migrar ao mesmo tempo.
+
 ## Testes
 
 ```powershell

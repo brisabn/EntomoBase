@@ -100,3 +100,24 @@ def db():
         yield session
     finally:
         session.close()
+
+
+# runs initialize_database() against a separate temporary database, in this process so coverage sees it;
+# returns an engine for that database, which stays open until the end of the test
+@pytest.fixture
+def initialize_at(monkeypatch):
+    import db_setup
+    from sqlalchemy import create_engine
+    engines = []
+
+    def run(db_path, times=1):
+        engine = create_engine("sqlite:///" + db_path.replace("\\", "/"))
+        engines.append(engine)
+        monkeypatch.setattr(db_setup, "engine", engine)
+        for _ in range(times):
+            db_setup.initialize_database()
+        return engine
+
+    yield run
+    for engine in engines:
+        engine.dispose()
