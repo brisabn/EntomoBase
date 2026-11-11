@@ -1,6 +1,7 @@
 import pytest
 
 import main
+import settings
 
 
 # ---------- CORS_ORIGINS ----------
@@ -36,20 +37,20 @@ def test_the_variable_wins_over_dev_mode(monkeypatch):
 # ---------- SECRET_KEY ----------
 def test_the_secret_key_comes_from_the_environment(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "my-key")
-    assert main.load_secret_key() == "my-key"
+    assert settings.load_secret_key() == "my-key"
 
 
 def test_without_a_secret_key_the_api_refuses_to_start(monkeypatch):
     monkeypatch.delenv("SECRET_KEY")
     monkeypatch.delenv("ENTOMOBASE_ENV", raising=False)
     with pytest.raises(RuntimeError, match="SECRET_KEY is not set"):
-        main.load_secret_key()
+        settings.load_secret_key()
 
 
 def test_dev_mode_uses_a_random_key_that_changes_each_time(monkeypatch, capsys):
     monkeypatch.delenv("SECRET_KEY")
     monkeypatch.setenv("ENTOMOBASE_ENV", "dev")
-    first, second = main.load_secret_key(), main.load_secret_key()
+    first, second = settings.load_secret_key(), settings.load_secret_key()
     assert first != second and len(first) >= 32
     assert "temporary key" in capsys.readouterr().out
 
@@ -58,4 +59,4 @@ def test_any_other_environment_name_is_not_dev(monkeypatch):
     monkeypatch.delenv("SECRET_KEY")
     monkeypatch.setenv("ENTOMOBASE_ENV", "production")
     with pytest.raises(RuntimeError):
-        main.load_secret_key()
+        settings.load_secret_key()

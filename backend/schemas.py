@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import date
 
 class MeasurementBase(BaseModel):
@@ -126,6 +126,10 @@ class ImportReport(BaseModel):
     warnings: List[ImportWarning] = []
 
 
+# who can see a project: only the laboratory, anyone with the share link, or everyone
+Visibility = Literal["private", "unlisted", "public"]
+
+
 class ProjectBase(BaseModel):
     title: str = Field(..., min_length=1)
     year: int = Field(..., ge=1900, le=2100)
@@ -138,11 +142,15 @@ class ProjectBase(BaseModel):
     linked_publication: Optional[str] = None
     description: Optional[str] = None
 
+# a new project is private until someone in the laboratory publishes it
 class ProjectCreate(ProjectBase):
-    pass
+    visibility: Visibility = "private"
 
 class ProjectResponse(ProjectBase):
     id: int
+    visibility: str
+    # only sent to members of the laboratory
+    share_token: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -160,6 +168,7 @@ class ProjectUpdate(BaseModel):
     cover_url: Optional[str] = None
     dataset_url: Optional[str] = None
     finished: Optional[bool] = None
+    visibility: Optional[Visibility] = None
     linked_publication: Optional[str] = None
     description: Optional[str] = None
 

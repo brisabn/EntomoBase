@@ -35,7 +35,19 @@ Criar o primeiro usuário do laboratório (não existe usuário padrão). Dentro
 python create_admin.py seu-email@exemplo.br
 ```
 
-A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mesmo e-mail troca a senha.
+A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mesmo e-mail troca a senha. O usuário vira **administrador do laboratório inicial** (sem vínculo com um laboratório, ninguém consegue criar nem editar nada).
+
+### Quem pode o quê
+
+| | Visitante | Logado, sem vínculo | Pesquisador | Administrador |
+|---|---|---|---|---|
+| Ver projetos e espécimes **públicos** | sim | sim | sim | sim |
+| Ver o que é **privado** do laboratório, campos internos, CSV completo | não | não | sim | sim |
+| Criar e editar projetos e espécimes, importar CSV, **publicar** | não | não | sim | sim |
+| Excluir espécimes | não | não | sim | sim |
+| Excluir projetos (apaga os espécimes dele) | não | não | não | sim |
+
+A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.
 
 Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECRET_KEY`):
 

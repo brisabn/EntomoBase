@@ -1014,11 +1014,13 @@ const app = createApp({
         ? {
             id: p.id, title: p.title, year: p.year, insect_group: p.insect_group, measured_traits: p.measured_traits || '',
             locality: p.locality || '', cover_url: p.cover_url || '', dataset_url: p.dataset_url || '',
-            linked_publication: p.linked_publication || '', description: p.description || '', finished: !!p.finished
+            linked_publication: p.linked_publication || '', description: p.description || '', finished: !!p.finished,
+            visibility: p.visibility || 'private'
           }
         : {
             id: null, title: '', year: new Date().getFullYear(), insect_group: '', measured_traits: '', locality: '',
-            cover_url: '', dataset_url: '', linked_publication: '', description: '', finished: false
+            cover_url: '', dataset_url: '', linked_publication: '', description: '', finished: false,
+            visibility: 'private'
           };
     },
     async saveProject() {
@@ -1029,7 +1031,7 @@ const app = createApp({
         title: f.title.trim(), year: Number(f.year), insect_group: f.insect_group.trim(),
         measured_traits: orNull(f.measured_traits), locality: orNull(f.locality), cover_url: orNull(f.cover_url),
         dataset_url: orNull(f.dataset_url), linked_publication: orNull(f.linked_publication),
-        description: orNull(f.description), finished: !!f.finished
+        description: orNull(f.description), finished: !!f.finished, visibility: f.visibility
       };
       try {
         const saved = await this.api(f.id ? `/projects/${f.id}` : '/projects', { method: f.id ? 'PUT' : 'POST', body });

@@ -1,5 +1,5 @@
 def project_body(**overrides):
-    body = {"title": "Project A", "year": 2025, "insect_group": "Coleoptera", "finished": True}
+    body = {"title": "Project A", "year": 2025, "insect_group": "Coleoptera", "finished": True, "visibility": "public"}
     body.update(overrides)
     return body
 

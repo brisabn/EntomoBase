@@ -66,3 +66,11 @@ def test_missing_families_are_filled_for_known_species(run_seed, client, admin, 
     create_specimen(client, admin, "NO-FAM", species="Dynastes hercules")
     run_seed()
     assert db.query(models.Specimen).filter_by(catalog_number="NO-FAM").one().family == "Scarabaeidae"
+
+
+def test_finished_demo_projects_are_public_and_the_others_private(run_seed, db):
+    run_seed()
+    for project in db.query(models.Project).all():
+        assert project.visibility == ("public" if project.finished else "private")
+        assert project.share_token is None
+    assert {p.laboratory_id for p in db.query(models.Project).all()} == {db.query(models.Laboratory).one().id}

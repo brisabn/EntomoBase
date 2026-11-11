@@ -19,6 +19,7 @@ def data(client, admin):
                     sex="macho", image_file="A 1.jpg", collection_date="2025-03-14", collector="Me",
                     measurements=[{"trait": "Comprimento corporal", "value": 60.5}, {"trait": "Chifre", "value": 12, "unit": "cm"}])
     create_specimen(client, admin, "A-2", project_id=project["id"], measurements=[{"trait": "Comprimento corporal", "value": 40}])
+    # a specimen without a project is private, so it is in no public export
     create_specimen(client, admin, "OUT-1")
     return project
 
@@ -72,7 +73,7 @@ def test_one_column_per_trait_and_unit(client, data):
     by_code = {r[0]: r for r in rows[1:]}
     assert by_code["A-1"][-2:] == ["60.5", "12.0"]
     assert by_code["A-2"][-2:] == ["40.0", ""]
-    assert by_code["OUT-1"][-2:] == ["", ""]
+    assert "OUT-1" not in by_code
 
 
 def test_csv_can_be_limited_to_a_project(client, data):
@@ -111,7 +112,7 @@ def test_meta_xml_describes_both_tables(client, data):
 def test_occurrences(client, data):
     rows = list(csv.DictReader(io.StringIO(archive(client).read("occurrence.csv").decode("utf-8"))))
     by_number = {r["catalogNumber"]: r for r in rows}
-    assert set(by_number) == {"A-1", "A-2", "OUT-1"}
+    assert set(by_number) == {"A-1", "A-2"}
     first = by_number["A-1"]
     assert first["occurrenceID"] == "UFMG:EntomoBase:A-1"
     assert first["basisOfRecord"] == "PreservedSpecimen" and first["kingdom"] == "Animalia" and first["class"] == "Insecta"
@@ -135,7 +136,8 @@ def test_demo_records_have_no_media_link(client, admin):
 
 
 def test_a_photo_url_is_used_as_media(client, admin):
-    create_specimen(client, admin, "P-1", photo_url="https://example.org/photo.jpg")
+    project = create_project(client, admin)
+    create_specimen(client, admin, "P-1", project_id=project["id"], photo_url="https://example.org/photo.jpg")
     rows = list(csv.DictReader(io.StringIO(archive(client).read("occurrence.csv").decode("utf-8"))))
     assert rows[0]["associatedMedia"] == "https://example.org/photo.jpg"
 
