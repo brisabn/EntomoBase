@@ -266,6 +266,8 @@
                 <h2 class="titulo-secao">Espécimes</h2>
                 <div class="acoes">
                   <button type="button" class="btn-claro" @click="exportarCsv(projetoAtual.id)">Exportar CSV</button>
+                  <button v-if="acessoLab" type="button" class="btn-claro" @click="exportarCsv(projetoAtual.id, true)" title="Inclui coletor, localização física e empréstimo">CSV completo (interno)</button>
+                  <button type="button" class="btn-claro" @click="exportarDwc(projetoAtual.id)" title="Pacote Darwin Core para GBIF">Darwin Core</button>
                   <button v-if="acessoLab" type="button" class="btn-claro" @click="abrirImportacao(projetoAtual.id)">Importar CSV</button>
                   <button v-if="acessoLab" type="button" class="btn-escuro btn-pequeno" @click="abrirFormEspecime(null, projetoAtual.id)">Adicionar espécime</button>
                 </div>
@@ -279,31 +281,64 @@
 
               <p v-if="!especimesDoProjeto.length" class="vazio">Nenhum espécime cadastrado neste projeto.</p>
 
-              <div class="tabela-wrap" v-else-if="vistaProjeto === 'tabela'">
-                <table class="tabela">
-                  <thead>
-                    <tr>
-                      <th><span class="sr-only">Imagem</span></th><th>Etiqueta</th><th>Espécie</th><th>Família</th><th>Local</th><th>Coleta</th>
-                      <th v-for="c in colunasMedidas" :key="c.chave" class="num">{{ c.traco }} ({{ c.unidade }})</th>
-                      <th v-if="acessoLab"><span class="sr-only">Ações</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="e in especimesDoProjeto" :key="e.id">
-                      <td class="col-mini"><button type="button" class="mini-btn" @click="abrirPainel(e, especimesDoProjeto)" :aria-label="'Ver detalhes de ' + e.codigo_etiqueta"><foto :src="urlImagem(e, 100)" alt="" rotulo="—"></foto></button></td>
-                      <td class="mono"><button type="button" class="link" @click="abrirPainel(e, especimesDoProjeto)">{{ e.codigo_etiqueta }}</button></td>
-                      <td><em>{{ e.especie }}</em></td>
-                      <td>{{ e.familia || '—' }}</td>
-                      <td>{{ e.local_coleta || '—' }}</td>
-                      <td>{{ formatarData(e.data_coleta) }}</td>
-                      <td v-for="c in colunasMedidas" :key="c.chave" class="num">{{ valorMedida(e, c) }}</td>
-                      <td v-if="acessoLab" class="acoes-linha">
-                        <button type="button" class="link" @click="abrirFormEspecime(e)">Editar</button>
-                        <button type="button" class="link perigo" @click="pedirExcluirEspecime(e)">Excluir</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-else-if="vistaProjeto === 'tabela'">
+                <div class="tabela-topo">
+                  <label class="busca busca-tabela">
+                    <span class="sr-only">Buscar nesta tabela</span>
+                    <input v-model="tab.busca" type="text" placeholder="Buscar neste projeto" autocomplete="off" @input="tab.pagina = 1">
+                  </label>
+                  <label class="por-pagina">
+                    <span>Linhas por página</span>
+                    <select v-model.number="tab.porPagina" @change="tab.pagina = 1">
+                      <option v-for="n in tamanhosPagina" :key="n" :value="n">{{ n }}</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="tabela-wrap">
+                  <table class="tabela">
+                    <thead>
+                      <tr>
+                        <th><span class="sr-only">Imagem</span></th>
+                        <th :aria-sort="setaOrdem('codigo')"><button type="button" class="th-ordem" @click="ordenarPor('codigo')">Etiqueta <span class="seta-ordem" :data-dir="tab.ordem === 'codigo' ? tab.dir : ''"></span></button></th>
+                        <th :aria-sort="setaOrdem('especie')"><button type="button" class="th-ordem" @click="ordenarPor('especie')">Espécie <span class="seta-ordem" :data-dir="tab.ordem === 'especie' ? tab.dir : ''"></span></button></th>
+                        <th :aria-sort="setaOrdem('familia')"><button type="button" class="th-ordem" @click="ordenarPor('familia')">Família <span class="seta-ordem" :data-dir="tab.ordem === 'familia' ? tab.dir : ''"></span></button></th>
+                        <th :aria-sort="setaOrdem('local')"><button type="button" class="th-ordem" @click="ordenarPor('local')">Local <span class="seta-ordem" :data-dir="tab.ordem === 'local' ? tab.dir : ''"></span></button></th>
+                        <th :aria-sort="setaOrdem('data')"><button type="button" class="th-ordem" @click="ordenarPor('data')">Coleta <span class="seta-ordem" :data-dir="tab.ordem === 'data' ? tab.dir : ''"></span></button></th>
+                        <th v-for="c in colunasMedidas" :key="c.chave" class="num" :aria-sort="setaOrdem('m:' + c.chave)"><button type="button" class="th-ordem" @click="ordenarPor('m:' + c.chave)">{{ c.traco }} ({{ c.unidade }}) <span class="seta-ordem" :data-dir="tab.ordem === 'm:' + c.chave ? tab.dir : ''"></span></button></th>
+                        <th v-if="acessoLab"><span class="sr-only">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="e in tabelaPagina" :key="e.id">
+                        <td class="col-mini"><button type="button" class="mini-btn" @click="abrirPainel(e, tabelaOrdenada)" :aria-label="'Ver detalhes de ' + e.codigo_etiqueta"><foto :src="urlImagem(e, 100)" alt="" rotulo="—"></foto></button></td>
+                        <td class="mono"><button type="button" class="link" @click="abrirPainel(e, tabelaOrdenada)">{{ e.codigo_etiqueta }}</button></td>
+                        <td><em>{{ e.especie }}</em></td>
+                        <td>{{ e.familia || '—' }}</td>
+                        <td>{{ e.local_coleta || '—' }}</td>
+                        <td>{{ formatarData(e.data_coleta) }}</td>
+                        <td v-for="c in colunasMedidas" :key="c.chave" class="num">{{ valorMedida(e, c) }}</td>
+                        <td v-if="acessoLab" class="acoes-linha">
+                          <button type="button" class="link" @click="abrirFormEspecime(e)">Editar</button>
+                          <button type="button" class="link perigo" @click="pedirExcluirEspecime(e)">Excluir</button>
+                        </td>
+                      </tr>
+                      <tr v-if="!tabelaPagina.length"><td :colspan="6 + colunasMedidas.length + (acessoLab ? 1 : 0)" class="mudo">Nenhum espécime encontrado para essa busca.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <nav class="paginacao" aria-label="Páginas da tabela">
+                  <span class="mudo pequeno">Mostrando {{ faixaTabela }}</span>
+                  <div class="paginas" v-if="totalPaginas > 1">
+                    <button type="button" class="pag" :disabled="paginaAtual === 1" @click="irParaPagina(paginaAtual - 1)">Anterior</button>
+                    <template v-for="b in botoesPagina" :key="b.chave">
+                      <span v-if="b.reticencias" class="pag-reticencias">…</span>
+                      <button v-else type="button" :class="['pag', 'pag-num', { ativa: b.n === paginaAtual }]" :aria-current="b.n === paginaAtual ? 'page' : null" @click="irParaPagina(b.n)">{{ b.n }}</button>
+                    </template>
+                    <button type="button" class="pag" :disabled="paginaAtual === totalPaginas" @click="irParaPagina(paginaAtual + 1)">Próxima</button>
+                  </div>
+                </nav>
               </div>
 
               <galeria v-else-if="vistaProjeto === 'galeria'" :itens="galeriaVisivel" :restante="galeriaRestante" @abrir="abrirPainel($event, listaContexto)" @mais="limiteGaleria += 48"></galeria>
@@ -396,6 +431,8 @@
               <div class="acoes">
                 <button v-if="acessoLab" type="button" class="btn-claro" @click="abrirImportacao()">Importar CSV</button>
                 <button type="button" class="btn-claro" @click="exportarCsv()">Exportar CSV</button>
+                <button v-if="acessoLab" type="button" class="btn-claro" @click="exportarCsv(null, true)" title="Inclui coletor, localização física e empréstimo">CSV completo</button>
+                <button type="button" class="btn-claro" @click="exportarDwc()" title="Pacote Darwin Core para GBIF">Darwin Core</button>
               </div>
             </div>
 
@@ -565,8 +602,15 @@
           <div class="campos-3">
             <label class="campo"><span>Ordem</span><input v-model="formEspecime.grupo_insetos" list="lista-ordens" required></label>
             <label class="campo"><span>Família</span><input v-model="formEspecime.familia" list="lista-familias"></label>
-            <label class="campo"><span>Espécie</span><input v-model="formEspecime.especie" required></label>
+            <label class="campo"><span>Espécie</span><input v-model="formEspecime.especie" required @blur="conferirNome"></label>
           </div>
+          <p v-if="dicaNome" class="dica-gbif" role="status">
+            <template v-if="dicaNome.situacao === 'nao_encontrado'">O GBIF não reconhece "{{ dicaNome.nome }}". Confira a grafia.</template>
+            <template v-else-if="dicaNome.situacao === 'so_genero'">O GBIF só reconheceu o gênero <em>{{ dicaNome.sugestao }}</em>.</template>
+            <template v-else-if="dicaNome.situacao === 'sinonimo'">No GBIF, "{{ dicaNome.nome }}" é sinônimo de <em>{{ dicaNome.sugestao }}</em>.</template>
+            <template v-else>No GBIF, a grafia aceita parece ser <em>{{ dicaNome.sugestao }}</em>.</template>
+            <button v-if="dicaNome.sugestao && dicaNome.situacao !== 'so_genero'" type="button" class="link" @click="usarNomeSugerido">Usar este nome</button>
+          </p>
           <div class="campos-2">
             <label class="campo"><span>Data da coleta</span><input v-model="formEspecime.data_coleta" type="date"></label>
             <label class="campo"><span>Local de coleta</span><input v-model="formEspecime.local_coleta"></label>
@@ -581,6 +625,17 @@
             <label class="campo"><span>Estágio</span><input v-model="formEspecime.estagio" list="lista-estagios"></label>
           </div>
           <fieldset class="medidas-form">
+            <legend>Identificação e coleta (público)</legend>
+            <div class="campos-2">
+              <label class="campo"><span>Determinador</span><input v-model="formEspecime.determinador"></label>
+              <label class="campo"><span>Data da determinação</span><input v-model="formEspecime.data_determinacao" type="date"></label>
+            </div>
+            <div class="campos-2">
+              <label class="campo"><span>Método de coleta</span><input v-model="formEspecime.metodo_coleta" list="lista-metodos" placeholder="armadilha, rede entomológica..."></label>
+              <label class="campo"><span>Habitat</span><input v-model="formEspecime.habitat"></label>
+            </div>
+          </fieldset>
+          <fieldset class="medidas-form">
             <legend>Medidas</legend>
             <div class="medida-linha" v-for="(m, i) in formEspecime.medidas" :key="i">
               <input v-model="m.traco" list="lista-tracos" placeholder="Traço" aria-label="Nome do traço">
@@ -592,7 +647,23 @@
           </fieldset>
           <label class="campo"><span>Arquivo da imagem no repositório do projeto</span><input v-model="formEspecime.imagem_arquivo" placeholder="ex.: RDO-0001.jpg"></label>
           <label class="campo"><span>URL da fotografia (opcional, substitui o repositório)</span><input v-model="formEspecime.fotografia_url" type="url"></label>
-          <label class="campo"><span>Notas</span><textarea v-model="formEspecime.notas" rows="2"></textarea></label>
+          <label class="campo"><span>Notas (públicas)</span><textarea v-model="formEspecime.notas" rows="2"></textarea></label>
+          <fieldset class="medidas-form interno">
+            <legend>Acervo interno (não aparece para visitantes)</legend>
+            <div class="campos-2">
+              <label class="campo"><span>Coletor</span><input v-model="formEspecime.coletor"></label>
+              <label class="campo"><span>Número de campo</span><input v-model="formEspecime.numero_campo"></label>
+            </div>
+            <div class="campos-2">
+              <label class="campo"><span>Localização física</span><input v-model="formEspecime.localizacao_fisica" placeholder="ex.: Armário 2, caixa 14"></label>
+              <label class="campo"><span>Situação</span><input v-model="formEspecime.emprestimo_situacao" list="lista-emprestimo" placeholder="no acervo, emprestado..."></label>
+            </div>
+            <div class="campos-2">
+              <label class="campo"><span>Emprestado para</span><input v-model="formEspecime.emprestimo_para"></label>
+              <label class="campo"><span>Data do empréstimo</span><input v-model="formEspecime.emprestimo_data" type="date"></label>
+            </div>
+            <label class="campo"><span>Notas internas</span><textarea v-model="formEspecime.notas_internas" rows="2"></textarea></label>
+          </fieldset>
           <p v-if="erroForm" class="erro-form" role="alert">{{ erroForm }}</p>
           <div class="modal-acoes">
             <button type="button" class="btn-claro" @click="formEspecime = null">Cancelar</button>
@@ -606,6 +677,8 @@
     <datalist id="lista-ordens"><option v-for="g in sugestoes.ordens" :key="g" :value="g"></option></datalist>
     <datalist id="lista-familias"><option v-for="g in sugestoes.familias" :key="g" :value="g"></option></datalist>
     <datalist id="lista-tracos"><option v-for="g in sugestoes.tracos" :key="g" :value="g"></option></datalist>
+    <datalist id="lista-metodos"><option>armadilha de queda</option><option>armadilha luminosa</option><option>armadilha Malaise</option><option>rede entomológica</option><option>busca ativa</option><option>guarda-chuva entomológico</option></datalist>
+    <datalist id="lista-emprestimo"><option>no acervo</option><option>emprestado</option><option>em análise</option></datalist>
     <datalist id="lista-sexos"><option v-for="g in sugestoes.sexos" :key="g" :value="g"></option></datalist>
     <datalist id="lista-estagios"><option v-for="g in sugestoes.estagios" :key="g" :value="g"></option></datalist>
 
@@ -633,6 +706,9 @@
             <div v-if="painelEsp.altitude_m !== null"><dt>Altitude</dt><dd>{{ fmt(painelEsp.altitude_m) }} m</dd></div>
             <div v-if="painelEsp.sexo"><dt>Sexo</dt><dd>{{ painelEsp.sexo }}</dd></div>
             <div v-if="painelEsp.estagio"><dt>Estágio</dt><dd>{{ painelEsp.estagio }}</dd></div>
+            <div v-if="painelEsp.determinador"><dt>Determinador</dt><dd>{{ painelEsp.determinador }}<template v-if="painelEsp.data_determinacao"> · {{ formatarData(painelEsp.data_determinacao) }}</template></dd></div>
+            <div v-if="painelEsp.metodo_coleta"><dt>Método de coleta</dt><dd>{{ painelEsp.metodo_coleta }}</dd></div>
+            <div v-if="painelEsp.habitat"><dt>Habitat</dt><dd>{{ painelEsp.habitat }}</dd></div>
             <div v-if="painelEsp.imagem_arquivo"><dt>Arquivo</dt><dd class="mono">{{ painelEsp.imagem_arquivo }}</dd></div>
           </dl>
 
@@ -644,6 +720,17 @@
           </div>
 
           <p v-if="painelEsp.notas" class="painel-notas">{{ painelEsp.notas }}</p>
+
+          <div v-if="acessoLab && (painelEsp.coletor || painelEsp.numero_campo || painelEsp.localizacao_fisica || painelEsp.emprestimo_situacao || painelEsp.notas_internas)" class="painel-interno">
+            <h3 class="painel-sub">Interno do laboratório</h3>
+            <dl class="painel-dados">
+              <div v-if="painelEsp.coletor"><dt>Coletor</dt><dd>{{ painelEsp.coletor }}</dd></div>
+              <div v-if="painelEsp.numero_campo"><dt>Número de campo</dt><dd>{{ painelEsp.numero_campo }}</dd></div>
+              <div v-if="painelEsp.localizacao_fisica"><dt>Localização física</dt><dd>{{ painelEsp.localizacao_fisica }}</dd></div>
+              <div v-if="painelEsp.emprestimo_situacao"><dt>Situação</dt><dd>{{ painelEsp.emprestimo_situacao }}<template v-if="painelEsp.emprestimo_para"> · {{ painelEsp.emprestimo_para }}</template><template v-if="painelEsp.emprestimo_data"> ({{ formatarData(painelEsp.emprestimo_data) }})</template></dd></div>
+            </dl>
+            <p v-if="painelEsp.notas_internas" class="painel-notas">{{ painelEsp.notas_internas }}</p>
+          </div>
 
           <div class="painel-links">
             <a v-if="painelProjeto" class="link" :href="'#/projetos/' + painelProjeto.id" @click="painel = null">{{ painelProjeto.titulo }}</a>
@@ -743,6 +830,21 @@
                 </li>
               </ul>
               <p v-if="importacao.errosCliente.length + (importacao.relatorio ? importacao.relatorio.erros.length : 0) > 12" class="mudo pequeno">Mostrando os 12 primeiros erros.</p>
+              <div v-if="importacao.relatorio && importacao.relatorio.avisos.length" class="imp-avisos">
+                <p class="imp-avisos-titulo">
+                  Nomes para conferir no GBIF (não impedem a importação)
+                  <button v-if="importacao.relatorio.avisos.some((a) => a.sugestao && (a.tipo === 'aproximado' || a.tipo === 'sinonimo'))" type="button" class="link" @click="aplicarTodasSugestoes">Aplicar todas as sugestões</button>
+                </p>
+                <ul>
+                  <li v-for="av in importacao.relatorio.avisos" :key="av.tipo + av.nome">
+                    <template v-if="av.tipo === 'indisponivel'">O GBIF não respondeu; {{ plural(av.linhas, 'linha', 'linhas') }} sem conferência de nome.</template>
+                    <template v-else>
+                      <strong>{{ rotuloAviso(av.tipo) }}:</strong> <em>{{ av.nome }}</em> ({{ plural(av.linhas, 'linha', 'linhas') }})<template v-if="av.sugestao"> &rarr; <em>{{ av.sugestao }}</em></template>
+                      <button v-if="av.sugestao && (av.tipo === 'aproximado' || av.tipo === 'sinonimo')" type="button" class="link" @click="aplicarSugestao(av)">Usar sugestão</button>
+                    </template>
+                  </li>
+                </ul>
+              </div>
               <p v-if="!importacao.relatorio && !importacao.errosCliente.length" class="mudo">Nenhuma linha válida para importar ainda.</p>
             </template>
           </div>

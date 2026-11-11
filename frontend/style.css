@@ -506,3 +506,33 @@ input[type="file"]::file-selector-button { height: 2rem; border: 1.5px solid var
 .popover-tracos li { padding: 0.35rem 0.8rem; border-radius: 8px; }
 .popover-tracos li:hover { background: var(--papel); }
 .popover-tracos { left: 0; right: auto; }
+
+/* ---------- tabela paginada, campos internos, avisos do GBIF ---------- */
+.tabela-topo { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.busca-tabela { flex: 0 1 360px; margin: 0; }
+.por-pagina { display: inline-flex; align-items: center; gap: 0.6rem; font-size: 0.95rem; color: var(--tinta-2); }
+.por-pagina select { height: 2.4rem; border: 1.5px solid var(--linha); border-radius: 10px; padding: 0 0.6rem; background: #fff; font: inherit; color: var(--tinta); }
+.th-ordem { font: inherit; font-size: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; white-space: nowrap; }
+.th-ordem:hover { color: var(--tinta); }
+.seta-ordem { display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; opacity: 0.25; border-top: 5px solid currentColor; }
+.seta-ordem[data-dir="asc"] { opacity: 1; border-top: none; border-bottom: 5px solid currentColor; }
+.seta-ordem[data-dir="desc"] { opacity: 1; }
+.paginacao { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }
+.paginas { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.pag { height: 2.3rem; min-width: 2.3rem; padding: 0 0.9rem; border-radius: 999px; border: 1.5px solid var(--linha); font-weight: 600; cursor: pointer; background: transparent; }
+.pag:hover:not(:disabled) { background: var(--branco); border-color: var(--tinta); }
+.pag:disabled { opacity: 0.4; cursor: not-allowed; }
+.pag-num { padding: 0 0.4rem; }
+.pag.ativa { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+.pag-reticencias { padding: 0 0.3rem; color: var(--tinta-2); }
+
+.medidas-form.interno { border-style: dashed; border-color: var(--perigo); }
+.medidas-form.interno legend { color: var(--perigo); }
+.painel-interno { border: 1.5px dashed #c99a90; border-radius: 12px; padding: 0.8rem 1rem 0.2rem; margin-bottom: 1.2rem; }
+.painel-interno .painel-dados { margin-bottom: 0.8rem; }
+.dica-gbif { background: #fdf3d0; border-radius: 10px; padding: 0.55rem 0.9rem; font-size: 0.95rem; margin: -0.3rem 0 1rem; display: flex; gap: 0.8rem; flex-wrap: wrap; align-items: center; }
+.imp-avisos { background: #fdf3d0; border-radius: 10px; padding: 0.7rem 0.9rem; font-size: 0.93rem; margin-bottom: 0.6rem; }
+.imp-avisos-titulo { font-weight: 600; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.4rem; }
+.imp-avisos ul { list-style: none; display: flex; flex-direction: column; gap: 0.3rem; }
+.imp-avisos li .link { margin-left: 0.6rem; }
+@media (max-width: 620px) { .busca-tabela { flex: 1 1 100%; } .paginacao { flex-direction: column; align-items: flex-start; } }

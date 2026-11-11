@@ -85,6 +85,17 @@ const ALIASES = {
   imagem_arquivo: ['imagem', 'imagem_arquivo', 'arquivo_imagem', 'arquivo', 'foto', 'imagem_zenodo'],
   fotografia_url: ['fotografia_url', 'url_imagem', 'foto_url'],
   notas: ['notas', 'observacoes', 'obs', 'observacao'],
+  determinador: ['determinador', 'identificado_por', 'identificador'],
+  data_determinacao: ['data_determinacao', 'data_da_determinacao', 'data_identificacao'],
+  metodo_coleta: ['metodo_coleta', 'metodo', 'metodo_de_coleta'],
+  habitat: ['habitat'],
+  coletor: ['coletor', 'coletado_por', 'coletores'],
+  numero_campo: ['numero_campo', 'numero_de_campo', 'n_campo'],
+  localizacao_fisica: ['localizacao_fisica', 'localizacao', 'caixa', 'gaveta'],
+  emprestimo_situacao: ['emprestimo', 'emprestimo_situacao', 'situacao_emprestimo'],
+  emprestimo_para: ['emprestado_para', 'emprestimo_para'],
+  emprestimo_data: ['data_emprestimo', 'emprestimo_data'],
+  notas_internas: ['notas_internas', 'observacoes_internas'],
   projeto: ['projeto', 'titulo_projeto'],
   projeto_id: ['projeto_id', 'id_projeto']
 };
@@ -92,7 +103,11 @@ const CAMPOS_IMPORTACAO = [
   ['codigo_etiqueta', 'Código da etiqueta'], ['grupo_insetos', 'Ordem'], ['familia', 'Família'], ['especie', 'Espécie'],
   ['data_coleta', 'Data da coleta'], ['local_coleta', 'Local de coleta'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
   ['altitude_m', 'Altitude (m)'], ['sexo', 'Sexo'], ['estagio', 'Estágio'], ['imagem_arquivo', 'Arquivo da imagem'],
-  ['fotografia_url', 'URL da fotografia'], ['notas', 'Notas'], ['projeto', 'Projeto (título)'], ['projeto_id', 'Projeto (id)']
+  ['fotografia_url', 'URL da fotografia'], ['notas', 'Notas'], ['projeto', 'Projeto (título)'], ['projeto_id', 'Projeto (id)'],
+  ['determinador', 'Determinador'], ['data_determinacao', 'Data da determinação'], ['metodo_coleta', 'Método de coleta'], ['habitat', 'Habitat'],
+  ['coletor', 'Coletor (interno)'], ['numero_campo', 'Número de campo (interno)'], ['localizacao_fisica', 'Localização física (interno)'],
+  ['emprestimo_situacao', 'Empréstimo (interno)'], ['emprestimo_para', 'Emprestado para (interno)'], ['emprestimo_data', 'Data do empréstimo (interno)'],
+  ['notas_internas', 'Notas internas']
 ];
 
 function chaveCabecalho(h) {
@@ -180,6 +195,9 @@ const app = createApp({
       formEspecime: null,
       importacao: null,
       erroForm: null,
+      dicaNome: null,
+      tab: { pagina: 1, porPagina: 25, ordem: 'codigo', dir: 'asc', busca: '' },
+      tamanhosPagina: [25, 50, 100],
       confirmacao: null,
       info: null,
       toast: null,
@@ -254,6 +272,61 @@ const app = createApp({
     // ---------- projetos ----------
     projetoAtual() {
       return this.rota.nome === 'projeto' ? (this.projetosPorId[this.rota.id] || null) : null;
+    },
+    tabelaOrdenada() {
+      const q = norm(this.tab.busca).trim();
+      let lista = this.especimesDoProjeto;
+      if (q) {
+        lista = lista.filter((e) => norm([e.codigo_etiqueta, e.especie, e.familia, e.local_coleta, e.determinador, e.sexo, e.estagio].join(' ')).includes(q));
+      }
+      const { ordem, dir } = this.tab;
+      const valor = (e) => {
+        if (ordem === 'especie') return e.especie;
+        if (ordem === 'familia') return e.familia;
+        if (ordem === 'local') return e.local_coleta;
+        if (ordem === 'data') return e.data_coleta;
+        if (ordem.startsWith('m:')) {
+          const m = (e.medidas || []).find((x) => `${x.traco}|${x.unidade}` === ordem.slice(2));
+          return m ? m.valor : null;
+        }
+        return e.codigo_etiqueta;
+      };
+      const vazio = (v) => v === null || v === undefined || v === '';
+      const sinal = dir === 'desc' ? -1 : 1;
+      return [...lista].sort((a, b) => {
+        const x = valor(a);
+        const y = valor(b);
+        if (vazio(x)) return vazio(y) ? 0 : 1;
+        if (vazio(y)) return -1;
+        const r = typeof x === 'number' && typeof y === 'number' ? x - y : cmp(String(x), String(y));
+        return r * sinal || cmp(a.codigo_etiqueta, b.codigo_etiqueta);
+      });
+    },
+    totalPaginas() { return Math.max(1, Math.ceil(this.tabelaOrdenada.length / this.tab.porPagina)); },
+    paginaAtual() { return Math.min(Math.max(1, this.tab.pagina), this.totalPaginas); },
+    tabelaPagina() {
+      const ini = (this.paginaAtual - 1) * this.tab.porPagina;
+      return this.tabelaOrdenada.slice(ini, ini + this.tab.porPagina);
+    },
+    faixaTabela() {
+      const n = this.tabelaOrdenada.length;
+      if (!n) return '0 de 0';
+      const ini = (this.paginaAtual - 1) * this.tab.porPagina + 1;
+      return `${ini} a ${Math.min(n, ini + this.tab.porPagina - 1)} de ${n.toLocaleString('pt-BR')}`;
+    },
+    botoesPagina() {
+      const total = this.totalPaginas;
+      const atual = this.paginaAtual;
+      const nums = new Set([1, total, atual - 1, atual, atual + 1]);
+      if (atual <= 3) { nums.add(2); nums.add(3); nums.add(4); }
+      if (atual >= total - 2) { nums.add(total - 1); nums.add(total - 2); nums.add(total - 3); }
+      const lista = [...nums].filter((n) => n >= 1 && n <= total).sort((x, y) => x - y);
+      const saida = [];
+      lista.forEach((n, i) => {
+        if (i && n - lista[i - 1] > 1) saida.push({ reticencias: true, chave: `r${n}` });
+        saida.push({ n, chave: `p${n}` });
+      });
+      return saida;
     },
     tracosProjeto() {
       const p = this.projetoAtual;
@@ -494,6 +567,7 @@ const app = createApp({
         history.replaceState(null, '', v.trim() ? `#/busca/${encodeURIComponent(v.trim())}` : '#/busca');
       }
     },
+    tab: { deep: true, handler() { this.sincronizarUrlTabela(); } },
     buscaColecao() { this.limiteGaleria = POR_PAGINA_GALERIA; this.expandirSeFiltrando(); },
     colecaoFiltros: { deep: true, handler() { this.limiteGaleria = POR_PAGINA_GALERIA; this.expandirSeFiltrando(); } }
   },
@@ -528,9 +602,36 @@ const app = createApp({
     ehUrl,
     fmt,
 
+    // ---------- tabela do projeto ----------
+    sincronizarUrlTabela() {
+      if (this.rota.nome !== 'projeto' || this.rota.vista !== 'tabela') return;
+      const t = this.tab;
+      const qs = new URLSearchParams();
+      if (this.paginaAtual > 1) qs.set('p', this.paginaAtual);
+      if (t.porPagina !== 25) qs.set('n', t.porPagina);
+      if (t.ordem !== 'codigo') qs.set('o', t.ordem);
+      if (t.dir !== 'asc') qs.set('d', t.dir);
+      if (t.busca.trim()) qs.set('q', t.busca.trim());
+      const s = qs.toString();
+      const novo = `#/projetos/${this.rota.id}${s ? '?' + s : ''}`;
+      if (location.hash !== novo) history.replaceState(null, '', novo);
+    },
+    ordenarPor(chave) {
+      if (this.tab.ordem === chave) this.tab.dir = this.tab.dir === 'asc' ? 'desc' : 'asc';
+      else { this.tab.ordem = chave; this.tab.dir = 'asc'; }
+      this.tab.pagina = 1;
+    },
+    irParaPagina(n) {
+      this.tab.pagina = Math.min(Math.max(1, n), this.totalPaginas);
+      this.$nextTick(() => { const el = document.querySelector('.tabela-topo'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    },
+    setaOrdem(chave) { return this.tab.ordem === chave ? (this.tab.dir === 'asc' ? 'ascending' : 'descending') : 'none'; },
+
     // ---------- navegação ----------
     aplicarRota() {
-      const [a, b, c] = (location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+      const [caminho, consulta = ''] = (location.hash || '').replace(/^#\/?/, '').split('?');
+      const [a, b, c] = caminho.split('/').filter(Boolean);
+      const qs = new URLSearchParams(consulta);
       let rota;
       if (a === 'projetos') {
         rota = b ? { nome: 'projeto', id: Number(b), vista: ['galeria', 'mapa'].includes(c) ? c : 'tabela' } : { nome: 'projetos' };
@@ -539,7 +640,19 @@ const app = createApp({
         rota = { nome: 'colecao', visao: visoes[b] || 'arvore' };
       } else if (a === 'busca') rota = { nome: 'busca' };
       else rota = { nome: 'sobre' };
+      const anterior = this.rota;
+      const mesmaPagina = !!anterior && anterior.nome === rota.nome && anterior.id === rota.id && !!rota.nome && (rota.nome === 'projeto' || rota.nome === 'colecao');
       this.rota = rota;
+      if (rota.nome === 'projeto') {
+        const n = Number(qs.get('n'));
+        this.tab = {
+          pagina: Math.max(1, Number(qs.get('p')) || 1),
+          porPagina: this.tamanhosPagina.includes(n) ? n : 25,
+          ordem: qs.get('o') || 'codigo',
+          dir: qs.get('d') === 'desc' ? 'desc' : 'asc',
+          busca: qs.get('q') || ''
+        };
+      }
       this.fecharPopups();
       this.limiteGaleria = POR_PAGINA_GALERIA;
       if (rota.nome === 'busca') {
@@ -551,7 +664,8 @@ const app = createApp({
         if (rota.visao === 'repos') this.colecaoFiltros.repos = [];
         else this.colecaoFiltros.anos = [];
       }
-      window.scrollTo(0, 0);
+      // trocar de aba (tabela, galeria, mapa) mantém a posição da rolagem
+      if (!mesmaPagina) window.scrollTo(0, 0);
     },
     fecharPopups() { this.menuAberto = null; this.popover = null; this.sugAberta = false; },
     aoTecla(ev) {
@@ -861,6 +975,7 @@ const app = createApp({
     // ---------- espécimes: criar, editar, excluir ----------
     abrirFormEspecime(e = null, projetoId = null) {
       this.erroForm = null;
+      this.dicaNome = null;
       if (e) {
         this.formEspecime = {
           id: e.id, codigo_etiqueta: e.codigo_etiqueta, grupo_insetos: e.grupo_insetos, familia: e.familia || '',
@@ -868,6 +983,10 @@ const app = createApp({
           latitude: e.latitude ?? '', longitude: e.longitude ?? '', altitude_m: e.altitude_m ?? '',
           sexo: e.sexo || '', estagio: e.estagio || '', imagem_arquivo: e.imagem_arquivo || '', fotografia_url: e.fotografia_url || '',
           notas: e.notas || '', projeto_id: e.projeto_id ?? null,
+          determinador: e.determinador || '', data_determinacao: e.data_determinacao || '', metodo_coleta: e.metodo_coleta || '', habitat: e.habitat || '',
+          coletor: e.coletor || '', numero_campo: e.numero_campo || '', localizacao_fisica: e.localizacao_fisica || '',
+          emprestimo_situacao: e.emprestimo_situacao || '', emprestimo_para: e.emprestimo_para || '', emprestimo_data: e.emprestimo_data || '',
+          notas_internas: e.notas_internas || '',
           medidas: (e.medidas || []).map((m) => ({ traco: m.traco, valor: m.valor, unidade: m.unidade }))
         };
       } else {
@@ -877,9 +996,34 @@ const app = createApp({
           id: null, codigo_etiqueta: '', grupo_insetos: '', familia: '', especie: '', data_coleta: '', local_coleta: projeto ? projeto.local_coleta || '' : '',
           latitude: '', longitude: '', altitude_m: '', sexo: '', estagio: '', imagem_arquivo: '', fotografia_url: '',
           notas: '', projeto_id: projetoId,
+          determinador: '', data_determinacao: '', metodo_coleta: '', habitat: '',
+          coletor: '', numero_campo: '', localizacao_fisica: '', emprestimo_situacao: '', emprestimo_para: '', emprestimo_data: '', notas_internas: '',
           medidas: tracos.map((t) => ({ traco: t, valor: '', unidade: 'mm' }))
         };
       }
+    },
+    async conferirNome() {
+      const f = this.formEspecime;
+      const nome = (f.especie || '').trim();
+      this.dicaNome = null;
+      if (nome.split(/\s+/).length < 2) return;
+      try {
+        const [r] = await this.api('/taxonomia/validar', { metodo: 'POST', corpo: { nomes: [nome] } });
+        if (!r || f.especie.trim() !== nome) return;
+        if (r.situacao === 'ok' || r.situacao === 'indisponivel') {
+          if (r.situacao === 'ok') {
+            if (!f.familia && r.familia) f.familia = r.familia;
+            if (!f.grupo_insetos && r.ordem) f.grupo_insetos = r.ordem;
+          }
+          return;
+        }
+        this.dicaNome = { nome, situacao: r.situacao, sugestao: r.sugestao };
+      } catch { /* sem validação se o GBIF ou a API não responderem */ }
+    },
+    usarNomeSugerido() {
+      this.formEspecime.especie = this.dicaNome.sugestao;
+      this.dicaNome = null;
+      this.conferirNome();
     },
     adicionarMedida() { this.formEspecime.medidas.push({ traco: '', valor: '', unidade: 'mm' }); },
     removerMedida(i) { this.formEspecime.medidas.splice(i, 1); },
@@ -900,7 +1044,11 @@ const app = createApp({
         especie: f.especie.trim(), data_coleta: nulo(f.data_coleta), local_coleta: nulo(f.local_coleta),
         latitude: num(f.latitude), longitude: num(f.longitude), altitude_m: num(f.altitude_m),
         sexo: nulo(f.sexo), estagio: nulo(f.estagio), imagem_arquivo: nulo(f.imagem_arquivo), fotografia_url: nulo(f.fotografia_url),
-        notas: nulo(f.notas), projeto_id: f.projeto_id || null, medidas
+        notas: nulo(f.notas), projeto_id: f.projeto_id || null, medidas,
+        determinador: nulo(f.determinador), data_determinacao: nulo(f.data_determinacao), metodo_coleta: nulo(f.metodo_coleta), habitat: nulo(f.habitat),
+        coletor: nulo(f.coletor), numero_campo: nulo(f.numero_campo), localizacao_fisica: nulo(f.localizacao_fisica),
+        emprestimo_situacao: nulo(f.emprestimo_situacao), emprestimo_para: nulo(f.emprestimo_para), emprestimo_data: nulo(f.emprestimo_data),
+        notas_internas: nulo(f.notas_internas)
       };
       this.enviando = true;
       try {
@@ -952,7 +1100,7 @@ const app = createApp({
         projetoFixo: projetoId !== null, projetoId, nomeProjeto: p ? p.titulo : '',
         nomeArquivo: '', cabecalhos: [], mapa: [], dados: [], duplicados: 'ignorar',
         padrao: { grupo_insetos: '', familia: '', especie: '' },
-        errosCliente: [], linhasPayload: [], relatorio: null, simulando: false, erro: null, seq: 0
+        errosCliente: [], linhasPayload: [], relatorio: null, simulando: false, erro: null, seq: 0, correcoes: {}
       };
     },
     async lerArquivoImportacao(ev) {
@@ -995,7 +1143,7 @@ const app = createApp({
           if (['latitude', 'longitude', 'altitude_m'].includes(campo)) {
             const v = numeroBr(bruto);
             if (Number.isNaN(v)) falhas.push(`${campo}: valor inválido (${bruto})`); else o[campo] = v;
-          } else if (campo === 'data_coleta') o[campo] = dataIso(bruto);
+          } else if (['data_coleta', 'data_determinacao', 'emprestimo_data'].includes(campo)) o[campo] = dataIso(bruto);
           else if (campo === 'projeto') {
             const p = this.projetos.find((x) => norm(x.titulo) === norm(bruto));
             if (p) o.projeto_id = p.id; else falhas.push(`projeto "${bruto}" não encontrado`);
@@ -1007,6 +1155,7 @@ const app = createApp({
         ['grupo_insetos', 'familia', 'especie'].forEach((c) => {
           if (!o[c] && im.padrao[c].trim()) o[c] = im.padrao[c].trim();
         });
+        if (o.especie && im.correcoes[o.especie]) o.especie = im.correcoes[o.especie];
         if (falhas.length) erros.push({ linha: n, codigo_etiqueta: o.codigo_etiqueta || '', mensagem: falhas.join('; ') });
         else linhas.push(o);
       });
@@ -1056,6 +1205,19 @@ const app = createApp({
         im.enviando = false;
       }
     },
+    aplicarSugestao(av) {
+      this.importacao.correcoes[av.nome] = av.sugestao;
+      this.simularImportacao();
+    },
+    aplicarTodasSugestoes() {
+      (this.importacao.relatorio?.avisos || []).forEach((av) => {
+        if (av.sugestao && (av.tipo === 'aproximado' || av.tipo === 'sinonimo')) this.importacao.correcoes[av.nome] = av.sugestao;
+      });
+      this.simularImportacao();
+    },
+    rotuloAviso(tipo) {
+      return { aproximado: 'Nome aproximado', sinonimo: 'Sinônimo', so_genero: 'Só o gênero foi reconhecido', nao_encontrado: 'Não encontrado no GBIF' }[tipo] || tipo;
+    },
     baixarModelo() {
       const im = this.importacao;
       const p = this.projetosPorId[im.projetoId];
@@ -1076,22 +1238,31 @@ const app = createApp({
     },
 
     // ---------- exportação e rodapé ----------
-    async exportarCsv(projetoId = null) {
+    async baixarDaApi(caminho, nome) {
       try {
-        const q = projetoId ? `?projeto_id=${projetoId}` : '';
-        const res = await fetch(`${this.apiUrl}/exportar/csv${q}`, { headers: this.token ? { Authorization: `Bearer ${this.token}` } : {} });
+        const res = await fetch(this.apiUrl + caminho, { headers: this.token ? { Authorization: `Bearer ${this.token}` } : {} });
         if (!res.ok) throw new Error(await this.mensagemErro(res));
         const url = URL.createObjectURL(await res.blob());
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = projetoId ? `projeto_${projetoId}_especimes.csv` : 'acervo_entomobase.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        const el = document.createElement('a');
+        el.href = url;
+        el.download = nome;
+        document.body.appendChild(el);
+        el.click();
+        el.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
         this.avisar(e.message === 'Failed to fetch' ? 'Não foi possível conectar à API.' : e.message);
       }
+    },
+    exportarCsv(projetoId = null, completo = false) {
+      const parametros = [];
+      if (projetoId) parametros.push(`projeto_id=${projetoId}`);
+      if (completo) parametros.push('completo=true');
+      const nome = (projetoId ? `projeto_${projetoId}_especimes` : 'acervo_entomobase') + (completo ? '_completo' : '') + '.csv';
+      this.baixarDaApi('/exportar/csv' + (parametros.length ? '?' + parametros.join('&') : ''), nome);
+    },
+    exportarDwc(projetoId = null) {
+      this.baixarDaApi('/exportar/dwc' + (projetoId ? `?projeto_id=${projetoId}` : ''), projetoId ? `projeto_${projetoId}_darwincore.zip` : 'entomobase_darwincore.zip');
     },
     abrirInfo(qual) { this.info = qual; },
     async copiarCitacao() {
@@ -1106,7 +1277,7 @@ const app = createApp({
 });
 
 // ------------------------------------------------------------ componentes
-app.directive('foco', { mounted(el) { el.focus(); } });
+app.directive('foco', { mounted(el) { el.focus({ preventScroll: true }); } });
 
 app.component('icone', {
   props: ['nome'],
