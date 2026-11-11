@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
@@ -23,9 +24,10 @@ from database import get_db
 from db_setup import initialize_database
 from authorization import (
     Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
-    require_member, set_visibility, visible_projects, visible_specimens,
+    require_member, require_superadmin, set_visibility, visible_projects, visible_specimens,
 )
 from errors import api_error
+from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
 from rate_limit import AttemptLimiter
 from security import hash_password, needs_rehash, verify_password
@@ -138,6 +140,30 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
 @app.get("/labs", response_model=List[schemas.LaboratoryPublic])
 def list_laboratories(db: Session = Depends(get_db)):
     return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+
+
+# only a platform administrator creates laboratories. The new one starts with a single member, the admin named
+# in the request; the platform administrator has no access to the laboratory's data unless also a member
+@app.post("/labs", response_model=schemas.LaboratoryPublic, status_code=201)
+def create_laboratory(data: schemas.LaboratoryCreate, db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
+    admin = db.query(models.User).filter(func.lower(models.User.email) == data.admin_email.strip().lower()).first()
+    if admin is None:
+        raise api_error(404, "user_not_found")
+    if db.query(models.Laboratory).filter(models.Laboratory.slug == data.slug).first():
+        raise api_error(400, "duplicate_slug")
+    laboratory = models.Laboratory(
+        slug=data.slug, name=data.name.strip(), institution=data.institution.strip(), collection_code=data.collection_code.strip(),
+        license=data.license or DEFAULT_LABORATORY["license"], listed=data.listed,
+    )
+    laboratory.memberships.append(models.Membership(user_id=admin.id, role="admin"))
+    db.add(laboratory)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise api_error(400, "duplicate_slug")
+    db.refresh(laboratory)
+    return laboratory
 
 
 # --- Project routes ---

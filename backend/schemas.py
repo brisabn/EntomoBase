@@ -184,6 +184,21 @@ class LaboratoryPublic(BaseModel):
         from_attributes = True
 
 
+# the slug is part of the address, so only lowercase letters, digits and single hyphens between them
+SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+
+
+class LaboratoryCreate(BaseModel):
+    slug: str = Field(..., min_length=2, max_length=40, pattern=SLUG_PATTERN)
+    name: str = Field(..., min_length=1)
+    institution: str = Field(..., min_length=1)
+    collection_code: str = Field(..., min_length=1)
+    license: Optional[str] = None
+    listed: bool = False
+    # an existing user who becomes the first admin; without one nobody could manage the laboratory
+    admin_email: str = Field(..., min_length=3)
+
+
 class ValidateNamesRequest(BaseModel):
     names: List[str] = Field(..., max_length=300)
 

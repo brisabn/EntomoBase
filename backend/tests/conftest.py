@@ -25,6 +25,7 @@ PASSWORD = "senhaforte1"
 EMAIL = "admin@lab.br"
 RESEARCHER_EMAIL = "researcher@lab.br"
 OUTSIDER_EMAIL = "outsider@lab.br"
+SUPERADMIN_EMAIL = "super@lab.br"
 
 
 @pytest.fixture(scope="session")
@@ -111,6 +112,19 @@ def admin(user):
 def researcher(password_hash):
     add_user(RESEARCHER_EMAIL, password_hash, role="researcher")
     return {"Authorization": f"Bearer {make_token(email=RESEARCHER_EMAIL)}"}
+
+
+# a platform administrator, who is not a member of any laboratory
+@pytest.fixture
+def superadmin(password_hash):
+    add_user(SUPERADMIN_EMAIL, password_hash)
+    db = SessionLocal()
+    try:
+        db.query(models.User).filter_by(email=SUPERADMIN_EMAIL).update({"is_superadmin": True})
+        db.commit()
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {make_token(email=SUPERADMIN_EMAIL)}"}
 
 
 # logged in, but not a member of any laboratory
