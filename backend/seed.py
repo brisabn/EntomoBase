@@ -5,7 +5,7 @@ from datetime import date
 import models
 from database import SessionLocal
 from db_setup import initialize_database
-from laboratories import default_laboratory, visibility_from_status
+from laboratories import default_laboratory
 
 # demo data for the site; the text values (places, traits, sex, life stage) stay in Portuguese
 # because they are shown to the site's users
@@ -228,7 +228,7 @@ def create_project(db, cfg, rng):
         return 0
     laboratory = default_laboratory(db)
     project = models.Project(
-        laboratory_id=laboratory.id, visibility=visibility_from_status(cfg["finished"]),
+        laboratory_id=laboratory.id, visibility="public" if cfg["finished"] else "private",
         title=cfg["title"], year=cfg["year"], insect_group=cfg["group"], measured_traits=cfg["traits"], locality=cfg["locality"],
         dataset_url=f"https://zenodo.org/records/{cfg['zenodo']}" if cfg["zenodo"] else None,
         finished=cfg["finished"], linked_publication=cfg["publication"], description=cfg["description"],

@@ -17,10 +17,14 @@ from fastapi.testclient import TestClient
 
 import gbif
 import models
+import settings
 from database import SessionLocal, engine
+from laboratories import default_laboratory
 
 PASSWORD = "senhaforte1"
 EMAIL = "admin@lab.br"
+RESEARCHER_EMAIL = "researcher@lab.br"
+OUTSIDER_EMAIL = "outsider@lab.br"
 
 
 @pytest.fixture(scope="session")
@@ -71,26 +75,49 @@ def password_hash():
     return hash_password(PASSWORD)
 
 
-@pytest.fixture
-def user(password_hash):
+# creates a user; with a role, they also become a member of the first laboratory
+def add_user(email, password_hash, role=None):
     db = SessionLocal()
     try:
-        db.add(models.User(email=EMAIL, password_hash=password_hash))
+        user = models.User(email=email, password_hash=password_hash)
+        db.add(user)
+        db.flush()
+        if role:
+            db.add(models.Membership(user_id=user.id, laboratory_id=default_laboratory(db).id, role=role))
         db.commit()
     finally:
         db.close()
+
+
+# the main test user is an admin of the first laboratory
+@pytest.fixture
+def user(password_hash):
+    add_user(EMAIL, password_hash, role="admin")
     return {"email": EMAIL, "password": PASSWORD}
 
 
 def make_token(key=None, expires_in=timedelta(hours=1), email=EMAIL):
-    import main
     exp = datetime.now(timezone.utc) + expires_in
-    return jwt.encode({"sub": email, "exp": exp}, key or main.SECRET_KEY, algorithm="HS256")
+    return jwt.encode({"sub": email, "exp": exp}, key or settings.SECRET_KEY, algorithm="HS256")
 
 
 @pytest.fixture
 def admin(user):
     return {"Authorization": f"Bearer {make_token()}"}
+
+
+# a researcher of the first laboratory: can do everything except delete projects and manage the laboratory
+@pytest.fixture
+def researcher(password_hash):
+    add_user(RESEARCHER_EMAIL, password_hash, role="researcher")
+    return {"Authorization": f"Bearer {make_token(email=RESEARCHER_EMAIL)}"}
+
+
+# logged in, but not a member of any laboratory
+@pytest.fixture
+def outsider(password_hash):
+    add_user(OUTSIDER_EMAIL, password_hash)
+    return {"Authorization": f"Bearer {make_token(email=OUTSIDER_EMAIL)}"}
 
 
 @pytest.fixture

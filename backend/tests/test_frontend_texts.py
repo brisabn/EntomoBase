@@ -54,12 +54,20 @@ def test_dynamic_text_keys_exist():
     assert expected - portuguese == set()
 
 
+# every backend module except the tests, since error codes are raised from several of them
+def backend_source(backend):
+    parts = []
+    for name in sorted(os.listdir(backend)):
+        if name.endswith(".py"):
+            with open(os.path.join(backend, name), encoding="utf-8") as f:
+                parts.append(f.read())
+    return "\n".join(parts)
+
+
 def test_every_api_error_code_has_a_text():
     portuguese, _ = dictionary()
     backend = os.path.join(os.path.dirname(FRONTEND), "backend")
-    with open(os.path.join(backend, "main.py"), encoding="utf-8") as f:
-        source = f.read()
-    codes = set(re.findall(r'api_error\(\d+, "(\w+)"', source))
+    codes = set(re.findall(r'api_error\(\d+, "(\w+)"', backend_source(backend)))
     assert codes, "no error codes found"
     assert {f"error.{c}" for c in codes} - portuguese == set()
 

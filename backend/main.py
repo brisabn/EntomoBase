@@ -2,18 +2,17 @@ import csv
 import io
 import os
 import re
-import secrets
 import urllib.parse
 import zipfile
-import jwt
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+import jwt
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi import FastAPI, Depends, HTTPException, Header, Query, Request
+from fastapi import FastAPI, Depends, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
@@ -22,18 +21,15 @@ import models
 import schemas
 from database import get_db
 from db_setup import initialize_database
-from laboratories import default_laboratory, laboratory_id_for_project, visibility_from_status
+from authorization import (
+    Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
+    require_member, set_visibility, visible_projects, visible_specimens,
+)
+from errors import api_error
 from demo_images import render_svg
 from rate_limit import AttemptLimiter
 from security import hash_password, needs_rehash, verify_password
-
-# errors are sent as {"detail": {"code": ..., "params": {...}}}; the site turns the code into a message
-# in its own language. Exported file contents stay in Portuguese: they are shown to the site's users
-
-
-def api_error(status_code: int, code: str, headers: Optional[dict] = None, **params) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={"code": code, "params": params}, headers=headers)
-
+from settings import ALGORITHM, SECRET_KEY
 
 # pydantic error types the site has a message for; any other type is shown as an invalid value
 VALIDATION_CODES = {"missing": "required", "less_than_equal": "max", "greater_than_equal": "min", "string_too_short": "empty"}
@@ -95,49 +91,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# --- JWT security settings ---
-ALGORITHM = "HS256"
-
-
-# the key comes from the environment; without it the API only starts in development mode (ENTOMOBASE_ENV=dev),
-# with a random key that changes on every start and invalidates previous logins
-def load_secret_key() -> str:
-    key = os.getenv("SECRET_KEY")
-    if key:
-        return key
-    if os.getenv("ENTOMOBASE_ENV") == "dev":
-        print("WARNING: SECRET_KEY is not set; using a temporary key (dev mode).")
-        return secrets.token_urlsafe(32)
-    raise RuntimeError(
-        "SECRET_KEY is not set. Set the SECRET_KEY environment variable, "
-        "or use ENTOMOBASE_ENV=dev only in development."
-    )
-
-
-SECRET_KEY = load_secret_key()
-
-
-def require_login(authorization: str = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise api_error(401, "missing_token")
-    token = authorization.split(" ")[1]
-    try:
-        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except jwt.PyJWTError:
-        raise api_error(401, "session_expired")
-
-
-# does not require login; only tells whether the token sent is valid
-def is_logged_in(authorization: str = Header(None)) -> bool:
-    if not authorization or not authorization.startswith("Bearer "):
-        return False
-    try:
-        jwt.decode(authorization.split(" ")[1], SECRET_KEY, algorithms=[ALGORITHM])
-        return True
-    except jwt.PyJWTError:
-        return False
-
-
 # --- Authentication ---
 # limits on wrong passwords per 15-minute window: per account (email + IP) and per IP overall
 LOGIN_WINDOW_SECONDS = 15 * 60
@@ -177,12 +130,20 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
 
 
 # --- Project routes ---
+# who can do what is decided in authorization.py; these routes only declare the minimum role they need
+# and read data through visible_projects / visible_specimens, never straight from the tables
+def project_output(project: models.Project, ctx: Context) -> schemas.ProjectResponse:
+    output = schemas.ProjectResponse.model_validate(project)
+    # the share link is for the laboratory; to everyone else the project is just public
+    if not ctx.is_member:
+        output.share_token = None
+    return output
+
+
 @app.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
-def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    db_project = models.Project(
-        **project.model_dump(), laboratory_id=default_laboratory(db).id,
-        visibility=visibility_from_status(project.finished),
-    )
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    db_project = models.Project(**project.model_dump(exclude={"visibility"}), laboratory_id=ctx.laboratory.id)
+    set_visibility(db_project, project.visibility)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
@@ -193,57 +154,75 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
 def list_projects(
     year: Optional[int] = None, insect_group: Optional[str] = None,
     locality: Optional[str] = None, finished: Optional[bool] = None,
-    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
+    visibility: Optional[schemas.Visibility] = None,
+    ctx: Context = Depends(get_context), db: Session = Depends(get_db)
 ):
-    query = db.query(models.Project)
-    # visitors only see finished projects; the token is really verified
-    if not logged_in:
-        query = query.filter(models.Project.finished == True)
-    elif finished is not None:
-        query = query.filter(models.Project.finished == finished)
+    query = visible_projects(db, ctx)
+    if finished is not None: query = query.filter(models.Project.finished == finished)
+    if visibility: query = query.filter(models.Project.visibility == visibility)
     if year: query = query.filter(models.Project.year == year)
     if insect_group: query = query.filter(models.Project.insect_group.ilike(f"%{insect_group}%"))
     if locality: query = query.filter(models.Project.locality.ilike(f"%{locality}%"))
-    return query.order_by(models.Project.year.desc(), models.Project.id).all()
+    projects = query.order_by(models.Project.year.desc(), models.Project.id).all()
+    return [project_output(p, ctx) for p in projects]
 
 
 @app.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
-def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not db_project: raise api_error(404, "project_not_found")
+def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    db_project = get_visible_project(db, ctx, project_id)
     changes = data.model_dump(exclude_unset=True)
+    # an explicit null never clears the visibility: a project is always private, unlisted or public
+    new_visibility = changes.pop("visibility", None)
     for key, value in changes.items():
         setattr(db_project, key, value)
-    # until visibility is edited on its own, it follows the status
-    if "finished" in changes:
-        db_project.visibility = visibility_from_status(db_project.finished)
+    if new_visibility:
+        set_visibility(db_project, new_visibility)
     db.commit()
     db.refresh(db_project)
     return db_project
 
 
+# deleting a project deletes its specimens too, so only a laboratory admin can do it
 @app.delete("/projects/{project_id}", status_code=204)
-def delete_project(project_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not db_project: raise api_error(404, "project_not_found")
-    db.delete(db_project)
+def delete_project(project_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    db.delete(get_visible_project(db, ctx, project_id))
     db.commit()
     return None
 
 
+# --- Share links ---
+# an unlisted project opens only with its random share token, which works without any laboratory in the
+# address. A wrong token, and a project that is not unlisted, get the same 404
+def get_shared_project(db: Session, token: str) -> models.Project:
+    project = db.query(models.Project).filter(
+        models.Project.share_token == token, models.Project.visibility == "unlisted"
+    ).first()
+    if project is None:
+        raise api_error(404, "project_not_found")
+    return project
+
+
+@app.get("/shared/{token}", response_model=schemas.ProjectResponse)
+def shared_project(token: str, db: Session = Depends(get_db)):
+    project = schemas.ProjectResponse.model_validate(get_shared_project(db, token))
+    project.share_token = None
+    return project
+
+
+@app.get("/shared/{token}/specimens")
+def shared_specimens(token: str, db: Session = Depends(get_db)):
+    project = get_shared_project(db, token)
+    query = db.query(models.Specimen).filter(models.Specimen.project_id == project.id)
+    specimens = query.options(selectinload(models.Specimen.measurements)).order_by(
+        models.Specimen.insect_order, models.Specimen.species, models.Specimen.catalog_number
+    ).all()
+    return [specimen_output(s, False) for s in specimens]
+
+
 # --- Specimen routes ---
-def filter_visible(query, logged_in: bool):
-    # visitors do not see specimens from projects still in progress
-    if logged_in:
-        return query
-    return query.outerjoin(models.Project, models.Specimen.project_id == models.Project.id).filter(
-        or_(models.Specimen.project_id.is_(None), models.Project.finished == True)
-    )
-
-
-# visitors receive the specimen without the internal fields; they are removed here, on the server
-def specimen_output(specimen: models.Specimen, logged_in: bool) -> dict:
-    exclude = None if logged_in else schemas.INTERNAL_FIELDS
+# whoever is not a member receives the specimen without the internal fields; they are removed here, on the server
+def specimen_output(specimen: models.Specimen, is_member: bool) -> dict:
+    exclude = None if is_member else schemas.INTERNAL_FIELDS
     return schemas.SpecimenResponse.model_validate(specimen).model_dump(mode="json", exclude=exclude)
 
 
@@ -254,13 +233,15 @@ def replace_measurements(specimen: models.Specimen, measurements):
 
 
 @app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
-def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    laboratory_id = laboratory_id_for_project(db, specimen.project_id)
+def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    # the project has to be one of this laboratory
+    if specimen.project_id is not None:
+        get_visible_project(db, ctx, specimen.project_id)
     if db.query(models.Specimen).filter(
-        models.Specimen.laboratory_id == laboratory_id, models.Specimen.catalog_number == specimen.catalog_number
+        models.Specimen.laboratory_id == ctx.laboratory.id, models.Specimen.catalog_number == specimen.catalog_number
     ).first():
         raise api_error(400, "duplicate_catalog_number")
-    db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}), laboratory_id=laboratory_id)
+    db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}), laboratory_id=ctx.laboratory.id)
     replace_measurements(db_specimen, specimen.measurements or [])
     db.add(db_specimen)
     db.commit()
@@ -271,38 +252,36 @@ def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_
 @app.get("/specimens")
 def list_specimens(
     species: Optional[str] = None, project_id: Optional[int] = None,
-    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
+    ctx: Context = Depends(get_context), db: Session = Depends(get_db)
 ):
-    query = filter_visible(db.query(models.Specimen), logged_in).options(selectinload(models.Specimen.measurements))
+    query = visible_specimens(db, ctx).options(selectinload(models.Specimen.measurements))
     if species: query = query.filter(models.Specimen.species.ilike(f"%{species}%"))
     if project_id: query = query.filter(models.Specimen.project_id == project_id)
     specimens = query.order_by(models.Specimen.insect_order, models.Specimen.species, models.Specimen.catalog_number).all()
-    return [specimen_output(s, logged_in) for s in specimens]
+    return [specimen_output(s, ctx.is_member) for s in specimens]
 
 
 @app.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
-def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
-    if not specimen: raise api_error(404, "specimen_not_found")
+def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    specimen = get_visible_specimen(db, ctx, specimen_id)
 
     required = {"catalog_number", "insect_order", "species"}
     fields = {
         k: v for k, v in data.model_dump(exclude_unset=True, exclude={"measurements"}).items()
         if not (v is None and k in required)
     }
-    # a specimen always belongs to the laboratory of its project
-    laboratory_id = laboratory_id_for_project(db, fields["project_id"]) if "project_id" in fields else specimen.laboratory_id
+    if fields.get("project_id") is not None:
+        get_visible_project(db, ctx, fields["project_id"])
     new_number = fields.get("catalog_number")
-    if (new_number and new_number != specimen.catalog_number) or laboratory_id != specimen.laboratory_id:
+    if new_number and new_number != specimen.catalog_number:
         if db.query(models.Specimen).filter(
-            models.Specimen.laboratory_id == laboratory_id,
-            models.Specimen.catalog_number == (new_number or specimen.catalog_number),
+            models.Specimen.laboratory_id == ctx.laboratory.id,
+            models.Specimen.catalog_number == new_number,
             models.Specimen.id != specimen.id,
         ).first():
             raise api_error(400, "duplicate_catalog_number")
     for key, value in fields.items():
         setattr(specimen, key, value)
-    specimen.laboratory_id = laboratory_id
 
     # measurements sent replace the previous ones; if none are sent, they stay as they are
     if data.measurements is not None:
@@ -313,10 +292,8 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
 
 
 @app.delete("/specimens/{specimen_id}", status_code=204)
-def delete_specimen(specimen_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
-    if not specimen: raise api_error(404, "specimen_not_found")
-    db.delete(specimen)
+def delete_specimen(specimen_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    db.delete(get_visible_specimen(db, ctx, specimen_id))
     db.commit()
     return None
 
@@ -327,15 +304,13 @@ def delete_specimen(specimen_id: int, db: Session = Depends(get_db), auth: None 
 @app.post("/specimens/import", response_model=schemas.ImportReport)
 def import_specimens(
     payload: schemas.ImportRequest, dry_run: bool = False, validate_names: bool = True,
-    db: Session = Depends(get_db), auth: None = Depends(require_login)
+    db: Session = Depends(get_db), ctx: Context = Depends(require_member)
 ):
+    # everything imported goes into the laboratory of the request, and only its projects can be used
     if payload.project_id is not None:
-        if not db.query(models.Project).filter(models.Project.id == payload.project_id).first():
-            raise api_error(404, "project_not_found")
-
-    # the laboratory of each project; a specimen belongs to the laboratory of its project
-    project_labs = {p.id: p.laboratory_id for p in db.query(models.Project.id, models.Project.laboratory_id).all()}
-    default_lab_id = default_laboratory(db).id
+        get_visible_project(db, ctx, payload.project_id)
+    lab_id = ctx.laboratory.id
+    project_ids = {p.id for p in visible_projects(db, ctx).with_entities(models.Project.id)}
     errors = []
     valid = []
     seen = {}
@@ -349,25 +324,27 @@ def import_specimens(
         item.catalog_number = item.catalog_number.strip()
         if payload.project_id is not None:
             item.project_id = payload.project_id
-        elif item.project_id is not None and item.project_id not in project_labs:
+        elif item.project_id is not None and item.project_id not in project_ids:
             errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="unknown_project", field="project_id", params={"project_id": item.project_id})]))
             continue
-        lab_id = project_labs.get(item.project_id, default_lab_id)
-        if (lab_id, item.catalog_number) in seen:
-            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="duplicate_in_file", field="catalog_number", params={"first_line": seen[(lab_id, item.catalog_number)]})]))
+        if item.catalog_number in seen:
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="duplicate_in_file", field="catalog_number", params={"first_line": seen[item.catalog_number]})]))
             continue
-        seen[(lab_id, item.catalog_number)] = line
-        valid.append((line, item, lab_id))
+        seen[item.catalog_number] = line
+        valid.append((line, item))
 
+    # duplicates are looked up only inside this laboratory: another laboratory's specimens are never touched
     existing = {}
-    numbers = sorted({number for _, number in seen})
+    numbers = sorted(seen)
     for i in range(0, len(numbers), 500):
-        for s in db.query(models.Specimen).filter(models.Specimen.catalog_number.in_(numbers[i:i + 500])).all():
-            existing[(s.laboratory_id, s.catalog_number)] = s
+        for found in db.query(models.Specimen).filter(
+            models.Specimen.laboratory_id == lab_id, models.Specimen.catalog_number.in_(numbers[i:i + 500])
+        ).all():
+            existing[found.catalog_number] = found
 
     created = updated = skipped = 0
-    for line, item, lab_id in valid:
-        current = existing.get((lab_id, item.catalog_number))
+    for line, item in valid:
+        current = existing.get(item.catalog_number)
         if current is None:
             created += 1
             if not dry_run and not errors:
@@ -404,7 +381,7 @@ OK_STATUSES = {"ok"}
 # checks GBIF for the distinct names in the file; warnings never block the import
 def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
     counts = {}
-    for _, item, _lab_id in valid:
+    for _, item in valid:
         name = item.species.strip()
         counts[name] = counts.get(name, 0) + 1
     if not counts:
@@ -429,7 +406,7 @@ def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
 
 @app.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
 def validate_scientific_names(
-    payload: schemas.ValidateNamesRequest, db: Session = Depends(get_db), auth: None = Depends(require_login)
+    payload: schemas.ValidateNamesRequest, db: Session = Depends(get_db), ctx: Context = Depends(require_member)
 ):
     results = gbif.validate_names(payload.names, db)
     return [schemas.ValidatedName(name=n, **r) for n, r in results.items()]
@@ -464,11 +441,15 @@ CSV_FILE_NAMES = {
 @app.get("/export/csv")
 def export_specimens_csv(
     project_id: Optional[int] = None, full: bool = False, lang: str = Query("pt", pattern="^(pt|en)$"),
-    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
+    ctx: Context = Depends(get_context), db: Session = Depends(get_db)
 ):
-    if full and not logged_in:
+    # the full file has the internal columns, so it is for members; the normal one is public data only,
+    # even when a member asks for it
+    if full and ctx.user is None:
         raise api_error(401, "full_csv_requires_login")
-    query = filter_visible(db.query(models.Specimen), logged_in).options(
+    if full and not ctx.is_member:
+        raise api_error(403, "forbidden")
+    query = (visible_specimens(db, ctx) if full else public_specimens(db, ctx.laboratory.id)).options(
         selectinload(models.Specimen.measurements), selectinload(models.Specimen.project)
     )
     if project_id: query = query.filter(models.Specimen.project_id == project_id)
@@ -512,10 +493,7 @@ def export_specimens_csv(
 
 
 # --- Darwin Core ---
-# set these to the collection's values before publishing to GBIF
-DWC_INSTITUTION = "UFMG"
-DWC_COLLECTION = "EntomoBase"
-DWC_LICENSE = "http://creativecommons.org/licenses/by/4.0/legalcode"
+# institution, collection and license come from the laboratory being exported
 DWC_ZENODO_FILE_URL = "https://zenodo.org/records/{record}/files/{file}"
 
 DWC_FIELDS = [
@@ -563,10 +541,11 @@ def meta_xml() -> str:
     )
 
 
-# the Darwin Core export is always public: only finished projects and no internal field
+# the Darwin Core export is always public: only public projects and no internal field
 @app.get("/export/dwc")
-def export_darwin_core(project_id: Optional[int] = None, db: Session = Depends(get_db)):
-    query = filter_visible(db.query(models.Specimen), False).options(
+def export_darwin_core(project_id: Optional[int] = None, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
+    lab = ctx.laboratory
+    query = public_specimens(db, lab.id).options(
         selectinload(models.Specimen.measurements), selectinload(models.Specimen.project)
     )
     if project_id: query = query.filter(models.Specimen.project_id == project_id)
@@ -579,11 +558,11 @@ def export_darwin_core(project_id: Optional[int] = None, db: Session = Depends(g
     occurrence_writer.writerow(DWC_FIELDS)
     measurement_writer.writerow(["occurrenceID", "measurementType", "measurementValue", "measurementUnit"])
     for s in specimens:
-        occurrence_id = f"{DWC_INSTITUTION}:{DWC_COLLECTION}:{s.catalog_number}"
+        occurrence_id = f"{lab.institution}:{lab.collection_code}:{s.catalog_number}"
         has_coordinates = s.latitude is not None and s.longitude is not None
         occurrence_writer.writerow([
-            occurrence_id, "PreservedSpecimen", DWC_INSTITUTION, DWC_COLLECTION, s.catalog_number,
-            s.project.title if s.project else "", DWC_LICENSE, "Animalia", "Insecta", s.insect_order,
+            occurrence_id, "PreservedSpecimen", lab.institution, lab.collection_code, s.catalog_number,
+            s.project.title if s.project else "", lab.license, "Animalia", "Insecta", s.insect_order,
             s.family, s.species, s.collection_date, s.locality,
             s.latitude, s.longitude, "WGS84" if has_coordinates else "", s.elevation_m, s.sex, s.life_stage,
             s.identified_by, s.identification_date, s.sampling_method, s.habitat, zenodo_media(s), s.notes,
@@ -604,8 +583,9 @@ def export_darwin_core(project_id: Optional[int] = None, db: Session = Depends(g
 
 # --- Demo images (only for the demo data; this route can be removed) ---
 @app.get("/demo/image/{file_name}")
-def demo_image(file_name: str, db: Session = Depends(get_db)):
-    s = db.query(models.Specimen).filter(models.Specimen.image_file == file_name).first()
+def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Depends(get_context)):
+    # only public specimens have a demo image: a browser <img> cannot send the login header
+    s = public_specimens(db, ctx.laboratory.id).filter(models.Specimen.image_file == file_name).first()
     if not s:
         raise api_error(404, "image_not_found")
     svg = render_svg(s.insect_order, s.family or "", s.species, s.id, s.catalog_number, s.sex or "")

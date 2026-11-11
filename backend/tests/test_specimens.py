@@ -119,7 +119,8 @@ def test_delete_specimen_removes_its_measurements(client, admin, db):
 
 
 def test_demo_image_is_generated_for_a_known_file(client, admin):
-    create_specimen(client, admin, "IMG-1", image_file="IMG-1.svg")
+    project = create_project(client, admin)
+    create_specimen(client, admin, "IMG-1", project_id=project["id"], image_file="IMG-1.svg")
     response = client.get("/demo/image/IMG-1.svg")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")
