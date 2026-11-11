@@ -178,6 +178,34 @@ def list_members(db: Session = Depends(get_db), ctx: Context = Depends(require_a
     return [schemas.MemberResponse(id=m.id, email=u.email, name=u.name, role=m.role) for m, u in rows]
 
 
+# the membership with this id, if it belongs to the laboratory of the request; any other id is a 404
+def get_membership(db: Session, ctx: Context, member_id: int) -> models.Membership:
+    membership = db.query(models.Membership).filter(
+        models.Membership.id == member_id, models.Membership.laboratory_id == ctx.laboratory.id
+    ).first()
+    if membership is None:
+        raise api_error(404, "member_not_found")
+    return membership
+
+
+# a laboratory always keeps at least one admin, or nobody could manage it any more
+def other_admins(db: Session, membership: models.Membership) -> int:
+    return db.query(models.Membership).filter(
+        models.Membership.laboratory_id == membership.laboratory_id, models.Membership.role == "admin",
+        models.Membership.id != membership.id,
+    ).count()
+
+
+@members_router.put("/members/{member_id}", response_model=schemas.MemberResponse)
+def change_member_role(member_id: int, data: schemas.MemberUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    membership = get_membership(db, ctx, member_id)
+    if membership.role == "admin" and data.role != "admin" and other_admins(db, membership) == 0:
+        raise api_error(400, "last_admin")
+    membership.role = data.role
+    db.commit()
+    return schemas.MemberResponse(id=membership.id, email=membership.user.email, name=membership.user.name, role=membership.role)
+
+
 # --- Project routes ---
 # who can do what is decided in authorization.py; these routes only declare the minimum role they need
 # and read data through visible_projects / visible_specimens, never straight from the tables

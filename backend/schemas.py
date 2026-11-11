@@ -207,6 +207,10 @@ class MemberResponse(BaseModel):
     role: str
 
 
+class MemberUpdate(BaseModel):
+    role: Literal["admin", "researcher"]
+
+
 class ValidateNamesRequest(BaseModel):
     names: List[str] = Field(..., max_length=300)
 
