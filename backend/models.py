@@ -58,8 +58,6 @@ class Specimen(Base):
 
     project = relationship("Project", back_populates="specimens")
     measurements = relationship("Measurement", back_populates="specimen", cascade="all, delete-orphan", order_by="Measurement.id")
-    # old table, kept only so its data is not lost by the migration
-    legacy_measurements = relationship("LegacyMeasurement", back_populates="specimen", cascade="all, delete-orphan")
 
 
 class Measurement(Base):
@@ -74,15 +72,6 @@ class Measurement(Base):
     specimen = relationship("Specimen", back_populates="measurements")
 
 
-class LegacyMeasurement(Base):
-    __tablename__ = "legacy_measurements"
-
-    id = Column(Integer, primary_key=True, index=True)
-    specimen_id = Column(Integer, ForeignKey("specimens.id"), nullable=False)
-    horn_length_mm = Column(Float, nullable=True)
-    pronotum_width_mm = Column(Float, nullable=False)
-
-    specimen = relationship("Specimen", back_populates="legacy_measurements")
 
 class User(Base):
     __tablename__ = "users"

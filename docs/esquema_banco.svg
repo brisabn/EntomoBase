@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1320 1018" width="1320" height="1018" font-family="Segoe UI, Arial, sans-serif">
+<rect width="1320" height="1018" fill="#ffffff"/>
+<text x="40" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
+<text x="40" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0001) · SQLite ou PostgreSQL</text>
+<rect x="40" y="110" width="310" height="308" rx="8" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+<path d="M40 148 V118 a8 8 0 0 1 8 -8 H342 a8 8 0 0 1 8 8 V148 Z" fill="#2f6f4f"/>
+<text x="54" y="135" font-size="16" font-weight="700" fill="#ffffff">projects</text>
+<text x="336" y="135" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">11 colunas</text>
+<text x="54" y="164.0" font-size="13.5" font-weight="700" fill="#1d2a24">id</text>
+<text x="262" y="164.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="310" y="153" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="323" y="164.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<rect x="42" y="172" width="306" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="54" y="188.0" font-size="13.5" font-weight="700" fill="#1d2a24">title</text>
+<text x="262" y="188.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="212.0" font-size="13.5" font-weight="700" fill="#1d2a24">year</text>
+<text x="262" y="212.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="42" y="220" width="306" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="54" y="236.0" font-size="13.5" font-weight="700" fill="#1d2a24">insect_group</text>
+<text x="262" y="236.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="260.0" font-size="13.5" font-weight="400" fill="#1d2a24">measured_traits</text>
+<text x="262" y="260.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="42" y="268" width="306" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="54" y="284.0" font-size="13.5" font-weight="400" fill="#1d2a24">locality</text>
+<text x="262" y="284.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="308.0" font-size="13.5" font-weight="400" fill="#1d2a24">cover_url</text>
+<text x="262" y="308.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="42" y="316" width="306" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="54" y="332.0" font-size="13.5" font-weight="400" fill="#1d2a24">dataset_url</text>
+<text x="262" y="332.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="356.0" font-size="13.5" font-weight="400" fill="#1d2a24">finished</text>
+<text x="262" y="356.0" font-size="12" fill="#6b7770" text-anchor="end">sim/não</text>
+<rect x="42" y="364" width="306" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="54" y="380.0" font-size="13.5" font-weight="400" fill="#1d2a24">linked_publication</text>
+<text x="262" y="380.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="404.0" font-size="13.5" font-weight="400" fill="#1d2a24">description</text>
+<text x="262" y="404.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="500" y="110" width="340" height="692" rx="8" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+<path d="M500 148 V118 a8 8 0 0 1 8 -8 H832 a8 8 0 0 1 8 8 V148 Z" fill="#2f6f4f"/>
+<text x="514" y="135" font-size="16" font-weight="700" fill="#ffffff">specimens</text>
+<text x="826" y="135" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">27 colunas</text>
+<text x="514" y="164.0" font-size="13.5" font-weight="700" fill="#1d2a24">id</text>
+<text x="752" y="164.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="800" y="153" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="813" y="164.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<rect x="502" y="172" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="188.0" font-size="13.5" font-weight="700" fill="#1d2a24">catalog_number</text>
+<text x="752" y="188.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="800" y="177" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="813" y="188.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">UQ</text>
+<text x="514" y="212.0" font-size="13.5" font-weight="700" fill="#1d2a24">insect_order</text>
+<text x="752" y="212.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="220" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="236.0" font-size="13.5" font-weight="400" fill="#1d2a24">family</text>
+<text x="752" y="236.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="260.0" font-size="13.5" font-weight="700" fill="#1d2a24">species</text>
+<text x="752" y="260.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="268" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="284.0" font-size="13.5" font-weight="400" fill="#1d2a24">collection_date</text>
+<text x="752" y="284.0" font-size="12" fill="#6b7770" text-anchor="end">data</text>
+<text x="514" y="308.0" font-size="13.5" font-weight="400" fill="#1d2a24">locality</text>
+<text x="752" y="308.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="316" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="332.0" font-size="13.5" font-weight="400" fill="#1d2a24">latitude</text>
+<text x="752" y="332.0" font-size="12" fill="#6b7770" text-anchor="end">decimal</text>
+<text x="514" y="356.0" font-size="13.5" font-weight="400" fill="#1d2a24">longitude</text>
+<text x="752" y="356.0" font-size="12" fill="#6b7770" text-anchor="end">decimal</text>
+<rect x="502" y="364" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="380.0" font-size="13.5" font-weight="400" fill="#1d2a24">elevation_m</text>
+<text x="752" y="380.0" font-size="12" fill="#6b7770" text-anchor="end">decimal</text>
+<text x="514" y="404.0" font-size="13.5" font-weight="400" fill="#1d2a24">sex</text>
+<text x="752" y="404.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="412" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="428.0" font-size="13.5" font-weight="400" fill="#1d2a24">life_stage</text>
+<text x="752" y="428.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="452.0" font-size="13.5" font-weight="400" fill="#1d2a24">image_file</text>
+<text x="752" y="452.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="460" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="476.0" font-size="13.5" font-weight="400" fill="#1d2a24">photo_url</text>
+<text x="752" y="476.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="500.0" font-size="13.5" font-weight="400" fill="#1d2a24">notes</text>
+<text x="752" y="500.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="508" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="524.0" font-size="13.5" font-weight="400" fill="#1d2a24">project_id</text>
+<text x="752" y="524.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="800" y="513" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="813" y="524.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">FK</text>
+<text x="514" y="548.0" font-size="13.5" font-weight="400" fill="#1d2a24">identified_by</text>
+<text x="752" y="548.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="556" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="572.0" font-size="13.5" font-weight="400" fill="#1d2a24">identification_date</text>
+<text x="752" y="572.0" font-size="12" fill="#6b7770" text-anchor="end">data</text>
+<text x="514" y="596.0" font-size="13.5" font-weight="400" fill="#1d2a24">sampling_method</text>
+<text x="752" y="596.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="604" width="336" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="514" y="620.0" font-size="13.5" font-weight="400" fill="#1d2a24">habitat</text>
+<text x="752" y="620.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="628" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="644.0" font-size="13.5" font-weight="400" fill="#1d2a24">collector</text>
+<text x="752" y="644.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="652" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="668.0" font-size="13.5" font-weight="400" fill="#1d2a24">field_number</text>
+<text x="752" y="668.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="676" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="692.0" font-size="13.5" font-weight="400" fill="#1d2a24">storage_location</text>
+<text x="752" y="692.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="700" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="716.0" font-size="13.5" font-weight="400" fill="#1d2a24">loan_status</text>
+<text x="752" y="716.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="724" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="740.0" font-size="13.5" font-weight="400" fill="#1d2a24">loaned_to</text>
+<text x="752" y="740.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="748" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="764.0" font-size="13.5" font-weight="400" fill="#1d2a24">loan_date</text>
+<text x="752" y="764.0" font-size="12" fill="#6b7770" text-anchor="end">data</text>
+<rect x="502" y="772" width="336" height="24" fill="#fde8d2"/>
+<text x="514" y="788.0" font-size="13.5" font-weight="400" fill="#1d2a24">internal_notes</text>
+<text x="752" y="788.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="990" y="110" width="290" height="164" rx="8" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+<path d="M990 148 V118 a8 8 0 0 1 8 -8 H1272 a8 8 0 0 1 8 8 V148 Z" fill="#2f6f4f"/>
+<text x="1004" y="135" font-size="16" font-weight="700" fill="#ffffff">measurements</text>
+<text x="1266" y="135" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">5 colunas</text>
+<text x="1004" y="164.0" font-size="13.5" font-weight="700" fill="#1d2a24">id</text>
+<text x="1192" y="164.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="1240" y="153" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="1253" y="164.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<rect x="992" y="172" width="286" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="1004" y="188.0" font-size="13.5" font-weight="700" fill="#1d2a24">specimen_id</text>
+<text x="1192" y="188.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="1240" y="177" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="1253" y="188.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">FK</text>
+<text x="1004" y="212.0" font-size="13.5" font-weight="700" fill="#1d2a24">trait</text>
+<text x="1192" y="212.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="992" y="220" width="286" height="24" fill="#e8f3ec" opacity="0.6"/>
+<text x="1004" y="236.0" font-size="13.5" font-weight="700" fill="#1d2a24">value</text>
+<text x="1192" y="236.0" font-size="12" fill="#6b7770" text-anchor="end">decimal</text>
+<text x="1004" y="260.0" font-size="13.5" font-weight="700" fill="#1d2a24">unit</text>
+<text x="1192" y="260.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="40" y="450" width="310" height="116" rx="8" fill="#ffffff" stroke="#5a6b7b" stroke-width="2"/>
+<path d="M40 488 V458 a8 8 0 0 1 8 -8 H342 a8 8 0 0 1 8 8 V488 Z" fill="#5a6b7b"/>
+<text x="54" y="475" font-size="16" font-weight="700" fill="#ffffff">users</text>
+<text x="336" y="475" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">3 colunas</text>
+<text x="54" y="504.0" font-size="13.5" font-weight="700" fill="#1d2a24">id</text>
+<text x="262" y="504.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="310" y="493" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="323" y="504.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<rect x="42" y="512" width="306" height="24" fill="#eef1f4" opacity="0.6"/>
+<text x="54" y="528.0" font-size="13.5" font-weight="700" fill="#1d2a24">email</text>
+<text x="262" y="528.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="310" y="517" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="323" y="528.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">UQ</text>
+<text x="54" y="552.0" font-size="13.5" font-weight="700" fill="#1d2a24">password_hash</text>
+<text x="262" y="552.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="40" y="610" width="310" height="236" rx="8" fill="#ffffff" stroke="#5a6b7b" stroke-width="2"/>
+<path d="M40 648 V618 a8 8 0 0 1 8 -8 H342 a8 8 0 0 1 8 8 V648 Z" fill="#5a6b7b"/>
+<text x="54" y="635" font-size="16" font-weight="700" fill="#ffffff">taxa</text>
+<text x="336" y="635" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">8 colunas</text>
+<text x="54" y="664.0" font-size="13.5" font-weight="700" fill="#1d2a24">id</text>
+<text x="262" y="664.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="310" y="653" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="323" y="664.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<rect x="42" y="672" width="306" height="24" fill="#eef1f4" opacity="0.6"/>
+<text x="54" y="688.0" font-size="13.5" font-weight="700" fill="#1d2a24">queried_name</text>
+<text x="262" y="688.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="310" y="677" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="323" y="688.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">UQ</text>
+<text x="54" y="712.0" font-size="13.5" font-weight="700" fill="#1d2a24">status</text>
+<text x="262" y="712.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="42" y="720" width="306" height="24" fill="#eef1f4" opacity="0.6"/>
+<text x="54" y="736.0" font-size="13.5" font-weight="400" fill="#1d2a24">suggestion</text>
+<text x="262" y="736.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="760.0" font-size="13.5" font-weight="400" fill="#1d2a24">gbif_key</text>
+<text x="262" y="760.0" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="42" y="768" width="306" height="24" fill="#eef1f4" opacity="0.6"/>
+<text x="54" y="784.0" font-size="13.5" font-weight="400" fill="#1d2a24">family</text>
+<text x="262" y="784.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="54" y="808.0" font-size="13.5" font-weight="400" fill="#1d2a24">order_name</text>
+<text x="262" y="808.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="42" y="816" width="306" height="24" fill="#eef1f4" opacity="0.6"/>
+<text x="54" y="832.0" font-size="13.5" font-weight="700" fill="#1d2a24">queried_at</text>
+<text x="262" y="832.0" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<rect x="990" y="330" width="290" height="68" rx="8" fill="#ffffff" stroke="#8a6d2f" stroke-width="2"/>
+<path d="M990 368 V338 a8 8 0 0 1 8 -8 H1272 a8 8 0 0 1 8 8 V368 Z" fill="#8a6d2f"/>
+<text x="1004" y="355" font-size="16" font-weight="700" fill="#ffffff">alembic_version</text>
+<text x="1266" y="355" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">1 coluna</text>
+<text x="1004" y="384.0" font-size="13.5" font-weight="700" fill="#1d2a24">version_num</text>
+<text x="1192" y="384.0" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="1240" y="373" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="1253" y="384.5" font-size="10" font-weight="700" fill="#ffffff" text-anchor="middle">PK</text>
+<path d="M350 160.0 H425 V520.0 H500" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="350" cy="160.0" r="4" fill="#2a6fb0"/>
+<text x="366" y="152.0" font-size="14" font-weight="700" fill="#2a6fb0" text-anchor="middle">1</text>
+<path d="M486 513.0 L500 520.0 L486 527.0" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="510.0" font-size="14" font-weight="700" fill="#2a6fb0" text-anchor="middle">N</text>
+<path d="M840 160.0 H915 V184.0 H990" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="840" cy="160.0" r="4" fill="#2a6fb0"/>
+<text x="856" y="152.0" font-size="14" font-weight="700" fill="#2a6fb0" text-anchor="middle">1</text>
+<path d="M976 177.0 L990 184.0 L976 191.0" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="974" y="174.0" font-size="14" font-weight="700" fill="#2a6fb0" text-anchor="middle">N</text>
+<rect x="500" y="822" width="340" height="166" rx="8" fill="#fbfaf4" stroke="#d8d2b8"/>
+<text x="514" y="846" font-size="13" font-weight="700" fill="#5a5230">Regras que o esquema carrega</text>
+<text x="514" y="870" font-size="12" fill="#4a4630">• Visitantes só recebem projetos com finished</text>
+<text x="514" y="886" font-size="12" fill="#4a4630">   = sim, e os espécimes deles.</text>
+<text x="514" y="910" font-size="12" fill="#4a4630">• Campos em laranja são internos: só quem fez</text>
+<text x="514" y="926" font-size="12" fill="#4a4630">   login os recebe.</text>
+<text x="514" y="950" font-size="12" fill="#4a4630">• catalog_number é único em todo o banco (por</text>
+<text x="514" y="966" font-size="12" fill="#4a4630">   laboratório, no futuro).</text>
+<rect x="990" y="428" width="290" height="178" rx="8" fill="#ffffff" stroke="#cfd6d2"/>
+<text x="1004" y="452" font-size="13" font-weight="700" fill="#33423a">Legenda</text>
+<rect x="1004" y="464" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="1017" y="475.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">PK</text>
+<text x="1040" y="476" font-size="12" fill="#33423a">chave primária</text>
+<rect x="1004" y="488" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="1017" y="499.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">FK</text>
+<text x="1040" y="500" font-size="12" fill="#33423a">chave estrangeira</text>
+<rect x="1004" y="512" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="1017" y="523.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">UQ</text>
+<text x="1040" y="524" font-size="12" fill="#33423a">valor único</text>
+<text x="1004" y="552" font-size="12" font-weight="700" fill="#33423a">negrito</text>
+<text x="1054" y="552" font-size="12" fill="#33423a">= campo obrigatório</text>
+<rect x="1004" y="564" width="26" height="15" rx="3" fill="#fde8d2" stroke="#e6b98a"/>
+<text x="1040" y="576" font-size="12" fill="#33423a">campo interno (só com login)</text>
+<text x="1004" y="596" font-size="12" fill="#2a6fb0" font-weight="700">1 ─ N</text>
+<text x="1054" y="596" font-size="12" fill="#33423a">um para muitos</text>
+<text x="40" y="434" font-size="11.5" fill="#5a6660" font-style="italic">tem muitos espécimes; apagar o projeto apaga os espécimes</text>
+<text x="40" y="582" font-size="11.5" fill="#5a6660" font-style="italic">login do laboratório; senha guardada só como hash</text>
+<text x="40" y="862" font-size="11.5" fill="#5a6660" font-style="italic">cache das consultas ao GBIF (renovado a cada 30 dias)</text>
+<text x="990" y="414" font-size="11.5" fill="#5a6660" font-style="italic">controle das migrações (1 linha)</text>
+<text x="990" y="290" font-size="11.5" fill="#5a6660" font-style="italic">uma medida por traço e unidade</text>
+</svg>

@@ -44,6 +44,10 @@ python seed.py            # cria os projetos e espécimes de exemplo
 python seed.py --remove   # remove só os de exemplo
 ```
 
+## Esquemas
+
+Os diagramas do banco de dados e do site estão em `docs/esquema_banco.png` e `docs/esquema_site.png` (também em `.svg`).
+
 ## Banco de dados e migrações
 
 A estrutura do banco é controlada pelo Alembic (pasta `backend/migrations`). Em uso normal não há nada a fazer: **a API aplica as migrações pendentes ao iniciar**, e o `seed.py` e o `create_admin.py` também.
@@ -60,7 +64,14 @@ alembic revision --autogenerate -m "o que mudou"   # cria uma migração depois 
 
 Para mudar uma tabela: edite `models.py`, rode `alembic revision --autogenerate -m "..."`, **leia o arquivo criado em `migrations/versions`** (o Alembic erra em casos como renomear colunas), rode `alembic upgrade head` e depois `pytest`. O teste `test_models_and_migrations_are_in_sync` falha se você esquecer de criar a migração.
 
-Bancos criados antes do Alembic (inclusive os antigos, com nomes em português e senhas em texto puro) são convertidos e adotados automaticamente na primeira vez que a API sobe, sem perder dados. **Faça um backup do `entomobase.db` antes**, por precaução.
+Um banco que tem tabelas mas não tem o histórico das migrações (criado antes do Alembic) é **recusado**, com uma mensagem explicando, para a API não adivinhar o estado dele e danificá-lo. Como os dados atuais são de demonstração, basta apagar o arquivo e recriar:
+
+```powershell
+cd backend
+del entomobase.db
+python seed.py                          # dados de demonstração
+python create_admin.py seu-email@exemplo.br   # primeiro usuário
+```
 
 Cuidados:
 - Voltar além da primeira migração (`alembic downgrade base`) apaga todas as tabelas e os dados.

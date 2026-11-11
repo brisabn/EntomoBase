@@ -4,7 +4,6 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect
 
-import legacy_upgrade
 from database import engine
 
 ALEMBIC_INI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "alembic.ini")
@@ -23,14 +22,13 @@ def run_alembic_upgrade():
 #
 # - a new database: Alembic creates everything
 # - a database Alembic already manages: Alembic applies the revisions it is missing
-# - a database from before Alembic (tables, but no alembic_version): converted once by legacy_upgrade,
-#   then adopted by Alembic's first revision, which only creates what is missing
+# - a database with tables but no alembic_version table was not created by Alembic: it is refused, because
+#   guessing its state could damage it
 def initialize_database():
     tables = set(inspect(engine).get_table_names())
-    predates_alembic = bool(tables) and "alembic_version" not in tables
-    if predates_alembic:
-        legacy_upgrade.prepare(engine)
-        tables = set(inspect(engine).get_table_names())
+    if tables and "alembic_version" not in tables:
+        raise RuntimeError(
+            "The database has tables but no alembic_version table, so it was not created by the migrations. "
+            "Delete the database file and start again (python seed.py creates the demo data)."
+        )
     run_alembic_upgrade()
-    if predates_alembic:
-        legacy_upgrade.finish(engine, tables)
