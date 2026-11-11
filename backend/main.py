@@ -1,5 +1,8 @@
 import csv
 import io
+import re
+import urllib.parse
+import zipfile
 import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi.responses import StreamingResponse, Response
@@ -10,6 +13,7 @@ from sqlalchemy import inspect, text, or_
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
+import gbif
 import models
 import schemas
 from database import engine, get_db
@@ -26,6 +30,10 @@ def migrar_colunas():
         "especimes": [
             ("familia", "VARCHAR"), ("altitude_m", "FLOAT"), ("sexo", "VARCHAR"),
             ("estagio", "VARCHAR"), ("imagem_arquivo", "VARCHAR"),
+            ("determinador", "VARCHAR"), ("data_determinacao", "DATE"), ("metodo_coleta", "VARCHAR"),
+            ("habitat", "VARCHAR"), ("coletor", "VARCHAR"), ("numero_campo", "VARCHAR"),
+            ("localizacao_fisica", "VARCHAR"), ("emprestimo_situacao", "VARCHAR"),
+            ("emprestimo_para", "VARCHAR"), ("emprestimo_data", "DATE"), ("notas_internas", "VARCHAR"),
         ],
         "projetos": [("descricao", "VARCHAR")],
     }
@@ -58,7 +66,7 @@ def migrar_medicoes():
 migrar_colunas()
 migrar_medicoes()
 
-app = FastAPI(title="EntomoBase API", version="0.3.0")
+app = FastAPI(title="EntomoBase API", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -175,6 +183,12 @@ def filtrar_visiveis(query, logado: bool):
     )
 
 
+# visitantes recebem o espécime sem os campos internos; a remoção é feita aqui, no servidor
+def saida_especime(especime: models.Especime, logado: bool) -> dict:
+    exclusao = None if logado else schemas.CAMPOS_INTERNOS
+    return schemas.EspecimeResponse.model_validate(especime).model_dump(mode="json", exclude=exclusao)
+
+
 def trocar_medidas(especime: models.Especime, medidas):
     especime.medidas.clear()
     for m in medidas:
@@ -193,7 +207,7 @@ def criar_especime(especime: schemas.EspecimeCreate, db: Session = Depends(get_d
     return db_especime
 
 
-@app.get("/especimes", response_model=List[schemas.EspecimeResponse])
+@app.get("/especimes")
 def listar_especimes(
     especie: Optional[str] = None, projeto_id: Optional[int] = None,
     logado: bool = Depends(usuario_logado), db: Session = Depends(get_db)
@@ -201,7 +215,8 @@ def listar_especimes(
     query = filtrar_visiveis(db.query(models.Especime), logado).options(selectinload(models.Especime.medidas))
     if especie: query = query.filter(models.Especime.especie.ilike(f"%{especie}%"))
     if projeto_id: query = query.filter(models.Especime.projeto_id == projeto_id)
-    return query.order_by(models.Especime.grupo_insetos, models.Especime.especie, models.Especime.codigo_etiqueta).all()
+    especimes = query.order_by(models.Especime.grupo_insetos, models.Especime.especie, models.Especime.codigo_etiqueta).all()
+    return [saida_especime(e, logado) for e in especimes]
 
 
 @app.put("/especimes/{especime_id}", response_model=schemas.EspecimeResponse)
@@ -245,7 +260,7 @@ def mensagem_validacao(erro: ValidationError) -> str:
 
 @app.post("/especimes/importar", response_model=schemas.ImportarRelatorio)
 def importar_especimes(
-    pedido: schemas.ImportarPedido, simular: bool = False,
+    pedido: schemas.ImportarPedido, simular: bool = False, validar_nomes: bool = True,
     db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)
 ):
     if pedido.projeto_id is not None:
@@ -307,24 +322,69 @@ def importar_especimes(
             raise HTTPException(status_code=422, detail=f"{len(erros)} linha(s) com erro; nada foi importado.")
         db.commit()
 
+    avisos = avisos_taxonomicos(validos, db) if simular and validar_nomes else []
     return schemas.ImportarRelatorio(
         simulacao=simular, total=len(pedido.linhas), criados=criados,
-        atualizados=atualizados, ignorados=ignorados, erros=erros[:200],
+        atualizados=atualizados, ignorados=ignorados, erros=erros[:200], avisos=avisos,
     )
+
+
+ROTULOS_OK = {"ok"}
+
+
+# consulta o GBIF para os nomes distintos do arquivo; os avisos nunca impedem a importação
+def avisos_taxonomicos(validos, db: Session) -> List[schemas.ImportarAviso]:
+    contagem = {}
+    for _, item in validos:
+        nome = item.especie.strip()
+        contagem[nome] = contagem.get(nome, 0) + 1
+    if not contagem:
+        return []
+    nomes = list(contagem)[:150]
+    resultados = gbif.validar_nomes(nomes, db)
+    avisos = []
+    indisponiveis = 0
+    for nome in nomes:
+        r = resultados.get(nome, {})
+        situacao = r.get("situacao", "indisponivel")
+        if situacao in ROTULOS_OK:
+            continue
+        if situacao == "indisponivel":
+            indisponiveis += contagem[nome]
+            continue
+        avisos.append(schemas.ImportarAviso(nome=nome, tipo=situacao, sugestao=r.get("sugestao"), linhas=contagem[nome]))
+    if indisponiveis:
+        avisos.append(schemas.ImportarAviso(nome="", tipo="indisponivel", linhas=indisponiveis))
+    return avisos
+
+
+@app.post("/taxonomia/validar", response_model=List[schemas.NomeValidado])
+def validar_nomes_cientificos(
+    pedido: schemas.ValidarNomesPedido, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)
+):
+    resultados = gbif.validar_nomes(pedido.nomes, db)
+    return [schemas.NomeValidado(nome=n, **r) for n, r in resultados.items()]
 
 
 # --- Exportação ---
 COLUNAS_BASE = [
     "Codigo Etiqueta", "Ordem", "Familia", "Especie", "Data Coleta", "Local Coleta", "Latitude", "Longitude",
-    "Altitude (m)", "Sexo", "Estagio", "Imagem", "Projeto", "Notas",
+    "Altitude (m)", "Sexo", "Estagio", "Determinador", "Data Determinacao", "Metodo Coleta", "Habitat",
+    "Imagem", "Projeto", "Notas",
+]
+# só aparecem no CSV completo, que exige login
+COLUNAS_INTERNAS = [
+    "Coletor", "Numero Campo", "Localizacao Fisica", "Emprestimo", "Emprestado Para", "Data Emprestimo", "Notas Internas",
 ]
 
 
 @app.get("/exportar/csv")
 def exportar_especimes_csv(
-    projeto_id: Optional[int] = None,
+    projeto_id: Optional[int] = None, completo: bool = False,
     logado: bool = Depends(usuario_logado), db: Session = Depends(get_db)
 ):
+    if completo and not logado:
+        raise HTTPException(status_code=401, detail="O CSV completo exige login.")
     query = filtrar_visiveis(db.query(models.Especime), logado).options(
         selectinload(models.Especime.medidas), selectinload(models.Especime.projeto)
     )
@@ -341,21 +401,121 @@ def exportar_especimes_csv(
 
     output = io.StringIO()
     # BOM para o Excel abrir os acentos corretamente
-    output.write("﻿")
+    output.write("\ufeff")
     writer = csv.writer(output)
-    writer.writerow(COLUNAS_BASE + [f"{t} ({u})" for t, u in tracos])
+    cabecalho = COLUNAS_BASE + (COLUNAS_INTERNAS if completo else [])
+    writer.writerow(cabecalho + [f"{t} ({u})" for t, u in tracos])
     for esp in especimes:
         valores = {(m.traco, m.unidade or "mm"): m.valor for m in esp.medidas}
-        writer.writerow([
+        linha = [
             esp.codigo_etiqueta, esp.grupo_insetos, esp.familia, esp.especie, esp.data_coleta, esp.local_coleta,
-            esp.latitude, esp.longitude, esp.altitude_m, esp.sexo, esp.estagio, esp.imagem_arquivo,
+            esp.latitude, esp.longitude, esp.altitude_m, esp.sexo, esp.estagio, esp.determinador,
+            esp.data_determinacao, esp.metodo_coleta, esp.habitat, esp.imagem_arquivo,
             esp.projeto.titulo if esp.projeto else None, esp.notas,
-        ] + [valores.get(chave) for chave in tracos])
+        ]
+        if completo:
+            linha += [
+                esp.coletor, esp.numero_campo, esp.localizacao_fisica, esp.emprestimo_situacao,
+                esp.emprestimo_para, esp.emprestimo_data, esp.notas_internas,
+            ]
+        writer.writerow(linha + [valores.get(chave) for chave in tracos])
     output.seek(0)
+    nome = "acervo_entomobase_completo.csv" if completo else "acervo_entomobase.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=acervo_entomobase.csv"},
+        headers={"Content-Disposition": f"attachment; filename={nome}"},
+    )
+
+
+# --- Darwin Core ---
+# ajuste estes valores para os da coleção antes de publicar no GBIF
+DWC_INSTITUICAO = "UFMG"
+DWC_COLECAO = "EntomoBase"
+DWC_LICENCA = "http://creativecommons.org/licenses/by/4.0/legalcode"
+DWC_ENDERECO_ZENODO = "https://zenodo.org/records/{registro}/files/{arquivo}"
+
+DWC_CAMPOS = [
+    "occurrenceID", "basisOfRecord", "institutionCode", "collectionCode", "catalogNumber", "datasetName",
+    "license", "kingdom", "class", "order", "family", "scientificName", "eventDate", "locality",
+    "decimalLatitude", "decimalLongitude", "geodeticDatum", "minimumElevationInMeters", "sex", "lifeStage",
+    "identifiedBy", "dateIdentified", "samplingProtocol", "habitat", "associatedMedia", "occurrenceRemarks",
+]
+DWC_TERMOS = "http://rs.tdwg.org/dwc/terms/"
+
+
+def midia_zenodo(esp: models.Especime) -> Optional[str]:
+    url = esp.projeto.dataset_externo_url if esp.projeto else None
+    if esp.fotografia_url and esp.fotografia_url.startswith("http"):
+        return esp.fotografia_url
+    if not (url and esp.imagem_arquivo):
+        return None
+    achado = re.search(r"zenodo\.org/records?/(\d+)", url, re.I) or re.search(r"10\.5281/zenodo\.(\d+)", url, re.I)
+    # ids que começam com 0 são os dos dados fictícios
+    if not achado or achado.group(1).startswith("0"):
+        return None
+    return DWC_ENDERECO_ZENODO.format(registro=achado.group(1), arquivo=urllib.parse.quote(esp.imagem_arquivo))
+
+
+def meta_xml() -> str:
+    def campos(lista, inicio):
+        return "\n".join(
+            f'    <field index="{i}" term="{DWC_TERMOS}{nome}"/>' for i, nome in enumerate(lista, start=inicio)
+        )
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<archive xmlns="http://rs.tdwg.org/dwc/text/">\n'
+        '  <core encoding="UTF-8" fieldsTerminatedBy="," linesTerminatedBy="\\n" fieldsEnclosedBy="&quot;" ignoreHeaderLines="1" rowType="http://rs.tdwg.org/dwc/terms/Occurrence">\n'
+        '    <files><location>occurrence.csv</location></files>\n'
+        '    <id index="0"/>\n'
+        f'{campos(DWC_CAMPOS[1:], 1)}\n'
+        '  </core>\n'
+        '  <extension encoding="UTF-8" fieldsTerminatedBy="," linesTerminatedBy="\\n" fieldsEnclosedBy="&quot;" ignoreHeaderLines="1" rowType="http://rs.tdwg.org/dwc/terms/MeasurementOrFact">\n'
+        '    <files><location>measurementorfact.csv</location></files>\n'
+        '    <coreid index="0"/>\n'
+        f'{campos(["measurementType", "measurementValue", "measurementUnit"], 1)}\n'
+        '  </extension>\n'
+        '</archive>\n'
+    )
+
+
+# a exportação Darwin Core é sempre pública: só projetos concluídos e nenhum campo interno
+@app.get("/exportar/dwc")
+def exportar_darwin_core(projeto_id: Optional[int] = None, db: Session = Depends(get_db)):
+    query = filtrar_visiveis(db.query(models.Especime), False).options(
+        selectinload(models.Especime.medidas), selectinload(models.Especime.projeto)
+    )
+    if projeto_id: query = query.filter(models.Especime.projeto_id == projeto_id)
+    especimes = query.order_by(models.Especime.id).all()
+
+    ocorrencias = io.StringIO()
+    medidas = io.StringIO()
+    w_oc = csv.writer(ocorrencias, lineterminator="\n")
+    w_me = csv.writer(medidas, lineterminator="\n")
+    w_oc.writerow(DWC_CAMPOS)
+    w_me.writerow(["occurrenceID", "measurementType", "measurementValue", "measurementUnit"])
+    for esp in especimes:
+        ocorrencia = f"{DWC_INSTITUICAO}:{DWC_COLECAO}:{esp.codigo_etiqueta}"
+        tem_coordenadas = esp.latitude is not None and esp.longitude is not None
+        w_oc.writerow([
+            ocorrencia, "PreservedSpecimen", DWC_INSTITUICAO, DWC_COLECAO, esp.codigo_etiqueta,
+            esp.projeto.titulo if esp.projeto else "", DWC_LICENCA, "Animalia", "Insecta", esp.grupo_insetos,
+            esp.familia, esp.especie, esp.data_coleta, esp.local_coleta,
+            esp.latitude, esp.longitude, "WGS84" if tem_coordenadas else "", esp.altitude_m, esp.sexo, esp.estagio,
+            esp.determinador, esp.data_determinacao, esp.metodo_coleta, esp.habitat, midia_zenodo(esp), esp.notas,
+        ])
+        for med in esp.medidas:
+            w_me.writerow([ocorrencia, med.traco, med.valor, med.unidade])
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as pacote:
+        pacote.writestr("occurrence.csv", ocorrencias.getvalue())
+        pacote.writestr("measurementorfact.csv", medidas.getvalue())
+        pacote.writestr("meta.xml", meta_xml())
+    return Response(
+        buffer.getvalue(), media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=entomobase_darwincore.zip"},
     )
 
 

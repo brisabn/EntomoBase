@@ -17,6 +17,13 @@ class MedidaResponse(MedidaBase):
         from_attributes = True
 
 
+# campos que visitantes nunca recebem (API, CSV e Darwin Core)
+CAMPOS_INTERNOS = {
+    "coletor", "numero_campo", "localizacao_fisica", "emprestimo_situacao",
+    "emprestimo_para", "emprestimo_data", "notas_internas",
+}
+
+
 class EspecimeBase(BaseModel):
     codigo_etiqueta: str = Field(..., min_length=1)
     grupo_insetos: str = Field(..., min_length=1)
@@ -33,6 +40,17 @@ class EspecimeBase(BaseModel):
     fotografia_url: Optional[str] = None
     notas: Optional[str] = None
     projeto_id: Optional[int] = None
+    determinador: Optional[str] = None
+    data_determinacao: Optional[date] = None
+    metodo_coleta: Optional[str] = None
+    habitat: Optional[str] = None
+    coletor: Optional[str] = None
+    numero_campo: Optional[str] = None
+    localizacao_fisica: Optional[str] = None
+    emprestimo_situacao: Optional[str] = None
+    emprestimo_para: Optional[str] = None
+    emprestimo_data: Optional[date] = None
+    notas_internas: Optional[str] = None
 
 class EspecimeCreate(EspecimeBase):
     medidas: Optional[List[MedidaCreate]] = []
@@ -53,6 +71,17 @@ class EspecimeUpdate(BaseModel):
     fotografia_url: Optional[str] = None
     notas: Optional[str] = None
     projeto_id: Optional[int] = None
+    determinador: Optional[str] = None
+    data_determinacao: Optional[date] = None
+    metodo_coleta: Optional[str] = None
+    habitat: Optional[str] = None
+    coletor: Optional[str] = None
+    numero_campo: Optional[str] = None
+    localizacao_fisica: Optional[str] = None
+    emprestimo_situacao: Optional[str] = None
+    emprestimo_para: Optional[str] = None
+    emprestimo_data: Optional[date] = None
+    notas_internas: Optional[str] = None
     medidas: Optional[List[MedidaCreate]] = None
 
 class EspecimeResponse(EspecimeBase):
@@ -68,6 +97,13 @@ class ImportarPedido(BaseModel):
     duplicados: str = Field("ignorar", pattern="^(ignorar|atualizar)$")
     linhas: List[dict] = Field(..., max_length=5000)
 
+class ImportarAviso(BaseModel):
+    nome: str
+    tipo: str
+    sugestao: Optional[str] = None
+    linhas: int = 0
+
+
 class ImportarErro(BaseModel):
     linha: Optional[int] = None
     codigo_etiqueta: Optional[str] = None
@@ -80,6 +116,7 @@ class ImportarRelatorio(BaseModel):
     atualizados: int
     ignorados: int
     erros: List[ImportarErro]
+    avisos: List[ImportarAviso] = []
 
 
 class ProjetoBase(BaseModel):
@@ -118,3 +155,15 @@ class ProjetoUpdate(BaseModel):
     finalizado: Optional[bool] = None
     publicacao_vinculada: Optional[str] = None
     descricao: Optional[str] = None
+
+
+class ValidarNomesPedido(BaseModel):
+    nomes: List[str] = Field(..., max_length=300)
+
+
+class NomeValidado(BaseModel):
+    nome: str
+    situacao: str
+    sugestao: Optional[str] = None
+    familia: Optional[str] = None
+    ordem: Optional[str] = None

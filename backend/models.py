@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date, DateTime
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -41,6 +41,21 @@ class Especime(Base):
     notas = Column(String, nullable=True)
     projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=True)
 
+    # campos públicos de identificação e coleta
+    determinador = Column(String, nullable=True)
+    data_determinacao = Column(Date, nullable=True)
+    metodo_coleta = Column(String, nullable=True)
+    habitat = Column(String, nullable=True)
+
+    # campos internos: só o laboratório logado vê (ver CAMPOS_INTERNOS em schemas.py)
+    coletor = Column(String, nullable=True)
+    numero_campo = Column(String, nullable=True)
+    localizacao_fisica = Column(String, nullable=True)
+    emprestimo_situacao = Column(String, nullable=True)
+    emprestimo_para = Column(String, nullable=True)
+    emprestimo_data = Column(Date, nullable=True)
+    notas_internas = Column(String, nullable=True)
+
     projeto = relationship("Projeto", back_populates="especimes")
     medidas = relationship("Medida", back_populates="especime", cascade="all, delete-orphan", order_by="Medida.id")
     # tabela antiga, mantida só para não perder dados na migração
@@ -75,3 +90,17 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     senha = Column(String, nullable=False)
+
+
+# cache das consultas de nomes científicos ao GBIF
+class Taxon(Base):
+    __tablename__ = "taxons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome_informado = Column(String, unique=True, index=True, nullable=False)
+    situacao = Column(String, nullable=False)
+    sugestao = Column(String, nullable=True)
+    chave_gbif = Column(Integer, nullable=True)
+    familia = Column(String, nullable=True)
+    ordem = Column(String, nullable=True)
+    consultado_em = Column(DateTime, nullable=False)
