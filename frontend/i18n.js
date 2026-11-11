@@ -204,6 +204,7 @@ const MESSAGES = {
     // errors sent by the API as {"code": ..., "params": ...}
     'error.missing_token': 'Token ausente ou inválido',
     'error.forbidden': 'Você não tem permissão para fazer isso neste laboratório.',
+    'error.lab_not_found': 'Laboratório não encontrado.',
     'error.session_expired': 'Sessão expirada. Faça login novamente.',
     'error.invalid_credentials': 'E-mail ou senha incorretos',
     'error.too_many_attempts': (p) => `Muitas tentativas. Tente novamente em ${p.minutes} ${plural(p.minutes, 'minuto', 'minutos')}.`,
@@ -432,6 +433,7 @@ const MESSAGES = {
 
     'error.missing_token': 'Missing or invalid token',
     'error.forbidden': 'You do not have permission to do this in this laboratory.',
+    'error.lab_not_found': 'Laboratory not found.',
     'error.session_expired': 'Session expired. Please sign in again.',
     'error.invalid_credentials': 'Wrong e-mail or password',
     'error.too_many_attempts': (p) => `Too many attempts. Try again in ${p.minutes} ${plural(p.minutes, 'minute', 'minutes')}.`,

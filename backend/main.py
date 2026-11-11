@@ -597,3 +597,4 @@ def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Dep
 
 # included last, once every route above has been declared
 app.include_router(lab_router)
+app.include_router(lab_router, prefix="/labs/{slug}")
