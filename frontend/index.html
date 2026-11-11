@@ -578,6 +578,14 @@
           <label class="field"><span>{{ t('projectForm.publication') }}</span><input v-model="projectForm.linked_publication"></label>
           <label class="field"><span>{{ t('projectForm.cover') }}</span><input v-model="projectForm.cover_url" type="url"></label>
           <label class="check"><input type="checkbox" v-model="projectForm.finished"> {{ t('projectForm.finished') }}</label>
+          <label class="field">
+            <span>{{ t('projectForm.visibility') }}</span>
+            <select v-model="projectForm.visibility">
+              <option value="private">{{ t('visibility.private') }}</option>
+              <option v-if="projectForm.visibility === 'unlisted'" value="unlisted">{{ t('visibility.unlisted') }}</option>
+              <option value="public">{{ t('visibility.public') }}</option>
+            </select>
+          </label>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">
             <button type="button" class="btn-light" @click="projectForm = null">{{ t('common.cancel') }}</button>

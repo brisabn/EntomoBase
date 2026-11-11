@@ -124,7 +124,9 @@ const MESSAGES = {
     'projectForm.title': 'Título', 'projectForm.year': 'Ano', 'projectForm.group': 'Grupo de insetos',
     'projectForm.locality': 'Local de coleta', 'projectForm.traits': 'Traços medidos', 'projectForm.description': 'Descrição',
     'projectForm.dataset': 'Link do repositório (Zenodo)', 'projectForm.publication': 'Publicação vinculada (link ou referência)',
-    'projectForm.cover': 'URL da imagem de capa', 'projectForm.finished': 'Projeto concluído (visível ao público)',
+    'projectForm.cover': 'URL da imagem de capa', 'projectForm.finished': 'Projeto concluído (a pesquisa terminou)',
+    'projectForm.visibility': 'Quem pode ver', 'visibility.private': 'Privado (só o laboratório)',
+    'visibility.unlisted': 'Só com o link', 'visibility.public': 'Público',
 
     // specimen form
     'specimenForm.new': 'Novo espécime', 'specimenForm.edit': 'Editar espécime',
@@ -201,6 +203,7 @@ const MESSAGES = {
 
     // errors sent by the API as {"code": ..., "params": ...}
     'error.missing_token': 'Token ausente ou inválido',
+    'error.forbidden': 'Você não tem permissão para fazer isso neste laboratório.',
     'error.session_expired': 'Sessão expirada. Faça login novamente.',
     'error.invalid_credentials': 'E-mail ou senha incorretos',
     'error.too_many_attempts': (p) => `Muitas tentativas. Tente novamente em ${p.minutes} ${plural(p.minutes, 'minuto', 'minutos')}.`,
@@ -354,7 +357,9 @@ const MESSAGES = {
     'projectForm.title': 'Title', 'projectForm.year': 'Year', 'projectForm.group': 'Insect group',
     'projectForm.locality': 'Collection locality', 'projectForm.traits': 'Measured traits', 'projectForm.description': 'Description',
     'projectForm.dataset': 'Repository link (Zenodo)', 'projectForm.publication': 'Linked publication (link or reference)',
-    'projectForm.cover': 'Cover image URL', 'projectForm.finished': 'Finished project (visible to the public)',
+    'projectForm.cover': 'Cover image URL', 'projectForm.finished': 'Finished project (the research is done)',
+    'projectForm.visibility': 'Who can see it', 'visibility.private': 'Private (only the laboratory)',
+    'visibility.unlisted': 'Only with the link', 'visibility.public': 'Public',
 
     'specimenForm.new': 'New specimen', 'specimenForm.edit': 'Edit specimen',
     'sf.catalog': 'Catalog number', 'sf.project': 'Project', 'sf.none': 'None',
@@ -426,6 +431,7 @@ const MESSAGES = {
     'notify.copy_failed': 'Could not copy. Select the text and copy it manually.',
 
     'error.missing_token': 'Missing or invalid token',
+    'error.forbidden': 'You do not have permission to do this in this laboratory.',
     'error.session_expired': 'Session expired. Please sign in again.',
     'error.invalid_credentials': 'Wrong e-mail or password',
     'error.too_many_attempts': (p) => `Too many attempts. Try again in ${p.minutes} ${plural(p.minutes, 'minute', 'minutes')}.`,
