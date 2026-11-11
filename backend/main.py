@@ -8,7 +8,7 @@ import zipfile
 import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi.responses import StreamingResponse, Response
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy import func, inspect, text, or_
@@ -20,6 +20,7 @@ import models
 import schemas
 from database import SessionLocal, engine, get_db
 from demo_imagens import gerar_svg
+from limite_tentativas import LimiteTentativas
 from seguranca import gerar_hash, ja_e_hash, precisa_novo_hash, verificar_senha
 
 # a migração das medidas só roda na primeira vez em que a tabela nova aparece
@@ -136,14 +137,38 @@ def usuario_logado(authorization: str = Header(None)) -> bool:
 
 
 # --- Autenticação ---
+# limites de senhas erradas por janela de 15 minutos: por conta (e-mail + IP) e por IP no total
+JANELA_LOGIN_SEGUNDOS = 15 * 60
+limite_por_conta = LimiteTentativas(maximo=5, janela_segundos=JANELA_LOGIN_SEGUNDOS)
+limite_por_ip = LimiteTentativas(maximo=20, janela_segundos=JANELA_LOGIN_SEGUNDOS)
+
+
+def exigir_login_liberado(*chaves_e_limites):
+    espera = max((limite.segundos_restantes(chave) for limite, chave in chaves_e_limites), default=0)
+    if espera:
+        minutos = (espera + 59) // 60
+        raise HTTPException(
+            status_code=429,
+            detail=f"Muitas tentativas. Tente novamente em {minutos} {'minuto' if minutos == 1 else 'minutos'}.",
+            headers={"Retry-After": str(espera)},
+        )
+
+
 # não existe usuário padrão: o primeiro é criado com `python criar_admin.py email@exemplo.br`
 @app.post("/login")
-def login(credenciais: schemas.UsuarioLogin, db: Session = Depends(get_db)):
-    usuario = db.query(models.Usuario).filter(
-        func.lower(models.Usuario.email) == credenciais.email.strip().lower()
-    ).first()
+def login(credenciais: schemas.UsuarioLogin, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "desconhecido"
+    email = credenciais.email.strip().lower()
+    chave_conta = (ip, email)
+    # tentativas já bloqueadas nem verificam a senha, o que também poupa o argon2, que é lento de propósito
+    exigir_login_liberado((limite_por_conta, chave_conta), (limite_por_ip, ip))
+
+    usuario = db.query(models.Usuario).filter(func.lower(models.Usuario.email) == email).first()
     if not verificar_senha(credenciais.senha, usuario.senha if usuario else None):
+        limite_por_conta.registrar_falha(chave_conta)
+        limite_por_ip.registrar_falha(ip)
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    limite_por_conta.zerar(chave_conta)
     if precisa_novo_hash(usuario.senha):
         usuario.senha = gerar_hash(credenciais.senha)
         db.commit()
