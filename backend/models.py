@@ -131,8 +131,25 @@ class User(Base):
     name = Column(String, nullable=True)
     # can create and deactivate laboratories (platform administrator)
     is_superadmin = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    # when the person proved they own the e-mail address; empty until then
+    email_verified_at = Column(DateTime, nullable=True)
 
     memberships = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
+    email_confirmations = relationship("EmailConfirmation", back_populates="user", cascade="all, delete-orphan")
+
+
+# a code e-mailed to a user to confirm the address; only the hash is stored, so a copy of the database
+# does not let anyone confirm an address that is not theirs
+class EmailConfirmation(Base):
+    __tablename__ = "email_confirmations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    code_hash = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User", back_populates="email_confirmations")
 
 
 # cache of scientific name lookups on GBIF
