@@ -85,12 +85,29 @@ migrar_senhas()
 
 app = FastAPI(title="EntomoBase API", version="0.4.0")
 
+# origens que podem chamar a API pelo navegador, vindas de CORS_ORIGINS (separadas por vírgula)
+# em modo dev, sem a variável, vale o endereço do frontend do README
+ORIGENS_DEV = ["http://127.0.0.1:5500", "http://localhost:5500"]
+
+
+def carregar_origens_permitidas() -> List[str]:
+    bruto = os.getenv("CORS_ORIGINS", "")
+    origens = [o.strip().rstrip("/") for o in bruto.split(",") if o.strip()]
+    if origens:
+        return origens
+    if os.getenv("ENTOMOBASE_ENV") == "dev":
+        return ORIGENS_DEV
+    print("AVISO: CORS_ORIGINS não definida; nenhum site de outra origem poderá usar a API.")
+    return []
+
+
+# o login usa o cabeçalho Authorization (Bearer), não cookies, então não há credenciais de navegador
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=carregar_origens_permitidas(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # --- Configuração de Segurança JWT ---

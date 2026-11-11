@@ -27,6 +27,8 @@ python -m http.server 5500
 
 e abra `http://127.0.0.1:5500`.
 
+O endereço da API que o site usa fica em `frontend/config.js` (`apiUrl`). Ao publicar o frontend, troque esse valor pelo endereço público da API e defina `CORS_ORIGINS` na API com o endereço do site.
+
 Criar o primeiro usuário do laboratório (não existe usuário padrão). Dentro de `backend`:
 
 ```powershell
@@ -48,6 +50,7 @@ python seed.py --limpar   # remove só os de exemplo
 |---|---|
 | `SECRET_KEY` | Chave que assina os tokens de login. **Obrigatória** fora do desenvolvimento. |
 | `ENTOMOBASE_ENV` | Com o valor `dev`, a API sobe sem `SECRET_KEY` usando uma chave temporária (os logins caem a cada reinício). Use só em desenvolvimento. |
+| `CORS_ORIGINS` | Endereços dos sites que podem usar a API pelo navegador, separados por vírgula (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, valem `http://127.0.0.1:5500` e `http://localhost:5500`. Fora do `dev`, sem ela, nenhum outro site consegue usar a API. |
 | `DATABASE_URL` | Banco de dados. Sem ela, usa SQLite local (`entomobase.db`). |
 
 Para gerar uma `SECRET_KEY` de produção:

@@ -159,7 +159,7 @@ const Zenodo = {
 const app = createApp({
   data() {
     return {
-      apiUrl: 'http://127.0.0.1:8000',
+      apiUrl: ((window.ENTOMOBASE_CONFIG || {}).apiUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
       rota: { nome: 'sobre' },
       termoBusca: '',
       buscaColecao: '',
