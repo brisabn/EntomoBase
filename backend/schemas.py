@@ -104,10 +104,17 @@ class ImportWarning(BaseModel):
     row_count: int = 0
 
 
+# one problem found in a value; the site turns code, field and params into a message in its language
+class Problem(BaseModel):
+    code: str
+    field: Optional[str] = None
+    params: dict = {}
+
+
 class ImportRowError(BaseModel):
     line: Optional[int] = None
     catalog_number: Optional[str] = None
-    message: str
+    problems: List[Problem]
 
 class ImportReport(BaseModel):
     dry_run: bool

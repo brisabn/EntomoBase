@@ -169,6 +169,7 @@ const app = createApp({
   data() {
     return {
       apiUrl: ((window.ENTOMOBASE_CONFIG || {}).apiUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
+      lang: 'pt',
       route: { name: 'about' },
       searchTerm: '',
       collectionSearch: '',
@@ -701,14 +702,22 @@ const app = createApp({
       this.toastTimer = setTimeout(() => { this.toast = null; }, 4500);
     },
 
+    // ---------- texts ----------
+    t(key, params = {}) { return translate(this.lang, key, params); },
+    describeProblems(problems) { return (problems || []).map((p) => describeProblem(this.lang, p)).join('; '); },
+
     // ---------- API ----------
+    // the API sends {"detail": {"code", "params", "problems"?}}; the message comes from i18n.js
     async errorMessage(res) {
       try {
         const d = (await res.json()).detail;
+        if (d && typeof d === 'object' && !Array.isArray(d) && d.code) {
+          if (d.problems && d.problems.length) return this.describeProblems(d.problems);
+          return this.t(`error.${d.code}`, d.params || {});
+        }
         if (typeof d === 'string') return d;
-        if (Array.isArray(d)) return d.map((x) => `${(x.loc || []).slice(1).join('.')}: ${x.msg}`).join('; ');
       } catch { /* response without a JSON body */ }
-      return `Erro ${res.status}`;
+      return this.t('error.unknown', { status: res.status });
     },
     async api(path, { method = 'GET', body = null } = {}) {
       const headers = {};
@@ -1097,15 +1106,6 @@ const app = createApp({
     },
 
     // ---------- CSV import ----------
-    // turns the API validation messages into Portuguese for the user
-    errorText(msg) {
-      return String(msg)
-        .replace(/\binsect_order\b/g, 'Ordem').replace(/\bcatalog_number\b/g, 'Código da etiqueta').replace(/\bspecies\b/g, 'Espécie')
-        .replace(/Field required/g, 'campo obrigatório')
-        .replace(/Input should be less than or equal to (-?[\d.]+)/g, 'deve ser no máximo $1')
-        .replace(/Input should be greater than or equal to (-?[\d.]+)/g, 'deve ser no mínimo $1')
-        .replace(/Input should be a valid (number|date)[^;]*/g, 'valor inválido').replace(/String should have at least 1 character/g, 'não pode ficar vazio');
-    },
     openImport(projectId = null) {
       const p = this.projectsById[projectId];
       this.importJob = {
@@ -1147,28 +1147,28 @@ const app = createApp({
           if (raw === '' || col.target === 'ignore') return;
           if (col.target === 'measurement') {
             const value = parseNumber(raw);
-            if (Number.isNaN(value)) { problems.push(`valor inválido em "${col.trait}": ${raw}`); return; }
+            if (Number.isNaN(value)) { problems.push({ code: 'invalid_measurement', params: { trait: col.trait, value: raw } }); return; }
             (o.measurements = o.measurements || []).push({ trait: col.trait, value, unit: col.unit || 'mm' });
             return;
           }
           const field = col.target.slice(6);
           if (['latitude', 'longitude', 'elevation_m'].includes(field)) {
             const v = parseNumber(raw);
-            if (Number.isNaN(v)) problems.push(`${field}: valor inválido (${raw})`); else o[field] = v;
+            if (Number.isNaN(v)) problems.push({ code: 'invalid_value', field, params: { value: raw } }); else o[field] = v;
           } else if (['collection_date', 'identification_date', 'loan_date'].includes(field)) o[field] = toIsoDate(raw);
           else if (field === 'project') {
             const p = this.projects.find((x) => norm(x.title) === norm(raw));
-            if (p) o.project_id = p.id; else problems.push(`projeto "${raw}" não encontrado`);
+            if (p) o.project_id = p.id; else problems.push({ code: 'project_title_not_found', params: { title: raw } });
           } else if (field === 'project_id') {
             const v = parseNumber(raw);
-            if (Number.isNaN(v)) problems.push(`projeto_id inválido (${raw})`); else o.project_id = v;
+            if (Number.isNaN(v)) problems.push({ code: 'invalid_project_id', params: { value: raw } }); else o.project_id = v;
           } else o[field] = raw;
         });
         ['insect_order', 'family', 'species'].forEach((c) => {
           if (!o[c] && job.defaults[c].trim()) o[c] = job.defaults[c].trim();
         });
         if (o.species && job.corrections[o.species]) o.species = job.corrections[o.species];
-        if (problems.length) errors.push({ line, catalog_number: o.catalog_number || '', message: problems.join('; ') });
+        if (problems.length) errors.push({ line, catalog_number: o.catalog_number || '', problems });
         else rows.push(o);
       });
       return { rows, errors };

@@ -8,8 +8,9 @@ import zipfile
 import jwt
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy import func, or_
@@ -25,7 +26,32 @@ from demo_images import render_svg
 from rate_limit import AttemptLimiter
 from security import hash_password, needs_rehash, verify_password
 
-# error messages (detail) and exported file contents stay in Portuguese: they are shown to the site's users
+# errors are sent as {"detail": {"code": ..., "params": {...}}}; the site turns the code into a message
+# in its own language. Exported file contents stay in Portuguese: they are shown to the site's users
+
+
+def api_error(status_code: int, code: str, headers: Optional[dict] = None, **params) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={"code": code, "params": params}, headers=headers)
+
+
+# pydantic error types the site has a message for; any other type is shown as an invalid value
+VALIDATION_CODES = {"missing": "required", "less_than_equal": "max", "greater_than_equal": "min", "string_too_short": "empty"}
+
+
+def problems_from(errors) -> List[dict]:
+    problems = []
+    for e in errors:
+        loc = [str(p) for p in e.get("loc", ())]
+        if loc and loc[0] in ("body", "query", "path"):
+            loc = loc[1:]
+        ctx = e.get("ctx") or {}
+        limit = ctx.get("le", ctx.get("ge"))
+        problems.append({
+            "code": VALIDATION_CODES.get(e.get("type"), "invalid_value"),
+            "field": ".".join(loc) or None,
+            "params": {"limit": limit} if limit is not None else {},
+        })
+    return problems
 
 
 # the database is prepared when the API starts, not when this file is imported
@@ -36,6 +62,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=lifespan)
+
+
+# invalid request bodies use the same format as the other errors
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"detail": {"code": "invalid_request", "params": {}, "problems": problems_from(exc.errors())}})
 
 # origins allowed to call the API from a browser, read from CORS_ORIGINS (comma separated)
 # in dev mode, without the variable, the frontend address from the README is allowed
@@ -86,12 +118,12 @@ SECRET_KEY = load_secret_key()
 
 def require_login(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Token ausente ou inválido")
+        raise api_error(401, "missing_token")
     token = authorization.split(" ")[1]
     try:
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Sessão expirada. Faça login novamente.")
+        raise api_error(401, "session_expired")
 
 
 # does not require login; only tells whether the token sent is valid
@@ -116,11 +148,7 @@ def ensure_login_allowed(*limiters_and_keys):
     wait = max((limiter.seconds_remaining(key) for limiter, key in limiters_and_keys), default=0)
     if wait:
         minutes = (wait + 59) // 60
-        raise HTTPException(
-            status_code=429,
-            detail=f"Muitas tentativas. Tente novamente em {minutes} {'minuto' if minutes == 1 else 'minutos'}.",
-            headers={"Retry-After": str(wait)},
-        )
+        raise api_error(429, "too_many_attempts", headers={"Retry-After": str(wait)}, minutes=minutes)
 
 
 # there is no default user: the first one is created with `python create_admin.py email@example.com`
@@ -136,7 +164,7 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
     if not verify_password(credentials.password, user.password_hash if user else None):
         account_limiter.record_failure(account_key)
         ip_limiter.record_failure(ip)
-        raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+        raise api_error(401, "invalid_credentials")
     account_limiter.reset(account_key)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(credentials.password)
@@ -178,7 +206,7 @@ def list_projects(
 @app.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
 def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not db_project: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    if not db_project: raise api_error(404, "project_not_found")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(db_project, key, value)
     db.commit()
@@ -189,7 +217,7 @@ def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = D
 @app.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not db_project: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    if not db_project: raise api_error(404, "project_not_found")
     db.delete(db_project)
     db.commit()
     return None
@@ -220,7 +248,7 @@ def replace_measurements(specimen: models.Specimen, measurements):
 @app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
 def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     if db.query(models.Specimen).filter(models.Specimen.catalog_number == specimen.catalog_number).first():
-        raise HTTPException(status_code=400, detail="Código de etiqueta já cadastrado.")
+        raise api_error(400, "duplicate_catalog_number")
     db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}))
     replace_measurements(db_specimen, specimen.measurements or [])
     db.add(db_specimen)
@@ -244,7 +272,7 @@ def list_specimens(
 @app.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
 def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
-    if not specimen: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
+    if not specimen: raise api_error(404, "specimen_not_found")
 
     required = {"catalog_number", "insect_order", "species"}
     fields = {
@@ -254,7 +282,7 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
     new_number = fields.get("catalog_number")
     if new_number and new_number != specimen.catalog_number:
         if db.query(models.Specimen).filter(models.Specimen.catalog_number == new_number).first():
-            raise HTTPException(status_code=400, detail="Código de etiqueta já cadastrado.")
+            raise api_error(400, "duplicate_catalog_number")
     for key, value in fields.items():
         setattr(specimen, key, value)
 
@@ -269,15 +297,13 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
 @app.delete("/specimens/{specimen_id}", status_code=204)
 def delete_specimen(specimen_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
-    if not specimen: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
+    if not specimen: raise api_error(404, "specimen_not_found")
     db.delete(specimen)
     db.commit()
     return None
 
 
 # --- Bulk import ---
-def validation_message(error: ValidationError) -> str:
-    return "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in error.errors())
 
 
 @app.post("/specimens/import", response_model=schemas.ImportReport)
@@ -287,7 +313,7 @@ def import_specimens(
 ):
     if payload.project_id is not None:
         if not db.query(models.Project).filter(models.Project.id == payload.project_id).first():
-            raise HTTPException(status_code=404, detail="Projeto não encontrado")
+            raise api_error(404, "project_not_found")
 
     project_ids = {p.id for p in db.query(models.Project.id).all()}
     errors = []
@@ -298,16 +324,16 @@ def import_specimens(
         try:
             item = schemas.SpecimenCreate(**raw)
         except ValidationError as e:
-            errors.append(schemas.ImportRowError(line=line, catalog_number=str(raw.get("catalog_number") or ""), message=validation_message(e)))
+            errors.append(schemas.ImportRowError(line=line, catalog_number=str(raw.get("catalog_number") or ""), problems=problems_from(e.errors())))
             continue
         item.catalog_number = item.catalog_number.strip()
         if payload.project_id is not None:
             item.project_id = payload.project_id
         elif item.project_id is not None and item.project_id not in project_ids:
-            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, message=f"projeto_id {item.project_id} não existe"))
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="unknown_project", field="project_id", params={"project_id": item.project_id})]))
             continue
         if item.catalog_number in seen:
-            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, message=f"código repetido no arquivo (primeira vez na linha {seen[item.catalog_number]})"))
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="duplicate_in_file", field="catalog_number", params={"first_line": seen[item.catalog_number]})]))
             continue
         seen[item.catalog_number] = line
         valid.append((line, item))
@@ -341,7 +367,7 @@ def import_specimens(
     if not dry_run:
         if errors:
             db.rollback()
-            raise HTTPException(status_code=422, detail=f"{len(errors)} linha(s) com erro; nada foi importado.")
+            raise api_error(422, "import_has_errors", count=len(errors))
         db.commit()
 
     warnings = taxonomy_warnings(valid, db) if dry_run and validate_names else []
@@ -407,7 +433,7 @@ def export_specimens_csv(
     logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
 ):
     if full and not logged_in:
-        raise HTTPException(status_code=401, detail="O CSV completo exige login.")
+        raise api_error(401, "full_csv_requires_login")
     query = filter_visible(db.query(models.Specimen), logged_in).options(
         selectinload(models.Specimen.measurements), selectinload(models.Specimen.project)
     )
@@ -547,6 +573,6 @@ def export_darwin_core(project_id: Optional[int] = None, db: Session = Depends(g
 def demo_image(file_name: str, db: Session = Depends(get_db)):
     s = db.query(models.Specimen).filter(models.Specimen.image_file == file_name).first()
     if not s:
-        raise HTTPException(status_code=404, detail="Imagem não encontrada")
+        raise api_error(404, "image_not_found")
     svg = render_svg(s.insect_order, s.family or "", s.species, s.id, s.catalog_number, s.sex or "")
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})

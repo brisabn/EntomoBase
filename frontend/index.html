@@ -826,7 +826,7 @@
               </p>
               <ul class="imp-errors" v-if="importJob.clientErrors.length || (importJob.report && importJob.report.errors.length)">
                 <li v-for="(er, k) in importJob.clientErrors.concat(importJob.report ? importJob.report.errors : []).slice(0, 12)" :key="k">
-                  Linha {{ er.line }}<template v-if="er.catalog_number"> ({{ er.catalog_number }})</template>: {{ errorText(er.message) }}
+                  Linha {{ er.line }}<template v-if="er.catalog_number"> ({{ er.catalog_number }})</template>: {{ describeProblems(er.problems) }}
                 </li>
               </ul>
               <p v-if="importJob.clientErrors.length + (importJob.report ? importJob.report.errors.length : 0) > 12" class="muted small">Mostrando os 12 primeiros erros.</p>
@@ -924,6 +924,7 @@
   </template>
 
   <script src="config.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
