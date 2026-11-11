@@ -64,6 +64,8 @@ app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=lifespan)
 
 # the routes that work on one laboratory's data; login and share links do not belong to a laboratory
 lab_router = APIRouter()
+# routes that exist only with the laboratory in the address, with no old address without it
+members_router = APIRouter()
 
 
 # invalid request bodies use the same format as the other errors
@@ -164,6 +166,16 @@ def create_laboratory(data: schemas.LaboratoryCreate, db: Session = Depends(get_
         raise api_error(400, "duplicate_slug")
     db.refresh(laboratory)
     return laboratory
+
+
+# --- Members ---
+# only the admins of a laboratory see who belongs to it
+@members_router.get("/members", response_model=List[schemas.MemberResponse])
+def list_members(db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    rows = db.query(models.Membership, models.User).join(models.User, models.Membership.user_id == models.User.id).filter(
+        models.Membership.laboratory_id == ctx.laboratory.id
+    ).order_by(models.User.email).all()
+    return [schemas.MemberResponse(id=m.id, email=u.email, name=u.name, role=m.role) for m, u in rows]
 
 
 # --- Project routes ---
@@ -632,3 +644,4 @@ def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Dep
 # included last, once every route above has been declared
 app.include_router(lab_router)
 app.include_router(lab_router, prefix="/labs/{slug}")
+app.include_router(members_router, prefix="/labs/{slug}")

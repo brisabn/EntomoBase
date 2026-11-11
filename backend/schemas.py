@@ -199,6 +199,14 @@ class LaboratoryCreate(BaseModel):
     admin_email: str = Field(..., min_length=3)
 
 
+# a member of a laboratory, as the laboratory's admins see them; the id is the membership, not the user
+class MemberResponse(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    role: str
+
+
 class ValidateNamesRequest(BaseModel):
     names: List[str] = Field(..., max_length=300)
 
