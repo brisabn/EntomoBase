@@ -2,168 +2,168 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import date
 
-class MedidaBase(BaseModel):
-    traco: str = Field(..., min_length=1)
-    valor: float = Field(..., ge=0)
-    unidade: str = "mm"
+class MeasurementBase(BaseModel):
+    trait: str = Field(..., min_length=1)
+    value: float = Field(..., ge=0)
+    unit: str = "mm"
 
-class MedidaCreate(MedidaBase):
+class MeasurementCreate(MeasurementBase):
     pass
 
-class MedidaResponse(MedidaBase):
+class MeasurementResponse(MeasurementBase):
     id: int
 
     class Config:
         from_attributes = True
 
 
-# campos que visitantes nunca recebem (API, CSV e Darwin Core)
-CAMPOS_INTERNOS = {
-    "coletor", "numero_campo", "localizacao_fisica", "emprestimo_situacao",
-    "emprestimo_para", "emprestimo_data", "notas_internas",
+# fields visitors never receive (API, CSV and Darwin Core)
+INTERNAL_FIELDS = {
+    "collector", "field_number", "storage_location", "loan_status",
+    "loaned_to", "loan_date", "internal_notes",
 }
 
 
-class EspecimeBase(BaseModel):
-    codigo_etiqueta: str = Field(..., min_length=1)
-    grupo_insetos: str = Field(..., min_length=1)
-    familia: Optional[str] = None
-    especie: str = Field(..., min_length=1)
-    data_coleta: Optional[date] = None
-    local_coleta: Optional[str] = None
+class SpecimenBase(BaseModel):
+    catalog_number: str = Field(..., min_length=1)
+    insect_order: str = Field(..., min_length=1)
+    family: Optional[str] = None
+    species: str = Field(..., min_length=1)
+    collection_date: Optional[date] = None
+    locality: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
-    altitude_m: Optional[float] = None
-    sexo: Optional[str] = None
-    estagio: Optional[str] = None
-    imagem_arquivo: Optional[str] = None
-    fotografia_url: Optional[str] = None
-    notas: Optional[str] = None
-    projeto_id: Optional[int] = None
-    determinador: Optional[str] = None
-    data_determinacao: Optional[date] = None
-    metodo_coleta: Optional[str] = None
+    elevation_m: Optional[float] = None
+    sex: Optional[str] = None
+    life_stage: Optional[str] = None
+    image_file: Optional[str] = None
+    photo_url: Optional[str] = None
+    notes: Optional[str] = None
+    project_id: Optional[int] = None
+    identified_by: Optional[str] = None
+    identification_date: Optional[date] = None
+    sampling_method: Optional[str] = None
     habitat: Optional[str] = None
-    coletor: Optional[str] = None
-    numero_campo: Optional[str] = None
-    localizacao_fisica: Optional[str] = None
-    emprestimo_situacao: Optional[str] = None
-    emprestimo_para: Optional[str] = None
-    emprestimo_data: Optional[date] = None
-    notas_internas: Optional[str] = None
+    collector: Optional[str] = None
+    field_number: Optional[str] = None
+    storage_location: Optional[str] = None
+    loan_status: Optional[str] = None
+    loaned_to: Optional[str] = None
+    loan_date: Optional[date] = None
+    internal_notes: Optional[str] = None
 
-class EspecimeCreate(EspecimeBase):
-    medidas: Optional[List[MedidaCreate]] = []
+class SpecimenCreate(SpecimenBase):
+    measurements: Optional[List[MeasurementCreate]] = []
 
-class EspecimeUpdate(BaseModel):
-    codigo_etiqueta: Optional[str] = Field(None, min_length=1)
-    grupo_insetos: Optional[str] = Field(None, min_length=1)
-    familia: Optional[str] = None
-    especie: Optional[str] = Field(None, min_length=1)
-    data_coleta: Optional[date] = None
-    local_coleta: Optional[str] = None
+class SpecimenUpdate(BaseModel):
+    catalog_number: Optional[str] = Field(None, min_length=1)
+    insect_order: Optional[str] = Field(None, min_length=1)
+    family: Optional[str] = None
+    species: Optional[str] = Field(None, min_length=1)
+    collection_date: Optional[date] = None
+    locality: Optional[str] = None
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
-    altitude_m: Optional[float] = None
-    sexo: Optional[str] = None
-    estagio: Optional[str] = None
-    imagem_arquivo: Optional[str] = None
-    fotografia_url: Optional[str] = None
-    notas: Optional[str] = None
-    projeto_id: Optional[int] = None
-    determinador: Optional[str] = None
-    data_determinacao: Optional[date] = None
-    metodo_coleta: Optional[str] = None
+    elevation_m: Optional[float] = None
+    sex: Optional[str] = None
+    life_stage: Optional[str] = None
+    image_file: Optional[str] = None
+    photo_url: Optional[str] = None
+    notes: Optional[str] = None
+    project_id: Optional[int] = None
+    identified_by: Optional[str] = None
+    identification_date: Optional[date] = None
+    sampling_method: Optional[str] = None
     habitat: Optional[str] = None
-    coletor: Optional[str] = None
-    numero_campo: Optional[str] = None
-    localizacao_fisica: Optional[str] = None
-    emprestimo_situacao: Optional[str] = None
-    emprestimo_para: Optional[str] = None
-    emprestimo_data: Optional[date] = None
-    notas_internas: Optional[str] = None
-    medidas: Optional[List[MedidaCreate]] = None
+    collector: Optional[str] = None
+    field_number: Optional[str] = None
+    storage_location: Optional[str] = None
+    loan_status: Optional[str] = None
+    loaned_to: Optional[str] = None
+    loan_date: Optional[date] = None
+    internal_notes: Optional[str] = None
+    measurements: Optional[List[MeasurementCreate]] = None
 
-class EspecimeResponse(EspecimeBase):
+class SpecimenResponse(SpecimenBase):
     id: int
-    medidas: List[MedidaResponse] = []
+    measurements: List[MeasurementResponse] = []
 
     class Config:
         from_attributes = True
 
 
-class ImportarPedido(BaseModel):
-    projeto_id: Optional[int] = None
-    duplicados: str = Field("ignorar", pattern="^(ignorar|atualizar)$")
-    linhas: List[dict] = Field(..., max_length=5000)
+class ImportRequest(BaseModel):
+    project_id: Optional[int] = None
+    duplicates: str = Field("ignore", pattern="^(ignore|update)$")
+    rows: List[dict] = Field(..., max_length=5000)
 
-class ImportarAviso(BaseModel):
-    nome: str
-    tipo: str
-    sugestao: Optional[str] = None
-    linhas: int = 0
+class ImportWarning(BaseModel):
+    name: str
+    kind: str
+    suggestion: Optional[str] = None
+    row_count: int = 0
 
 
-class ImportarErro(BaseModel):
-    linha: Optional[int] = None
-    codigo_etiqueta: Optional[str] = None
-    mensagem: str
+class ImportRowError(BaseModel):
+    line: Optional[int] = None
+    catalog_number: Optional[str] = None
+    message: str
 
-class ImportarRelatorio(BaseModel):
-    simulacao: bool
+class ImportReport(BaseModel):
+    dry_run: bool
     total: int
-    criados: int
-    atualizados: int
-    ignorados: int
-    erros: List[ImportarErro]
-    avisos: List[ImportarAviso] = []
+    created: int
+    updated: int
+    skipped: int
+    errors: List[ImportRowError]
+    warnings: List[ImportWarning] = []
 
 
-class ProjetoBase(BaseModel):
-    titulo: str = Field(..., min_length=1)
-    ano: int = Field(..., ge=1900, le=2100)
-    grupo_insetos: str = Field(..., min_length=1)
-    tracos_medidos: Optional[str] = None
-    local_coleta: Optional[str] = None
-    capa_url: Optional[str] = None
-    dataset_externo_url: Optional[str] = None
-    finalizado: bool = False
-    publicacao_vinculada: Optional[str] = None
-    descricao: Optional[str] = None
+class ProjectBase(BaseModel):
+    title: str = Field(..., min_length=1)
+    year: int = Field(..., ge=1900, le=2100)
+    insect_group: str = Field(..., min_length=1)
+    measured_traits: Optional[str] = None
+    locality: Optional[str] = None
+    cover_url: Optional[str] = None
+    dataset_url: Optional[str] = None
+    finished: bool = False
+    linked_publication: Optional[str] = None
+    description: Optional[str] = None
 
-class ProjetoCreate(ProjetoBase):
+class ProjectCreate(ProjectBase):
     pass
 
-class ProjetoResponse(ProjetoBase):
+class ProjectResponse(ProjectBase):
     id: int
 
     class Config:
         from_attributes = True
 
-class UsuarioLogin(BaseModel):
+class UserLogin(BaseModel):
     email: str = Field(..., min_length=5)
-    senha: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=3)
 
-class ProjetoUpdate(BaseModel):
-    titulo: Optional[str] = None
-    ano: Optional[int] = None
-    grupo_insetos: Optional[str] = None
-    tracos_medidos: Optional[str] = None
-    local_coleta: Optional[str] = None
-    capa_url: Optional[str] = None
-    dataset_externo_url: Optional[str] = None
-    finalizado: Optional[bool] = None
-    publicacao_vinculada: Optional[str] = None
-    descricao: Optional[str] = None
-
-
-class ValidarNomesPedido(BaseModel):
-    nomes: List[str] = Field(..., max_length=300)
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    year: Optional[int] = None
+    insect_group: Optional[str] = None
+    measured_traits: Optional[str] = None
+    locality: Optional[str] = None
+    cover_url: Optional[str] = None
+    dataset_url: Optional[str] = None
+    finished: Optional[bool] = None
+    linked_publication: Optional[str] = None
+    description: Optional[str] = None
 
 
-class NomeValidado(BaseModel):
-    nome: str
-    situacao: str
-    sugestao: Optional[str] = None
-    familia: Optional[str] = None
-    ordem: Optional[str] = None
+class ValidateNamesRequest(BaseModel):
+    names: List[str] = Field(..., max_length=300)
+
+
+class ValidatedName(BaseModel):
+    name: str
+    status: str
+    suggestion: Optional[str] = None
+    family: Optional[str] = None
+    order_name: Optional[str] = None

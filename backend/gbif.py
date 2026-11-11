@@ -4,122 +4,127 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 import models
 
-URL_MATCH = "https://api.gbif.org/v1/species/match"
-URL_TAXON = "https://api.gbif.org/v1/species/"
-VALIDADE_CACHE = timedelta(days=30)
-TEMPO_LIMITE = 6
-# tempo total máximo por lote; o que sobrar fica como não conferido
-ORCAMENTO_SEGUNDOS = 25
+MATCH_URL = "https://api.gbif.org/v1/species/match"
+TAXON_URL = "https://api.gbif.org/v1/species/"
+CACHE_TTL = timedelta(days=30)
+REQUEST_TIMEOUT = 6
+# maximum total time per batch; whatever is left is reported as not checked
+BATCH_BUDGET_SECONDS = 25
 
-# situações possíveis: ok, aproximado, sinonimo, so_genero, nao_encontrado, indisponivel
-SITUACOES_CACHEAVEIS = {"ok", "aproximado", "sinonimo", "so_genero", "nao_encontrado"}
+# possible statuses: ok, fuzzy, synonym, genus_only, not_found, unavailable
+CACHEABLE_STATUSES = {"ok", "fuzzy", "synonym", "genus_only", "not_found"}
 
 
 def _get(url: str, params: dict | None = None) -> dict:
     if params:
         url = url + "?" + urllib.parse.urlencode(params)
-    pedido = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "EntomoBase/0.4"})
-    with urllib.request.urlopen(pedido, timeout=TEMPO_LIMITE) as resposta:
-        return json.loads(resposta.read().decode("utf-8"))
+    request = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "EntomoBase/0.4"})
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
-def _canonico(texto: str) -> str:
-    # compara só gênero e epíteto, ignorando autor, ano e maiúsculas
-    partes = re.sub(r"[()]", " ", texto or "").split()
-    return " ".join(partes[:2]).lower() if len(partes) >= 2 else " ".join(partes).lower()
+def _canonical(name: str) -> str:
+    # compares only genus and epithet, ignoring author, year and case
+    parts = re.sub(r"[()]", " ", name or "").split()
+    return " ".join(parts[:2]).lower() if len(parts) >= 2 else " ".join(parts).lower()
 
 
-# faz a consulta de verdade ao GBIF; separada para poder ser trocada nos testes
-def buscar(nome: str) -> dict:
-    dados = _get(URL_MATCH, {"name": nome, "kingdom": "Animalia", "class": "Insecta"})
-    tipo = dados.get("matchType", "NONE")
-    canonico = dados.get("canonicalName") or dados.get("scientificName")
-    resultado = {
-        "chave_gbif": dados.get("usageKey"),
-        "familia": dados.get("family"),
-        "ordem": dados.get("order"),
-        "sugestao": None,
+def _unavailable() -> dict:
+    return {"status": "unavailable", "suggestion": None, "family": None, "order_name": None}
+
+
+# does the real GBIF lookup; kept separate so tests can replace it
+def lookup(name: str) -> dict:
+    data = _get(MATCH_URL, {"name": name, "kingdom": "Animalia", "class": "Insecta"})
+    match_type = data.get("matchType", "NONE")
+    canonical = data.get("canonicalName") or data.get("scientificName")
+    result = {
+        "gbif_key": data.get("usageKey"),
+        "family": data.get("family"),
+        "order_name": data.get("order"),
+        "suggestion": None,
     }
-    if tipo == "NONE" or not canonico:
-        resultado["situacao"] = "nao_encontrado"
-        return resultado
-    if tipo == "HIGHERRANK":
-        resultado["situacao"] = "so_genero"
-        resultado["sugestao"] = canonico
-        return resultado
-    if dados.get("status") == "SYNONYM" or dados.get("synonym"):
-        aceito = canonico
-        chave = dados.get("acceptedUsageKey")
-        if chave:
+    if match_type == "NONE" or not canonical:
+        result["status"] = "not_found"
+        return result
+    if match_type == "HIGHERRANK":
+        result["status"] = "genus_only"
+        result["suggestion"] = canonical
+        return result
+    if data.get("status") == "SYNONYM" or data.get("synonym"):
+        accepted = canonical
+        key = data.get("acceptedUsageKey")
+        if key:
             try:
-                detalhe = _get(URL_TAXON + str(chave))
-                aceito = detalhe.get("canonicalName") or detalhe.get("scientificName") or canonico
-                resultado["familia"] = detalhe.get("family") or resultado["familia"]
-                resultado["ordem"] = detalhe.get("order") or resultado["ordem"]
+                detail = _get(TAXON_URL + str(key))
+                accepted = detail.get("canonicalName") or detail.get("scientificName") or canonical
+                result["family"] = detail.get("family") or result["family"]
+                result["order_name"] = detail.get("order") or result["order_name"]
             except (urllib.error.URLError, TimeoutError, ValueError):
                 pass
-        resultado["situacao"] = "sinonimo"
-        resultado["sugestao"] = aceito
-        return resultado
-    if tipo in ("FUZZY", "VARIANT") or _canonico(canonico) != _canonico(nome):
-        resultado["situacao"] = "aproximado"
-        resultado["sugestao"] = canonico
-        return resultado
-    resultado["situacao"] = "ok"
-    return resultado
+        result["status"] = "synonym"
+        result["suggestion"] = accepted
+        return result
+    if match_type in ("FUZZY", "VARIANT") or _canonical(canonical) != _canonical(name):
+        result["status"] = "fuzzy"
+        result["suggestion"] = canonical
+        return result
+    result["status"] = "ok"
+    return result
 
 
-def validar_nomes(nomes: list[str], db: Session) -> dict[str, dict]:
-    saida = {}
-    unicos = []
-    for n in nomes:
+def validate_names(names: list[str], db: Session) -> dict[str, dict]:
+    output = {}
+    unique = []
+    for n in names:
         n = (n or "").strip()
-        if n and n not in saida and n not in unicos:
-            unicos.append(n)
+        if n and n not in output and n not in unique:
+            unique.append(n)
 
-    agora = datetime.utcnow()
-    em_cache = {
-        t.nome_informado: t
-        for t in db.query(models.Taxon).filter(models.Taxon.nome_informado.in_(unicos)).all()
-    } if unicos else {}
+    # stored without timezone, as the column is a plain DateTime
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    cached = {
+        t.queried_name: t
+        for t in db.query(models.Taxon).filter(models.Taxon.queried_name.in_(unique)).all()
+    } if unique else {}
 
-    gbif_fora = False
-    inicio = time.monotonic()
-    for nome in unicos:
-        t = em_cache.get(nome)
-        if t is not None and agora - t.consultado_em < VALIDADE_CACHE:
-            saida[nome] = {"situacao": t.situacao, "sugestao": t.sugestao, "familia": t.familia, "ordem": t.ordem}
+    gbif_down = False
+    start = time.monotonic()
+    for name in unique:
+        t = cached.get(name)
+        if t is not None and now - t.queried_at < CACHE_TTL:
+            output[name] = {"status": t.status, "suggestion": t.suggestion, "family": t.family, "order_name": t.order_name}
             continue
-        if gbif_fora or time.monotonic() - inicio > ORCAMENTO_SEGUNDOS:
-            saida[nome] = {"situacao": "indisponivel", "sugestao": None, "familia": None, "ordem": None}
+        if gbif_down or time.monotonic() - start > BATCH_BUDGET_SECONDS:
+            output[name] = _unavailable()
             continue
         try:
-            r = buscar(nome)
-        except urllib.error.HTTPError as erro:
-            # erro 4xx é problema deste nome; só falha de servidor interrompe o lote
-            gbif_fora = erro.code >= 500
-            saida[nome] = {"situacao": "indisponivel", "sugestao": None, "familia": None, "ordem": None}
+            r = lookup(name)
+        except urllib.error.HTTPError as error:
+            # a 4xx error is a problem with this name; only a server failure stops the batch
+            gbif_down = error.code >= 500
+            output[name] = _unavailable()
             continue
         except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-            # se o GBIF não responde, o resto da lista nem é tentado
-            gbif_fora = True
-            saida[nome] = {"situacao": "indisponivel", "sugestao": None, "familia": None, "ordem": None}
+            # if GBIF does not answer, the rest of the list is not even tried
+            gbif_down = True
+            output[name] = _unavailable()
             continue
         if t is None:
-            t = models.Taxon(nome_informado=nome)
+            t = models.Taxon(queried_name=name)
             db.add(t)
-        t.situacao = r["situacao"]
-        t.sugestao = r["sugestao"]
-        t.chave_gbif = r["chave_gbif"]
-        t.familia = r["familia"]
-        t.ordem = r["ordem"]
-        t.consultado_em = agora
-        saida[nome] = {k: r[k] for k in ("situacao", "sugestao", "familia", "ordem")}
+        t.status = r["status"]
+        t.suggestion = r["suggestion"]
+        t.gbif_key = r["gbif_key"]
+        t.family = r["family"]
+        t.order_name = r["order_name"]
+        t.queried_at = now
+        output[name] = {k: r[k] for k in ("status", "suggestion", "family", "order_name")}
     db.commit()
-    return saida
+    return output

@@ -32,7 +32,7 @@ O endereço da API que o site usa fica em `frontend/config.js` (`apiUrl`). Ao pu
 Criar o primeiro usuário do laboratório (não existe usuário padrão). Dentro de `backend`:
 
 ```powershell
-python criar_admin.py seu-email@exemplo.br
+python create_admin.py seu-email@exemplo.br
 ```
 
 A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mesmo e-mail troca a senha.
@@ -41,7 +41,7 @@ Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECR
 
 ```powershell
 python seed.py            # cria os projetos e espécimes de exemplo
-python seed.py --limpar   # remove só os de exemplo
+python seed.py --remove   # remove só os de exemplo
 ```
 
 ## Variáveis de ambiente

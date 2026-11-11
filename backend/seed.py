@@ -4,10 +4,13 @@ from datetime import date
 
 import models
 from database import SessionLocal
-from inicializacao import inicializar_banco
+from db_setup import initialize_database
 
-# lugares de coleta: nome, latitude, longitude, altitude em metros
-LOCAIS = {
+# demo data for the site; the text values (places, traits, sex, life stage) stay in Portuguese
+# because they are shown to the site's users
+
+# field sites: name, latitude, longitude, elevation in meters
+SITES = {
     "rio_doce": ("Parque Estadual do Rio Doce", -19.75, -42.60, 250),
     "cipo": ("Parque Nacional da Serra do Cipó", -19.28, -43.59, 1100),
     "itacolomi": ("Parque Estadual do Itacolomi", -20.43, -43.48, 1200),
@@ -20,298 +23,298 @@ LOCAIS = {
     "chapada": ("Parque Nacional da Chapada Diamantina", -12.60, -41.45, 900),
 }
 
-# ordem, família, espécie, medidas típicas (mínimo, máximo) em mm
-DETERMINADORES = ["A. Ribeiro", "M. Costa", "J. Almeida", "L. Fernandes"]
-METODOS = ["armadilha de queda", "armadilha luminosa", "rede entomológica", "busca ativa", "armadilha Malaise"]
+IDENTIFIERS = ["A. Ribeiro", "M. Costa", "J. Almeida", "L. Fernandes"]
+METHODS = ["armadilha de queda", "armadilha luminosa", "rede entomológica", "busca ativa", "armadilha Malaise"]
 HABITATS = ["Mata Atlântica", "Cerrado", "Campo rupestre", "Mata de galeria", "Borda de mata"]
-COLETORES = ["Equipe de campo A", "Equipe de campo B", "N. Silva", "R. Souza"]
+COLLECTORS = ["Equipe de campo A", "Equipe de campo B", "N. Silva", "R. Souza"]
 
 
-def esp(ordem, familia, especie, **medidas):
-    return {"ordem": ordem, "familia": familia, "especie": especie, "medidas": medidas}
+# order, family, species and typical measurement ranges (min, max) in mm
+def sp(order, family, species, **ranges):
+    return {"order": order, "family": family, "species": species, "ranges": ranges}
 
 
 COLEOPTERA = {
-    "Coccinella septempunctata": esp("Coleoptera", "Coccinellidae", "Coccinella septempunctata", c=(6, 8)),
-    "Harmonia axyridis": esp("Coleoptera", "Coccinellidae", "Harmonia axyridis", c=(5.5, 8)),
-    "Cycloneda sanguinea": esp("Coleoptera", "Coccinellidae", "Cycloneda sanguinea", c=(4, 6)),
-    "Hippodamia convergens": esp("Coleoptera", "Coccinellidae", "Hippodamia convergens", c=(4, 6.5)),
-    "Eriopis connexa": esp("Coleoptera", "Coccinellidae", "Eriopis connexa", c=(4, 5.5)),
-    "Coleomegilla maculata": esp("Coleoptera", "Coccinellidae", "Coleomegilla maculata", c=(4.5, 6)),
-    "Dynastes hercules": esp("Coleoptera", "Scarabaeidae", "Dynastes hercules", c=(45, 75), chifre=True),
-    "Megasoma actaeon": esp("Coleoptera", "Scarabaeidae", "Megasoma actaeon", c=(50, 85), chifre=True),
-    "Strategus aloeus": esp("Coleoptera", "Scarabaeidae", "Strategus aloeus", c=(30, 50), chifre=True),
-    "Cyclocephala melanocephala": esp("Coleoptera", "Scarabaeidae", "Cyclocephala melanocephala", c=(11, 14)),
-    "Canthon virens": esp("Coleoptera", "Scarabaeidae", "Canthon virens", c=(8, 11)),
-    "Dichotomius bos": esp("Coleoptera", "Scarabaeidae", "Dichotomius bos", c=(17, 24)),
-    "Phanaeus splendidulus": esp("Coleoptera", "Scarabaeidae", "Phanaeus splendidulus", c=(14, 20)),
-    "Deltochilum morbillosum": esp("Coleoptera", "Scarabaeidae", "Deltochilum morbillosum", c=(22, 30)),
-    "Coprophanaeus ensifer": esp("Coleoptera", "Scarabaeidae", "Coprophanaeus ensifer", c=(28, 38)),
-    "Calosoma granulatum": esp("Coleoptera", "Carabidae", "Calosoma granulatum", c=(22, 28)),
-    "Pheropsophus aequinoctialis": esp("Coleoptera", "Carabidae", "Pheropsophus aequinoctialis", c=(14, 18)),
-    "Odontochila nodicornis": esp("Coleoptera", "Carabidae", "Odontochila nodicornis", c=(10, 13)),
-    "Diabrotica speciosa": esp("Coleoptera", "Chrysomelidae", "Diabrotica speciosa", c=(5, 6.5)),
-    "Cerotoma arcuata": esp("Coleoptera", "Chrysomelidae", "Cerotoma arcuata", c=(4.5, 6)),
-    "Omophoita aequinoctialis": esp("Coleoptera", "Chrysomelidae", "Omophoita aequinoctialis", c=(5, 7)),
-    "Acrocinus longimanus": esp("Coleoptera", "Cerambycidae", "Acrocinus longimanus", c=(40, 75)),
-    "Trachyderes thoracicus": esp("Coleoptera", "Cerambycidae", "Trachyderes thoracicus", c=(24, 34)),
-    "Rhynchophorus palmarum": esp("Coleoptera", "Curculionidae", "Rhynchophorus palmarum", c=(30, 45)),
-    "Cosmopolites sordidus": esp("Coleoptera", "Curculionidae", "Cosmopolites sordidus", c=(10, 14)),
+    "Coccinella septempunctata": sp("Coleoptera", "Coccinellidae", "Coccinella septempunctata", body=(6, 8)),
+    "Harmonia axyridis": sp("Coleoptera", "Coccinellidae", "Harmonia axyridis", body=(5.5, 8)),
+    "Cycloneda sanguinea": sp("Coleoptera", "Coccinellidae", "Cycloneda sanguinea", body=(4, 6)),
+    "Hippodamia convergens": sp("Coleoptera", "Coccinellidae", "Hippodamia convergens", body=(4, 6.5)),
+    "Eriopis connexa": sp("Coleoptera", "Coccinellidae", "Eriopis connexa", body=(4, 5.5)),
+    "Coleomegilla maculata": sp("Coleoptera", "Coccinellidae", "Coleomegilla maculata", body=(4.5, 6)),
+    "Dynastes hercules": sp("Coleoptera", "Scarabaeidae", "Dynastes hercules", body=(45, 75), horn=True),
+    "Megasoma actaeon": sp("Coleoptera", "Scarabaeidae", "Megasoma actaeon", body=(50, 85), horn=True),
+    "Strategus aloeus": sp("Coleoptera", "Scarabaeidae", "Strategus aloeus", body=(30, 50), horn=True),
+    "Cyclocephala melanocephala": sp("Coleoptera", "Scarabaeidae", "Cyclocephala melanocephala", body=(11, 14)),
+    "Canthon virens": sp("Coleoptera", "Scarabaeidae", "Canthon virens", body=(8, 11)),
+    "Dichotomius bos": sp("Coleoptera", "Scarabaeidae", "Dichotomius bos", body=(17, 24)),
+    "Phanaeus splendidulus": sp("Coleoptera", "Scarabaeidae", "Phanaeus splendidulus", body=(14, 20)),
+    "Deltochilum morbillosum": sp("Coleoptera", "Scarabaeidae", "Deltochilum morbillosum", body=(22, 30)),
+    "Coprophanaeus ensifer": sp("Coleoptera", "Scarabaeidae", "Coprophanaeus ensifer", body=(28, 38)),
+    "Calosoma granulatum": sp("Coleoptera", "Carabidae", "Calosoma granulatum", body=(22, 28)),
+    "Pheropsophus aequinoctialis": sp("Coleoptera", "Carabidae", "Pheropsophus aequinoctialis", body=(14, 18)),
+    "Odontochila nodicornis": sp("Coleoptera", "Carabidae", "Odontochila nodicornis", body=(10, 13)),
+    "Diabrotica speciosa": sp("Coleoptera", "Chrysomelidae", "Diabrotica speciosa", body=(5, 6.5)),
+    "Cerotoma arcuata": sp("Coleoptera", "Chrysomelidae", "Cerotoma arcuata", body=(4.5, 6)),
+    "Omophoita aequinoctialis": sp("Coleoptera", "Chrysomelidae", "Omophoita aequinoctialis", body=(5, 7)),
+    "Acrocinus longimanus": sp("Coleoptera", "Cerambycidae", "Acrocinus longimanus", body=(40, 75)),
+    "Trachyderes thoracicus": sp("Coleoptera", "Cerambycidae", "Trachyderes thoracicus", body=(24, 34)),
+    "Rhynchophorus palmarum": sp("Coleoptera", "Curculionidae", "Rhynchophorus palmarum", body=(30, 45)),
+    "Cosmopolites sordidus": sp("Coleoptera", "Curculionidae", "Cosmopolites sordidus", body=(10, 14)),
 }
 
 LEPIDOPTERA = {
-    "Danaus plexippus": esp("Lepidoptera", "Nymphalidae", "Danaus plexippus", e=(90, 110)),
-    "Heliconius erato": esp("Lepidoptera", "Nymphalidae", "Heliconius erato", e=(65, 80)),
-    "Heliconius melpomene": esp("Lepidoptera", "Nymphalidae", "Heliconius melpomene", e=(60, 75)),
-    "Dryas iulia": esp("Lepidoptera", "Nymphalidae", "Dryas iulia", e=(80, 90)),
-    "Agraulis vanillae": esp("Lepidoptera", "Nymphalidae", "Agraulis vanillae", e=(62, 80)),
-    "Morpho helenor": esp("Lepidoptera", "Nymphalidae", "Morpho helenor", e=(100, 130)),
-    "Caligo brasiliensis": esp("Lepidoptera", "Nymphalidae", "Caligo brasiliensis", e=(110, 150)),
-    "Biblis hyperia": esp("Lepidoptera", "Nymphalidae", "Biblis hyperia", e=(55, 65)),
-    "Siproeta stelenes": esp("Lepidoptera", "Nymphalidae", "Siproeta stelenes", e=(70, 90)),
-    "Hamadryas februa": esp("Lepidoptera", "Nymphalidae", "Hamadryas februa", e=(55, 65)),
-    "Junonia evarete": esp("Lepidoptera", "Nymphalidae", "Junonia evarete", e=(45, 60)),
-    "Battus polydamas": esp("Lepidoptera", "Papilionidae", "Battus polydamas", e=(70, 95)),
-    "Heraclides thoas": esp("Lepidoptera", "Papilionidae", "Heraclides thoas", e=(90, 120)),
-    "Parides agavus": esp("Lepidoptera", "Papilionidae", "Parides agavus", e=(65, 80)),
-    "Phoebis sennae": esp("Lepidoptera", "Pieridae", "Phoebis sennae", e=(55, 70)),
-    "Eurema albula": esp("Lepidoptera", "Pieridae", "Eurema albula", e=(35, 45)),
-    "Ascia monuste": esp("Lepidoptera", "Pieridae", "Ascia monuste", e=(50, 65)),
-    "Pyrisitia nise": esp("Lepidoptera", "Pieridae", "Pyrisitia nise", e=(28, 36)),
-    "Menander menander": esp("Lepidoptera", "Riodinidae", "Menander menander", e=(30, 38)),
+    "Danaus plexippus": sp("Lepidoptera", "Nymphalidae", "Danaus plexippus", wingspan=(90, 110)),
+    "Heliconius erato": sp("Lepidoptera", "Nymphalidae", "Heliconius erato", wingspan=(65, 80)),
+    "Heliconius melpomene": sp("Lepidoptera", "Nymphalidae", "Heliconius melpomene", wingspan=(60, 75)),
+    "Dryas iulia": sp("Lepidoptera", "Nymphalidae", "Dryas iulia", wingspan=(80, 90)),
+    "Agraulis vanillae": sp("Lepidoptera", "Nymphalidae", "Agraulis vanillae", wingspan=(62, 80)),
+    "Morpho helenor": sp("Lepidoptera", "Nymphalidae", "Morpho helenor", wingspan=(100, 130)),
+    "Caligo brasiliensis": sp("Lepidoptera", "Nymphalidae", "Caligo brasiliensis", wingspan=(110, 150)),
+    "Biblis hyperia": sp("Lepidoptera", "Nymphalidae", "Biblis hyperia", wingspan=(55, 65)),
+    "Siproeta stelenes": sp("Lepidoptera", "Nymphalidae", "Siproeta stelenes", wingspan=(70, 90)),
+    "Hamadryas februa": sp("Lepidoptera", "Nymphalidae", "Hamadryas februa", wingspan=(55, 65)),
+    "Junonia evarete": sp("Lepidoptera", "Nymphalidae", "Junonia evarete", wingspan=(45, 60)),
+    "Battus polydamas": sp("Lepidoptera", "Papilionidae", "Battus polydamas", wingspan=(70, 95)),
+    "Heraclides thoas": sp("Lepidoptera", "Papilionidae", "Heraclides thoas", wingspan=(90, 120)),
+    "Parides agavus": sp("Lepidoptera", "Papilionidae", "Parides agavus", wingspan=(65, 80)),
+    "Phoebis sennae": sp("Lepidoptera", "Pieridae", "Phoebis sennae", wingspan=(55, 70)),
+    "Eurema albula": sp("Lepidoptera", "Pieridae", "Eurema albula", wingspan=(35, 45)),
+    "Ascia monuste": sp("Lepidoptera", "Pieridae", "Ascia monuste", wingspan=(50, 65)),
+    "Pyrisitia nise": sp("Lepidoptera", "Pieridae", "Pyrisitia nise", wingspan=(28, 36)),
+    "Menander menander": sp("Lepidoptera", "Riodinidae", "Menander menander", wingspan=(30, 38)),
 }
 
-FORMIGAS = {
-    "Atta sexdens": esp("Hymenoptera", "Formicidae", "Atta sexdens", w=(3.2, 4.6), casta=("operária", "soldado")),
-    "Atta laevigata": esp("Hymenoptera", "Formicidae", "Atta laevigata", w=(3.5, 5.0), casta=("operária", "soldado")),
-    "Camponotus rufipes": esp("Hymenoptera", "Formicidae", "Camponotus rufipes", w=(3.0, 4.0), casta=("operária", "soldado")),
-    "Camponotus crassus": esp("Hymenoptera", "Formicidae", "Camponotus crassus", w=(2.4, 3.3), casta=("operária", "soldado")),
-    "Pheidole megacephala": esp("Hymenoptera", "Formicidae", "Pheidole megacephala", w=(0.55, 0.75), casta=("operária", "soldado")),
-    "Ectatomma tuberculatum": esp("Hymenoptera", "Formicidae", "Ectatomma tuberculatum", w=(3.0, 3.6), casta=("operária",)),
-    "Solenopsis invicta": esp("Hymenoptera", "Formicidae", "Solenopsis invicta", w=(0.6, 1.5), casta=("operária",)),
-    "Paratrechina longicornis": esp("Hymenoptera", "Formicidae", "Paratrechina longicornis", w=(0.6, 0.8), casta=("operária",)),
-    "Acromyrmex subterraneus": esp("Hymenoptera", "Formicidae", "Acromyrmex subterraneus", w=(1.6, 2.4), casta=("operária",)),
-    "Cephalotes atratus": esp("Hymenoptera", "Formicidae", "Cephalotes atratus", w=(3.5, 4.5), casta=("operária", "soldado")),
+ANTS = {
+    "Atta sexdens": sp("Hymenoptera", "Formicidae", "Atta sexdens", weber=(3.2, 4.6), castes=("operária", "soldado")),
+    "Atta laevigata": sp("Hymenoptera", "Formicidae", "Atta laevigata", weber=(3.5, 5.0), castes=("operária", "soldado")),
+    "Camponotus rufipes": sp("Hymenoptera", "Formicidae", "Camponotus rufipes", weber=(3.0, 4.0), castes=("operária", "soldado")),
+    "Camponotus crassus": sp("Hymenoptera", "Formicidae", "Camponotus crassus", weber=(2.4, 3.3), castes=("operária", "soldado")),
+    "Pheidole megacephala": sp("Hymenoptera", "Formicidae", "Pheidole megacephala", weber=(0.55, 0.75), castes=("operária", "soldado")),
+    "Ectatomma tuberculatum": sp("Hymenoptera", "Formicidae", "Ectatomma tuberculatum", weber=(3.0, 3.6), castes=("operária",)),
+    "Solenopsis invicta": sp("Hymenoptera", "Formicidae", "Solenopsis invicta", weber=(0.6, 1.5), castes=("operária",)),
+    "Paratrechina longicornis": sp("Hymenoptera", "Formicidae", "Paratrechina longicornis", weber=(0.6, 0.8), castes=("operária",)),
+    "Acromyrmex subterraneus": sp("Hymenoptera", "Formicidae", "Acromyrmex subterraneus", weber=(1.6, 2.4), castes=("operária",)),
+    "Cephalotes atratus": sp("Hymenoptera", "Formicidae", "Cephalotes atratus", weber=(3.5, 4.5), castes=("operária", "soldado")),
 }
 
-ABELHAS = {
-    "Apis mellifera": esp("Hymenoptera", "Apidae", "Apis mellifera", a=(8.5, 9.5), it=(1.5, 1.8), casta=("operária",)),
-    "Tetragonisca angustula": esp("Hymenoptera", "Apidae", "Tetragonisca angustula", a=(3.5, 4.2), it=(0.9, 1.1), casta=("operária",)),
-    "Melipona quadrifasciata": esp("Hymenoptera", "Apidae", "Melipona quadrifasciata", a=(6, 7), it=(1.5, 1.7), casta=("operária",)),
-    "Trigona spinipes": esp("Hymenoptera", "Apidae", "Trigona spinipes", a=(5.5, 6.5), it=(1.1, 1.4), casta=("operária",)),
-    "Bombus pauloensis": esp("Hymenoptera", "Apidae", "Bombus pauloensis", a=(11, 14), it=(3.2, 4.2), casta=("operária", "rainha")),
-    "Xylocopa frontalis": esp("Hymenoptera", "Apidae", "Xylocopa frontalis", a=(17, 21), it=(4.5, 5.8), casta=("adulto",)),
-    "Euglossa cordata": esp("Hymenoptera", "Apidae", "Euglossa cordata", a=(9, 11), it=(2.4, 3.0), casta=("adulto",)),
-    "Polybia paulista": esp("Hymenoptera", "Vespidae", "Polybia paulista", a=(9, 11), it=(1.8, 2.2), casta=("operária",)),
-    "Synoeca cyanea": esp("Hymenoptera", "Vespidae", "Synoeca cyanea", a=(17, 20), it=(3.4, 4.0), casta=("operária",)),
-    "Polistes versicolor": esp("Hymenoptera", "Vespidae", "Polistes versicolor", a=(14, 17), it=(2.6, 3.1), casta=("operária",)),
-    "Brachygastra lecheguana": esp("Hymenoptera", "Vespidae", "Brachygastra lecheguana", a=(8, 10), it=(1.8, 2.2), casta=("operária",)),
+BEES_AND_WASPS = {
+    "Apis mellifera": sp("Hymenoptera", "Apidae", "Apis mellifera", wing=(8.5, 9.5), intertegular=(1.5, 1.8), castes=("operária",)),
+    "Tetragonisca angustula": sp("Hymenoptera", "Apidae", "Tetragonisca angustula", wing=(3.5, 4.2), intertegular=(0.9, 1.1), castes=("operária",)),
+    "Melipona quadrifasciata": sp("Hymenoptera", "Apidae", "Melipona quadrifasciata", wing=(6, 7), intertegular=(1.5, 1.7), castes=("operária",)),
+    "Trigona spinipes": sp("Hymenoptera", "Apidae", "Trigona spinipes", wing=(5.5, 6.5), intertegular=(1.1, 1.4), castes=("operária",)),
+    "Bombus pauloensis": sp("Hymenoptera", "Apidae", "Bombus pauloensis", wing=(11, 14), intertegular=(3.2, 4.2), castes=("operária", "rainha")),
+    "Xylocopa frontalis": sp("Hymenoptera", "Apidae", "Xylocopa frontalis", wing=(17, 21), intertegular=(4.5, 5.8), castes=("adulto",)),
+    "Euglossa cordata": sp("Hymenoptera", "Apidae", "Euglossa cordata", wing=(9, 11), intertegular=(2.4, 3.0), castes=("adulto",)),
+    "Polybia paulista": sp("Hymenoptera", "Vespidae", "Polybia paulista", wing=(9, 11), intertegular=(1.8, 2.2), castes=("operária",)),
+    "Synoeca cyanea": sp("Hymenoptera", "Vespidae", "Synoeca cyanea", wing=(17, 20), intertegular=(3.4, 4.0), castes=("operária",)),
+    "Polistes versicolor": sp("Hymenoptera", "Vespidae", "Polistes versicolor", wing=(14, 17), intertegular=(2.6, 3.1), castes=("operária",)),
+    "Brachygastra lecheguana": sp("Hymenoptera", "Vespidae", "Brachygastra lecheguana", wing=(8, 10), intertegular=(1.8, 2.2), castes=("operária",)),
 }
 
 
-def escolher(tabela, *nomes):
-    return [tabela[n] for n in nomes]
+def pick(table, *names):
+    return [table[n] for n in names]
 
 
-# prefixo, título, ano, grupo, concluído, local principal, locais de campanha, traços, descrição, repositório, publicação, espécies, quantidade
-PROJETOS = [
+# prefix, title, year, group, finished, main locality, field sites, traits, description, repository, publication, species, count
+PROJECTS = [
     {
-        "prefixo": "RDO", "titulo": "Besouros de serapilheira do Parque Estadual do Rio Doce", "ano": 2025, "grupo": "Coleoptera",
-        "finalizado": True, "local": "Parque Estadual do Rio Doce", "locais": ["rio_doce"],
-        "tracos": "Comprimento corporal, Largura do pronoto, Largura elitral",
-        "descricao": "Levantamento de besouros em quatro campanhas sazonais, com medidas morfométricas para comparar tamanho corporal entre famílias.",
-        "zenodo": "0000101", "publicacao": "Manuscrito em preparação",
-        "especies": escolher(COLEOPTERA, "Calosoma granulatum", "Pheropsophus aequinoctialis", "Odontochila nodicornis", "Cyclocephala melanocephala",
+        "prefix": "RDO", "title": "Besouros de serapilheira do Parque Estadual do Rio Doce", "year": 2025, "group": "Coleoptera",
+        "finished": True, "locality": "Parque Estadual do Rio Doce", "sites": ["rio_doce"],
+        "traits": "Comprimento corporal, Largura do pronoto, Largura elitral",
+        "description": "Levantamento de besouros em quatro campanhas sazonais, com medidas morfométricas para comparar tamanho corporal entre famílias.",
+        "zenodo": "0000101", "publication": "Manuscrito em preparação",
+        "species": pick(COLEOPTERA, "Calosoma granulatum", "Pheropsophus aequinoctialis", "Odontochila nodicornis", "Cyclocephala melanocephala",
                              "Canthon virens", "Dichotomius bos", "Phanaeus splendidulus", "Diabrotica speciosa", "Cerotoma arcuata", "Coccinella septempunctata",
                              "Cycloneda sanguinea", "Trachyderes thoracicus"),
         "n": 150,
     },
     {
-        "prefixo": "JBH", "titulo": "Joaninhas urbanas de Belo Horizonte", "ano": 2026, "grupo": "Coleoptera",
-        "finalizado": False, "local": "Belo Horizonte", "locais": ["pampulha", "mangabeiras"],
-        "tracos": "Comprimento corporal, Largura do pronoto, Largura elitral",
-        "descricao": "Coleta contínua de Coccinellidae em áreas verdes urbanas para acompanhar a ocorrência de espécies nativas e exóticas.",
-        "zenodo": "0000102", "publicacao": None,
-        "especies": escolher(COLEOPTERA, "Coccinella septempunctata", "Harmonia axyridis", "Cycloneda sanguinea", "Hippodamia convergens", "Eriopis connexa", "Coleomegilla maculata"),
+        "prefix": "JBH", "title": "Joaninhas urbanas de Belo Horizonte", "year": 2026, "group": "Coleoptera",
+        "finished": False, "locality": "Belo Horizonte", "sites": ["pampulha", "mangabeiras"],
+        "traits": "Comprimento corporal, Largura do pronoto, Largura elitral",
+        "description": "Coleta contínua de Coccinellidae em áreas verdes urbanas para acompanhar a ocorrência de espécies nativas e exóticas.",
+        "zenodo": "0000102", "publication": None,
+        "species": pick(COLEOPTERA, "Coccinella septempunctata", "Harmonia axyridis", "Cycloneda sanguinea", "Hippodamia convergens", "Eriopis connexa", "Coleomegilla maculata"),
         "n": 80,
     },
     {
-        "prefixo": "SCP", "titulo": "Escarabeídeos e dinastíneos da Serra do Cipó", "ano": 2024, "grupo": "Coleoptera",
-        "finalizado": True, "local": "Parque Nacional da Serra do Cipó", "locais": ["cipo"],
-        "tracos": "Comprimento corporal, Largura do pronoto, Tamanho do chifre",
-        "descricao": "Scarabaeidae coletados em armadilhas de queda ao longo de um gradiente altitudinal, com registro do tamanho do chifre nos machos.",
-        "zenodo": "0000103", "publicacao": "Resumo apresentado em congresso de entomologia",
-        "especies": escolher(COLEOPTERA, "Dynastes hercules", "Megasoma actaeon", "Strategus aloeus", "Cyclocephala melanocephala", "Dichotomius bos",
+        "prefix": "SCP", "title": "Escarabeídeos e dinastíneos da Serra do Cipó", "year": 2024, "group": "Coleoptera",
+        "finished": True, "locality": "Parque Nacional da Serra do Cipó", "sites": ["cipo"],
+        "traits": "Comprimento corporal, Largura do pronoto, Tamanho do chifre",
+        "description": "Scarabaeidae coletados em armadilhas de queda ao longo de um gradiente altitudinal, com registro do tamanho do chifre nos machos.",
+        "zenodo": "0000103", "publication": "Resumo apresentado em congresso de entomologia",
+        "species": pick(COLEOPTERA, "Dynastes hercules", "Megasoma actaeon", "Strategus aloeus", "Cyclocephala melanocephala", "Dichotomius bos",
                              "Deltochilum morbillosum", "Coprophanaeus ensifer", "Phanaeus splendidulus", "Canthon virens"),
         "n": 100,
     },
     {
-        "prefixo": "ITA", "titulo": "Borboletas frugívoras do Itacolomi", "ano": 2025, "grupo": "Lepidoptera",
-        "finalizado": True, "local": "Parque Estadual do Itacolomi", "locais": ["itacolomi"],
-        "tracos": "Envergadura alar, Comprimento da asa anterior",
-        "descricao": "Captura com armadilhas Van Someren-Rydon iscadas com banana fermentada, em transectos de borda e interior de mata.",
-        "zenodo": "0000104", "publicacao": "Manuscrito em revisão",
-        "especies": escolher(LEPIDOPTERA, "Morpho helenor", "Caligo brasiliensis", "Biblis hyperia", "Siproeta stelenes", "Hamadryas februa", "Junonia evarete",
+        "prefix": "ITA", "title": "Borboletas frugívoras do Itacolomi", "year": 2025, "group": "Lepidoptera",
+        "finished": True, "locality": "Parque Estadual do Itacolomi", "sites": ["itacolomi"],
+        "traits": "Envergadura alar, Comprimento da asa anterior",
+        "description": "Captura com armadilhas Van Someren-Rydon iscadas com banana fermentada, em transectos de borda e interior de mata.",
+        "zenodo": "0000104", "publication": "Manuscrito em revisão",
+        "species": pick(LEPIDOPTERA, "Morpho helenor", "Caligo brasiliensis", "Biblis hyperia", "Siproeta stelenes", "Hamadryas februa", "Junonia evarete",
                              "Dryas iulia", "Agraulis vanillae", "Battus polydamas", "Heraclides thoas", "Phoebis sennae", "Menander menander"),
         "n": 140,
     },
     {
-        "prefixo": "CAP", "titulo": "Heliconíneos da Mata Atlântica do Caparaó", "ano": 2026, "grupo": "Lepidoptera",
-        "finalizado": False, "local": "Parque Nacional do Caparaó", "locais": ["caparao"],
-        "tracos": "Envergadura alar, Comprimento da asa anterior",
-        "descricao": "Amostragem de Heliconiini em diferentes altitudes para estudar variação de tamanho e padrões de cor.",
-        "zenodo": "0000105", "publicacao": None,
-        "especies": escolher(LEPIDOPTERA, "Heliconius erato", "Heliconius melpomene", "Dryas iulia", "Agraulis vanillae", "Danaus plexippus", "Parides agavus"),
+        "prefix": "CAP", "title": "Heliconíneos da Mata Atlântica do Caparaó", "year": 2026, "group": "Lepidoptera",
+        "finished": False, "locality": "Parque Nacional do Caparaó", "sites": ["caparao"],
+        "traits": "Envergadura alar, Comprimento da asa anterior",
+        "description": "Amostragem de Heliconiini em diferentes altitudes para estudar variação de tamanho e padrões de cor.",
+        "zenodo": "0000105", "publication": None,
+        "species": pick(LEPIDOPTERA, "Heliconius erato", "Heliconius melpomene", "Dryas iulia", "Agraulis vanillae", "Danaus plexippus", "Parides agavus"),
         "n": 70,
     },
     {
-        "prefixo": "BRI", "titulo": "Formigas de serapilheira da Serra do Brigadeiro", "ano": 2025, "grupo": "Formicidae",
-        "finalizado": True, "local": "Parque Estadual da Serra do Brigadeiro", "locais": ["brigadeiro"],
-        "tracos": "Largura da cápsula cefálica, Comprimento do escapo, Comprimento de Weber",
-        "descricao": "Formigas extraídas de serapilheira com Winkler, medidas para análise de traços funcionais ao longo da altitude.",
-        "zenodo": "0000106", "publicacao": "Manuscrito em preparação",
-        "especies": list(FORMIGAS.values()),
+        "prefix": "BRI", "title": "Formigas de serapilheira da Serra do Brigadeiro", "year": 2025, "group": "Formicidae",
+        "finished": True, "locality": "Parque Estadual da Serra do Brigadeiro", "sites": ["brigadeiro"],
+        "traits": "Largura da cápsula cefálica, Comprimento do escapo, Comprimento de Weber",
+        "description": "Formigas extraídas de serapilheira com Winkler, medidas para análise de traços funcionais ao longo da altitude.",
+        "zenodo": "0000106", "publication": "Manuscrito em preparação",
+        "species": list(ANTS.values()),
         "n": 150,
     },
     {
-        "prefixo": "CER", "titulo": "Abelhas e vespas de áreas de cerrado", "ano": 2024, "grupo": "Hymenoptera",
-        "finalizado": True, "local": "Cerrado de Minas Gerais", "locais": ["pirapitinga", "paraopeba"],
-        "tracos": "Comprimento da asa, Distância intertegular",
-        "descricao": "Himenópteros coletados com rede entomológica e pan traps em áreas de cerrado, com medidas usadas para estimar alcance de forrageio.",
-        "zenodo": "0000107", "publicacao": "Dissertação de mestrado, em andamento",
-        "especies": list(ABELHAS.values()),
+        "prefix": "CER", "title": "Abelhas e vespas de áreas de cerrado", "year": 2024, "group": "Hymenoptera",
+        "finished": True, "locality": "Cerrado de Minas Gerais", "sites": ["pirapitinga", "paraopeba"],
+        "traits": "Comprimento da asa, Distância intertegular",
+        "description": "Himenópteros coletados com rede entomológica e pan traps em áreas de cerrado, com medidas usadas para estimar alcance de forrageio.",
+        "zenodo": "0000107", "publication": "Dissertação de mestrado, em andamento",
+        "species": list(BEES_AND_WASPS.values()),
         "n": 110,
     },
     {
-        "prefixo": "CHD", "titulo": "Polinizadores da Chapada Diamantina", "ano": 2023, "grupo": "Hymenoptera",
-        "finalizado": True, "local": "Parque Nacional da Chapada Diamantina", "locais": ["chapada"],
-        "tracos": "Comprimento da asa, Distância intertegular",
-        "descricao": "Inventário de abelhas em campos rupestres. Os dados ainda não foram depositados em um repositório.",
-        "zenodo": None, "publicacao": None,
-        "especies": escolher(ABELHAS, "Apis mellifera", "Tetragonisca angustula", "Melipona quadrifasciata", "Trigona spinipes", "Euglossa cordata", "Xylocopa frontalis"),
+        "prefix": "CHD", "title": "Polinizadores da Chapada Diamantina", "year": 2023, "group": "Hymenoptera",
+        "finished": True, "locality": "Parque Nacional da Chapada Diamantina", "sites": ["chapada"],
+        "traits": "Comprimento da asa, Distância intertegular",
+        "description": "Inventário de abelhas em campos rupestres. Os dados ainda não foram depositados em um repositório.",
+        "zenodo": None, "publication": None,
+        "species": pick(BEES_AND_WASPS, "Apis mellifera", "Tetragonisca angustula", "Melipona quadrifasciata", "Trigona spinipes", "Euglossa cordata", "Xylocopa frontalis"),
         "n": 70,
     },
 ]
 
 
-def medidas_para(rng, especie, tracos, sexo):
-    m = especie["medidas"]
-    lista = []
-    nomes = [t.strip() for t in tracos.split(",")]
-    if "c" in m:
-        c = rng.uniform(*m["c"])
-        largura_pronoto, largura_elitral = c * rng.uniform(0.30, 0.40), c * rng.uniform(0.42, 0.55)
-        valores = {"Comprimento corporal": c, "Largura do pronoto": largura_pronoto, "Largura elitral": largura_elitral}
-        if m.get("chifre") and sexo == "macho":
-            valores["Tamanho do chifre"] = c * rng.uniform(0.18, 0.32)
-    elif "e" in m:
-        e = rng.uniform(*m["e"])
-        valores = {"Envergadura alar": e, "Comprimento da asa anterior": e * rng.uniform(0.38, 0.46)}
-    elif "w" in m:
-        w = rng.uniform(*m["w"])
-        valores = {"Comprimento de Weber": w, "Largura da cápsula cefálica": w * rng.uniform(0.7, 1.05), "Comprimento do escapo": w * rng.uniform(0.7, 1.1)}
+def measurements_for(rng, species, traits, sex):
+    r = species["ranges"]
+    result = []
+    names = [t.strip() for t in traits.split(",")]
+    if "body" in r:
+        body = rng.uniform(*r["body"])
+        pronotum_width, elytral_width = body * rng.uniform(0.30, 0.40), body * rng.uniform(0.42, 0.55)
+        values = {"Comprimento corporal": body, "Largura do pronoto": pronotum_width, "Largura elitral": elytral_width}
+        if r.get("horn") and sex == "macho":
+            values["Tamanho do chifre"] = body * rng.uniform(0.18, 0.32)
+    elif "wingspan" in r:
+        span = rng.uniform(*r["wingspan"])
+        values = {"Envergadura alar": span, "Comprimento da asa anterior": span * rng.uniform(0.38, 0.46)}
+    elif "weber" in r:
+        weber = rng.uniform(*r["weber"])
+        values = {"Comprimento de Weber": weber, "Largura da cápsula cefálica": weber * rng.uniform(0.7, 1.05), "Comprimento do escapo": weber * rng.uniform(0.7, 1.1)}
     else:
-        valores = {"Comprimento da asa": rng.uniform(*m["a"]), "Distância intertegular": rng.uniform(*m["it"])}
-    for nome in nomes:
-        if nome in valores:
-            lista.append(models.Medida(traco=nome, valor=round(valores[nome], 2), unidade="mm"))
-    return lista
+        values = {"Comprimento da asa": rng.uniform(*r["wing"]), "Distância intertegular": rng.uniform(*r["intertegular"])}
+    for name in names:
+        if name in values:
+            result.append(models.Measurement(trait=name, value=round(values[name], 2), unit="mm"))
+    return result
 
 
-def criar_projeto(db, cfg, rng):
-    if db.query(models.Projeto).filter(models.Projeto.titulo == cfg["titulo"]).first():
-        print(f"já existe: {cfg['titulo']}")
+def create_project(db, cfg, rng):
+    if db.query(models.Project).filter(models.Project.title == cfg["title"]).first():
+        print(f"already exists: {cfg['title']}")
         return 0
-    projeto = models.Projeto(
-        titulo=cfg["titulo"], ano=cfg["ano"], grupo_insetos=cfg["grupo"], tracos_medidos=cfg["tracos"], local_coleta=cfg["local"],
-        dataset_externo_url=f"https://zenodo.org/records/{cfg['zenodo']}" if cfg["zenodo"] else None,
-        finalizado=cfg["finalizado"], publicacao_vinculada=cfg["publicacao"], descricao=cfg["descricao"],
+    project = models.Project(
+        title=cfg["title"], year=cfg["year"], insect_group=cfg["group"], measured_traits=cfg["traits"], locality=cfg["locality"],
+        dataset_url=f"https://zenodo.org/records/{cfg['zenodo']}" if cfg["zenodo"] else None,
+        finished=cfg["finished"], linked_publication=cfg["publication"], description=cfg["description"],
     )
-    db.add(projeto)
+    db.add(project)
     db.flush()
 
-    # campanhas: uma data e um local por campanha
-    campanhas = []
+    # field campaigns: one date and one site per campaign
+    campaigns = []
     for _ in range(rng.randint(4, 6)):
-        local = LOCAIS[rng.choice(cfg["locais"])]
-        mes_max = 12 if cfg["ano"] < 2026 else 9
-        campanhas.append((local, date(cfg["ano"] - rng.choice([0, 0, 1]) if cfg["ano"] < 2026 else 2026, rng.randint(1, mes_max), rng.randint(1, 28))))
+        site = SITES[rng.choice(cfg["sites"])]
+        max_month = 12 if cfg["year"] < 2026 else 9
+        campaigns.append((site, date(cfg["year"] - rng.choice([0, 0, 1]) if cfg["year"] < 2026 else 2026, rng.randint(1, max_month), rng.randint(1, 28))))
 
-    especies = cfg["especies"]
-    sorteio = [e for e in especies for _ in range(3)]
-    sorteio += rng.choices(especies, weights=[rng.uniform(0.3, 3) for _ in especies], k=max(cfg["n"] - len(sorteio), 0))
-    rng.shuffle(sorteio)
+    species = cfg["species"]
+    draw = [s for s in species for _ in range(3)]
+    draw += rng.choices(species, weights=[rng.uniform(0.3, 3) for _ in species], k=max(cfg["n"] - len(draw), 0))
+    rng.shuffle(draw)
 
-    for i, e in enumerate(sorteio, start=1):
-        codigo = f"{cfg['prefixo']}-{i:04d}"
-        (nome_local, lat, lng, alt), data = rng.choice(campanhas)
-        com_coord = rng.random() > 0.05
-        sexo = rng.choice(["macho", "fêmea"]) if cfg["grupo"] in ("Coleoptera", "Lepidoptera") else "fêmea"
-        if cfg["grupo"] == "Coleoptera" and rng.random() < 0.15:
-            sexo = "indeterminado"
-        if "casta" in e["medidas"]:
-            estagio = rng.choice(e["medidas"]["casta"])
+    for i, s in enumerate(draw, start=1):
+        number = f"{cfg['prefix']}-{i:04d}"
+        (site_name, lat, lng, elevation), when = rng.choice(campaigns)
+        has_coordinates = rng.random() > 0.05
+        sex = rng.choice(["macho", "fêmea"]) if cfg["group"] in ("Coleoptera", "Lepidoptera") else "fêmea"
+        if cfg["group"] == "Coleoptera" and rng.random() < 0.15:
+            sex = "indeterminado"
+        if "castes" in s["ranges"]:
+            stage = rng.choice(s["ranges"]["castes"])
         else:
-            estagio = "adulto"
-        extra = random.Random(codigo)
-        emprestado = extra.random() < 0.04
-        esp_obj = models.Especime(
-            determinador=extra.choice(DETERMINADORES), data_determinacao=data,
-            metodo_coleta=extra.choice(METODOS), habitat=extra.choice(HABITATS),
-            coletor=extra.choice(COLETORES), numero_campo=f"C{extra.randint(100, 999)}",
-            localizacao_fisica=f"Armário {extra.randint(1, 4)}, caixa {extra.randint(1, 30)}",
-            emprestimo_situacao="emprestado" if emprestado else "no acervo",
-            emprestimo_para="Museu de Zoologia (fictício)" if emprestado else None,
-            codigo_etiqueta=codigo, grupo_insetos=e["ordem"], familia=e["familia"], especie=e["especie"],
-            data_coleta=data, local_coleta=nome_local,
-            latitude=round(lat + rng.gauss(0, 0.035), 5) if com_coord else None,
-            longitude=round(lng + rng.gauss(0, 0.035), 5) if com_coord else None,
-            altitude_m=round(alt + rng.gauss(0, 70)) if com_coord else None,
-            sexo=sexo, estagio=estagio,
-            imagem_arquivo=f"{codigo}.svg" if rng.random() > 0.08 else None,
-            projeto_id=projeto.id,
+            stage = "adulto"
+        extra = random.Random(number)
+        on_loan = extra.random() < 0.04
+        specimen = models.Specimen(
+            identified_by=extra.choice(IDENTIFIERS), identification_date=when,
+            sampling_method=extra.choice(METHODS), habitat=extra.choice(HABITATS),
+            collector=extra.choice(COLLECTORS), field_number=f"C{extra.randint(100, 999)}",
+            storage_location=f"Armário {extra.randint(1, 4)}, caixa {extra.randint(1, 30)}",
+            loan_status="emprestado" if on_loan else "no acervo",
+            loaned_to="Museu de Zoologia (fictício)" if on_loan else None,
+            catalog_number=number, insect_order=s["order"], family=s["family"], species=s["species"],
+            collection_date=when, locality=site_name,
+            latitude=round(lat + rng.gauss(0, 0.035), 5) if has_coordinates else None,
+            longitude=round(lng + rng.gauss(0, 0.035), 5) if has_coordinates else None,
+            elevation_m=round(elevation + rng.gauss(0, 70)) if has_coordinates else None,
+            sex=sex, life_stage=stage,
+            image_file=f"{number}.svg" if rng.random() > 0.08 else None,
+            project_id=project.id,
         )
-        esp_obj.medidas = medidas_para(rng, e, cfg["tracos"], sexo)
-        db.add(esp_obj)
-    return len(sorteio)
+        specimen.measurements = measurements_for(rng, s, cfg["traits"], sex)
+        db.add(specimen)
+    return len(draw)
 
 
-def completar_familias(db):
-    conhecidas = {}
-    for tabela in (COLEOPTERA, LEPIDOPTERA, FORMIGAS, ABELHAS):
-        for nome, e in tabela.items():
-            conhecidas[nome] = e["familia"]
-    for esp_obj in db.query(models.Especime).filter(models.Especime.familia.is_(None)).all():
-        if esp_obj.especie in conhecidas:
-            esp_obj.familia = conhecidas[esp_obj.especie]
+def fill_missing_families(db):
+    known = {}
+    for table in (COLEOPTERA, LEPIDOPTERA, ANTS, BEES_AND_WASPS):
+        for name, s in table.items():
+            known[name] = s["family"]
+    for specimen in db.query(models.Specimen).filter(models.Specimen.family.is_(None)).all():
+        if specimen.species in known:
+            specimen.family = known[specimen.species]
 
 
-def limpar(db):
-    titulos = {p["titulo"] for p in PROJETOS}
+def remove_demo_data(db):
+    titles = {p["title"] for p in PROJECTS}
     n = 0
-    for p in db.query(models.Projeto).filter(models.Projeto.titulo.in_(titulos)).all():
+    for p in db.query(models.Project).filter(models.Project.title.in_(titles)).all():
         db.delete(p)
         n += 1
     db.commit()
-    print(f"{n} projetos de exemplo removidos (com seus espécimes)")
+    print(f"{n} demo projects removed (with their specimens)")
 
 
-def main_seed():
-    inicializar_banco()
+def main():
+    initialize_database()
     db = SessionLocal()
-    if "--limpar" in sys.argv:
-        limpar(db)
+    if "--remove" in sys.argv:
+        remove_demo_data(db)
         db.close()
         return
     rng = random.Random(2026)
     total = 0
-    for cfg in PROJETOS:
-        total += criar_projeto(db, cfg, rng)
-    completar_familias(db)
+    for cfg in PROJECTS:
+        total += create_project(db, cfg, rng)
+    fill_missing_families(db)
     db.commit()
     db.close()
-    print(f"{total} espécimes fictícios criados")
+    print(f"{total} demo specimens created")
 
 
 if __name__ == "__main__":
-    main_seed()
+    main()

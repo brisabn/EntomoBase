@@ -20,68 +20,71 @@ import gbif
 import models
 import schemas
 from database import get_db
-from demo_imagens import gerar_svg
-from inicializacao import inicializar_banco
-from limite_tentativas import LimiteTentativas
-from seguranca import gerar_hash, precisa_novo_hash, verificar_senha
+from db_setup import initialize_database
+from demo_images import render_svg
+from rate_limit import AttemptLimiter
+from security import hash_password, needs_rehash, verify_password
 
-# o banco é preparado quando a API inicia, não quando este arquivo é importado
+# error messages (detail) and exported file contents stay in Portuguese: they are shown to the site's users
+
+
+# the database is prepared when the API starts, not when this file is imported
 @asynccontextmanager
-async def ciclo_de_vida(_app: FastAPI):
-    inicializar_banco()
+async def lifespan(_app: FastAPI):
+    initialize_database()
     yield
 
 
-app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=ciclo_de_vida)
+app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=lifespan)
 
-# origens que podem chamar a API pelo navegador, vindas de CORS_ORIGINS (separadas por vírgula)
-# em modo dev, sem a variável, vale o endereço do frontend do README
-ORIGENS_DEV = ["http://127.0.0.1:5500", "http://localhost:5500"]
+# origins allowed to call the API from a browser, read from CORS_ORIGINS (comma separated)
+# in dev mode, without the variable, the frontend address from the README is allowed
+DEV_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
 
 
-def carregar_origens_permitidas() -> List[str]:
-    bruto = os.getenv("CORS_ORIGINS", "")
-    origens = [o.strip().rstrip("/") for o in bruto.split(",") if o.strip()]
-    if origens:
-        return origens
+def load_allowed_origins() -> List[str]:
+    raw = os.getenv("CORS_ORIGINS", "")
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    if origins:
+        return origins
     if os.getenv("ENTOMOBASE_ENV") == "dev":
-        return ORIGENS_DEV
-    print("AVISO: CORS_ORIGINS não definida; nenhum site de outra origem poderá usar a API.")
+        return DEV_ORIGINS
+    print("WARNING: CORS_ORIGINS is not set; no site from another origin will be able to use the API.")
     return []
 
 
-# o login usa o cabeçalho Authorization (Bearer), não cookies, então não há credenciais de navegador
+# login uses the Authorization header (Bearer), not cookies, so there are no browser credentials
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=carregar_origens_permitidas(),
+    allow_origins=load_allowed_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# --- Configuração de Segurança JWT ---
+# --- JWT security settings ---
 ALGORITHM = "HS256"
 
 
-# a chave vem do ambiente; sem ela a API só sobe em modo de desenvolvimento (ENTOMOBASE_ENV=dev),
-# com uma chave aleatória que muda a cada início e invalida os logins anteriores
-def carregar_chave_secreta() -> str:
-    chave = os.getenv("SECRET_KEY")
-    if chave:
-        return chave
+# the key comes from the environment; without it the API only starts in development mode (ENTOMOBASE_ENV=dev),
+# with a random key that changes on every start and invalidates previous logins
+def load_secret_key() -> str:
+    key = os.getenv("SECRET_KEY")
+    if key:
+        return key
     if os.getenv("ENTOMOBASE_ENV") == "dev":
-        print("AVISO: SECRET_KEY não definida; usando uma chave temporária (modo dev).")
+        print("WARNING: SECRET_KEY is not set; using a temporary key (dev mode).")
         return secrets.token_urlsafe(32)
     raise RuntimeError(
-        "SECRET_KEY não definida. Defina a variável de ambiente SECRET_KEY, "
-        "ou use ENTOMOBASE_ENV=dev apenas em desenvolvimento."
+        "SECRET_KEY is not set. Set the SECRET_KEY environment variable, "
+        "or use ENTOMOBASE_ENV=dev only in development."
     )
 
 
-SECRET_KEY = carregar_chave_secreta()
+SECRET_KEY = load_secret_key()
 
 
-def verificar_acesso(authorization: str = Header(None)):
+def require_login(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token ausente ou inválido")
     token = authorization.split(" ")[1]
@@ -91,8 +94,8 @@ def verificar_acesso(authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Sessão expirada. Faça login novamente.")
 
 
-# não exige login; só informa se o token enviado é válido
-def usuario_logado(authorization: str = Header(None)) -> bool:
+# does not require login; only tells whether the token sent is valid
+def is_logged_in(authorization: str = Header(None)) -> bool:
     if not authorization or not authorization.startswith("Bearer "):
         return False
     try:
@@ -102,384 +105,385 @@ def usuario_logado(authorization: str = Header(None)) -> bool:
         return False
 
 
-# --- Autenticação ---
-# limites de senhas erradas por janela de 15 minutos: por conta (e-mail + IP) e por IP no total
-JANELA_LOGIN_SEGUNDOS = 15 * 60
-limite_por_conta = LimiteTentativas(maximo=5, janela_segundos=JANELA_LOGIN_SEGUNDOS)
-limite_por_ip = LimiteTentativas(maximo=20, janela_segundos=JANELA_LOGIN_SEGUNDOS)
+# --- Authentication ---
+# limits on wrong passwords per 15-minute window: per account (email + IP) and per IP overall
+LOGIN_WINDOW_SECONDS = 15 * 60
+account_limiter = AttemptLimiter(max_attempts=5, window_seconds=LOGIN_WINDOW_SECONDS)
+ip_limiter = AttemptLimiter(max_attempts=20, window_seconds=LOGIN_WINDOW_SECONDS)
 
 
-def exigir_login_liberado(*chaves_e_limites):
-    espera = max((limite.segundos_restantes(chave) for limite, chave in chaves_e_limites), default=0)
-    if espera:
-        minutos = (espera + 59) // 60
+def ensure_login_allowed(*limiters_and_keys):
+    wait = max((limiter.seconds_remaining(key) for limiter, key in limiters_and_keys), default=0)
+    if wait:
+        minutes = (wait + 59) // 60
         raise HTTPException(
             status_code=429,
-            detail=f"Muitas tentativas. Tente novamente em {minutos} {'minuto' if minutos == 1 else 'minutos'}.",
-            headers={"Retry-After": str(espera)},
+            detail=f"Muitas tentativas. Tente novamente em {minutes} {'minuto' if minutes == 1 else 'minutos'}.",
+            headers={"Retry-After": str(wait)},
         )
 
 
-# não existe usuário padrão: o primeiro é criado com `python criar_admin.py email@exemplo.br`
+# there is no default user: the first one is created with `python create_admin.py email@example.com`
 @app.post("/login")
-def login(credenciais: schemas.UsuarioLogin, request: Request, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else "desconhecido"
-    email = credenciais.email.strip().lower()
-    chave_conta = (ip, email)
-    # tentativas já bloqueadas nem verificam a senha, o que também poupa o argon2, que é lento de propósito
-    exigir_login_liberado((limite_por_conta, chave_conta), (limite_por_ip, ip))
+def login(credentials: schemas.UserLogin, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    email = credentials.email.strip().lower()
+    account_key = (ip, email)
+    # blocked attempts do not even check the password, which also spares argon2, slow on purpose
+    ensure_login_allowed((account_limiter, account_key), (ip_limiter, ip))
 
-    usuario = db.query(models.Usuario).filter(func.lower(models.Usuario.email) == email).first()
-    if not verificar_senha(credenciais.senha, usuario.senha if usuario else None):
-        limite_por_conta.registrar_falha(chave_conta)
-        limite_por_ip.registrar_falha(ip)
+    user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
+    if not verify_password(credentials.password, user.password_hash if user else None):
+        account_limiter.record_failure(account_key)
+        ip_limiter.record_failure(ip)
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
-    limite_por_conta.zerar(chave_conta)
-    if precisa_novo_hash(usuario.senha):
-        usuario.senha = gerar_hash(credenciais.senha)
+    account_limiter.reset(account_key)
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(credentials.password)
         db.commit()
 
     exp = datetime.now(timezone.utc) + timedelta(hours=8)
-    token = jwt.encode({"sub": usuario.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "email": usuario.email}
+    token = jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+    return {"access_token": token, "email": user.email}
 
 
-# --- Rotas de Projetos ---
-@app.post("/projetos", response_model=schemas.ProjetoResponse, status_code=201)
-def criar_projeto(projeto: schemas.ProjetoCreate, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    db_projeto = models.Projeto(**projeto.model_dump())
-    db.add(db_projeto)
+# --- Project routes ---
+@app.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
+def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    db_project = models.Project(**project.model_dump())
+    db.add(db_project)
     db.commit()
-    db.refresh(db_projeto)
-    return db_projeto
+    db.refresh(db_project)
+    return db_project
 
 
-@app.get("/projetos", response_model=List[schemas.ProjetoResponse])
-def listar_projetos(
-    ano: Optional[int] = None, grupo_insetos: Optional[str] = None,
-    local_coleta: Optional[str] = None, finalizado: Optional[bool] = None,
-    logado: bool = Depends(usuario_logado), db: Session = Depends(get_db)
+@app.get("/projects", response_model=List[schemas.ProjectResponse])
+def list_projects(
+    year: Optional[int] = None, insect_group: Optional[str] = None,
+    locality: Optional[str] = None, finished: Optional[bool] = None,
+    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
 ):
-    query = db.query(models.Projeto)
-    # visitantes só veem projetos concluídos; o token é verificado de verdade
-    if not logado:
-        query = query.filter(models.Projeto.finalizado == True)
-    elif finalizado is not None:
-        query = query.filter(models.Projeto.finalizado == finalizado)
-    if ano: query = query.filter(models.Projeto.ano == ano)
-    if grupo_insetos: query = query.filter(models.Projeto.grupo_insetos.ilike(f"%{grupo_insetos}%"))
-    if local_coleta: query = query.filter(models.Projeto.local_coleta.ilike(f"%{local_coleta}%"))
-    return query.order_by(models.Projeto.ano.desc(), models.Projeto.id).all()
+    query = db.query(models.Project)
+    # visitors only see finished projects; the token is really verified
+    if not logged_in:
+        query = query.filter(models.Project.finished == True)
+    elif finished is not None:
+        query = query.filter(models.Project.finished == finished)
+    if year: query = query.filter(models.Project.year == year)
+    if insect_group: query = query.filter(models.Project.insect_group.ilike(f"%{insect_group}%"))
+    if locality: query = query.filter(models.Project.locality.ilike(f"%{locality}%"))
+    return query.order_by(models.Project.year.desc(), models.Project.id).all()
 
 
-@app.put("/projetos/{projeto_id}", response_model=schemas.ProjetoResponse)
-def atualizar_projeto(projeto_id: int, dados: schemas.ProjetoUpdate, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    db_projeto = db.query(models.Projeto).filter(models.Projeto.id == projeto_id).first()
-    if not db_projeto: raise HTTPException(status_code=404, detail="Projeto não encontrado")
-    for key, value in dados.model_dump(exclude_unset=True).items():
-        setattr(db_projeto, key, value)
+@app.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
+def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(db_project, key, value)
     db.commit()
-    db.refresh(db_projeto)
-    return db_projeto
+    db.refresh(db_project)
+    return db_project
 
 
-@app.delete("/projetos/{projeto_id}", status_code=204)
-def deletar_projeto(projeto_id: int, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    db_projeto = db.query(models.Projeto).filter(models.Projeto.id == projeto_id).first()
-    if not db_projeto: raise HTTPException(status_code=404, detail="Projeto não encontrado")
-    db.delete(db_projeto)
+@app.delete("/projects/{project_id}", status_code=204)
+def delete_project(project_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not db_project: raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    db.delete(db_project)
     db.commit()
     return None
 
 
-# --- Rotas de Espécimes ---
-def filtrar_visiveis(query, logado: bool):
-    # visitantes não veem espécimes de projetos ainda em andamento
-    if logado:
+# --- Specimen routes ---
+def filter_visible(query, logged_in: bool):
+    # visitors do not see specimens from projects still in progress
+    if logged_in:
         return query
-    return query.outerjoin(models.Projeto, models.Especime.projeto_id == models.Projeto.id).filter(
-        or_(models.Especime.projeto_id.is_(None), models.Projeto.finalizado == True)
+    return query.outerjoin(models.Project, models.Specimen.project_id == models.Project.id).filter(
+        or_(models.Specimen.project_id.is_(None), models.Project.finished == True)
     )
 
 
-# visitantes recebem o espécime sem os campos internos; a remoção é feita aqui, no servidor
-def saida_especime(especime: models.Especime, logado: bool) -> dict:
-    exclusao = None if logado else schemas.CAMPOS_INTERNOS
-    return schemas.EspecimeResponse.model_validate(especime).model_dump(mode="json", exclude=exclusao)
+# visitors receive the specimen without the internal fields; they are removed here, on the server
+def specimen_output(specimen: models.Specimen, logged_in: bool) -> dict:
+    exclude = None if logged_in else schemas.INTERNAL_FIELDS
+    return schemas.SpecimenResponse.model_validate(specimen).model_dump(mode="json", exclude=exclude)
 
 
-def trocar_medidas(especime: models.Especime, medidas):
-    especime.medidas.clear()
-    for m in medidas:
-        especime.medidas.append(models.Medida(**m.model_dump()))
+def replace_measurements(specimen: models.Specimen, measurements):
+    specimen.measurements.clear()
+    for m in measurements:
+        specimen.measurements.append(models.Measurement(**m.model_dump()))
 
 
-@app.post("/especimes", response_model=schemas.EspecimeResponse, status_code=201)
-def criar_especime(especime: schemas.EspecimeCreate, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    if db.query(models.Especime).filter(models.Especime.codigo_etiqueta == especime.codigo_etiqueta).first():
+@app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
+def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    if db.query(models.Specimen).filter(models.Specimen.catalog_number == specimen.catalog_number).first():
         raise HTTPException(status_code=400, detail="Código de etiqueta já cadastrado.")
-    db_especime = models.Especime(**especime.model_dump(exclude={"medidas"}))
-    trocar_medidas(db_especime, especime.medidas or [])
-    db.add(db_especime)
+    db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}))
+    replace_measurements(db_specimen, specimen.measurements or [])
+    db.add(db_specimen)
     db.commit()
-    db.refresh(db_especime)
-    return db_especime
+    db.refresh(db_specimen)
+    return db_specimen
 
 
-@app.get("/especimes")
-def listar_especimes(
-    especie: Optional[str] = None, projeto_id: Optional[int] = None,
-    logado: bool = Depends(usuario_logado), db: Session = Depends(get_db)
+@app.get("/specimens")
+def list_specimens(
+    species: Optional[str] = None, project_id: Optional[int] = None,
+    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
 ):
-    query = filtrar_visiveis(db.query(models.Especime), logado).options(selectinload(models.Especime.medidas))
-    if especie: query = query.filter(models.Especime.especie.ilike(f"%{especie}%"))
-    if projeto_id: query = query.filter(models.Especime.projeto_id == projeto_id)
-    especimes = query.order_by(models.Especime.grupo_insetos, models.Especime.especie, models.Especime.codigo_etiqueta).all()
-    return [saida_especime(e, logado) for e in especimes]
+    query = filter_visible(db.query(models.Specimen), logged_in).options(selectinload(models.Specimen.measurements))
+    if species: query = query.filter(models.Specimen.species.ilike(f"%{species}%"))
+    if project_id: query = query.filter(models.Specimen.project_id == project_id)
+    specimens = query.order_by(models.Specimen.insect_order, models.Specimen.species, models.Specimen.catalog_number).all()
+    return [specimen_output(s, logged_in) for s in specimens]
 
 
-@app.put("/especimes/{especime_id}", response_model=schemas.EspecimeResponse)
-def atualizar_especime(especime_id: int, dados: schemas.EspecimeUpdate, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    especime = db.query(models.Especime).filter(models.Especime.id == especime_id).first()
-    if not especime: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
+@app.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
+def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
+    if not specimen: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
 
-    obrigatorios = {"codigo_etiqueta", "grupo_insetos", "especie"}
-    campos = {
-        k: v for k, v in dados.model_dump(exclude_unset=True, exclude={"medidas"}).items()
-        if not (v is None and k in obrigatorios)
+    required = {"catalog_number", "insect_order", "species"}
+    fields = {
+        k: v for k, v in data.model_dump(exclude_unset=True, exclude={"measurements"}).items()
+        if not (v is None and k in required)
     }
-    novo_codigo = campos.get("codigo_etiqueta")
-    if novo_codigo and novo_codigo != especime.codigo_etiqueta:
-        if db.query(models.Especime).filter(models.Especime.codigo_etiqueta == novo_codigo).first():
+    new_number = fields.get("catalog_number")
+    if new_number and new_number != specimen.catalog_number:
+        if db.query(models.Specimen).filter(models.Specimen.catalog_number == new_number).first():
             raise HTTPException(status_code=400, detail="Código de etiqueta já cadastrado.")
-    for key, value in campos.items():
-        setattr(especime, key, value)
+    for key, value in fields.items():
+        setattr(specimen, key, value)
 
-    # medidas enviadas substituem as anteriores; se não vierem, ficam como estão
-    if dados.medidas is not None:
-        trocar_medidas(especime, dados.medidas)
+    # measurements sent replace the previous ones; if none are sent, they stay as they are
+    if data.measurements is not None:
+        replace_measurements(specimen, data.measurements)
     db.commit()
-    db.refresh(especime)
-    return especime
+    db.refresh(specimen)
+    return specimen
 
 
-@app.delete("/especimes/{especime_id}", status_code=204)
-def deletar_especime(especime_id: int, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)):
-    especime = db.query(models.Especime).filter(models.Especime.id == especime_id).first()
-    if not especime: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
-    db.delete(especime)
+@app.delete("/specimens/{specimen_id}", status_code=204)
+def delete_specimen(specimen_id: int, db: Session = Depends(get_db), auth: None = Depends(require_login)):
+    specimen = db.query(models.Specimen).filter(models.Specimen.id == specimen_id).first()
+    if not specimen: raise HTTPException(status_code=404, detail="Espécime não encontrado.")
+    db.delete(specimen)
     db.commit()
     return None
 
 
-# --- Importação em lote ---
-def mensagem_validacao(erro: ValidationError) -> str:
-    return "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in erro.errors())
+# --- Bulk import ---
+def validation_message(error: ValidationError) -> str:
+    return "; ".join(f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in error.errors())
 
 
-@app.post("/especimes/importar", response_model=schemas.ImportarRelatorio)
-def importar_especimes(
-    pedido: schemas.ImportarPedido, simular: bool = False, validar_nomes: bool = True,
-    db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)
+@app.post("/specimens/import", response_model=schemas.ImportReport)
+def import_specimens(
+    payload: schemas.ImportRequest, dry_run: bool = False, validate_names: bool = True,
+    db: Session = Depends(get_db), auth: None = Depends(require_login)
 ):
-    if pedido.projeto_id is not None:
-        if not db.query(models.Projeto).filter(models.Projeto.id == pedido.projeto_id).first():
+    if payload.project_id is not None:
+        if not db.query(models.Project).filter(models.Project.id == payload.project_id).first():
             raise HTTPException(status_code=404, detail="Projeto não encontrado")
 
-    ids_projetos = {p.id for p in db.query(models.Projeto.id).all()}
-    erros = []
-    validos = []
-    vistos = {}
-    for posicao, bruto in enumerate(pedido.linhas, start=1):
-        numero = bruto.get("linha") or posicao
+    project_ids = {p.id for p in db.query(models.Project.id).all()}
+    errors = []
+    valid = []
+    seen = {}
+    for position, raw in enumerate(payload.rows, start=1):
+        line = raw.get("line") or position
         try:
-            item = schemas.EspecimeCreate(**bruto)
+            item = schemas.SpecimenCreate(**raw)
         except ValidationError as e:
-            erros.append(schemas.ImportarErro(linha=numero, codigo_etiqueta=str(bruto.get("codigo_etiqueta") or ""), mensagem=mensagem_validacao(e)))
+            errors.append(schemas.ImportRowError(line=line, catalog_number=str(raw.get("catalog_number") or ""), message=validation_message(e)))
             continue
-        item.codigo_etiqueta = item.codigo_etiqueta.strip()
-        if pedido.projeto_id is not None:
-            item.projeto_id = pedido.projeto_id
-        elif item.projeto_id is not None and item.projeto_id not in ids_projetos:
-            erros.append(schemas.ImportarErro(linha=numero, codigo_etiqueta=item.codigo_etiqueta, mensagem=f"projeto_id {item.projeto_id} não existe"))
+        item.catalog_number = item.catalog_number.strip()
+        if payload.project_id is not None:
+            item.project_id = payload.project_id
+        elif item.project_id is not None and item.project_id not in project_ids:
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, message=f"projeto_id {item.project_id} não existe"))
             continue
-        if item.codigo_etiqueta in vistos:
-            erros.append(schemas.ImportarErro(linha=numero, codigo_etiqueta=item.codigo_etiqueta, mensagem=f"código repetido no arquivo (primeira vez na linha {vistos[item.codigo_etiqueta]})"))
+        if item.catalog_number in seen:
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, message=f"código repetido no arquivo (primeira vez na linha {seen[item.catalog_number]})"))
             continue
-        vistos[item.codigo_etiqueta] = numero
-        validos.append((numero, item))
+        seen[item.catalog_number] = line
+        valid.append((line, item))
 
-    existentes = {}
-    codigos = list(vistos.keys())
-    for i in range(0, len(codigos), 500):
-        for e in db.query(models.Especime).filter(models.Especime.codigo_etiqueta.in_(codigos[i:i + 500])).all():
-            existentes[e.codigo_etiqueta] = e
+    existing = {}
+    numbers = list(seen.keys())
+    for i in range(0, len(numbers), 500):
+        for s in db.query(models.Specimen).filter(models.Specimen.catalog_number.in_(numbers[i:i + 500])).all():
+            existing[s.catalog_number] = s
 
-    criados = atualizados = ignorados = 0
-    for numero, item in validos:
-        atual = existentes.get(item.codigo_etiqueta)
-        if atual is None:
-            criados += 1
-            if not simular and not erros:
-                novo = models.Especime(**item.model_dump(exclude={"medidas"}))
-                trocar_medidas(novo, item.medidas or [])
-                db.add(novo)
-        elif pedido.duplicados == "atualizar":
-            atualizados += 1
-            if not simular and not erros:
-                for k, v in item.model_dump(exclude_unset=True, exclude={"medidas", "codigo_etiqueta"}).items():
+    created = updated = skipped = 0
+    for line, item in valid:
+        current = existing.get(item.catalog_number)
+        if current is None:
+            created += 1
+            if not dry_run and not errors:
+                new = models.Specimen(**item.model_dump(exclude={"measurements"}))
+                replace_measurements(new, item.measurements or [])
+                db.add(new)
+        elif payload.duplicates == "update":
+            updated += 1
+            if not dry_run and not errors:
+                for k, v in item.model_dump(exclude_unset=True, exclude={"measurements", "catalog_number"}).items():
                     if v is not None:
-                        setattr(atual, k, v)
-                if item.medidas:
-                    trocar_medidas(atual, item.medidas)
+                        setattr(current, k, v)
+                if item.measurements:
+                    replace_measurements(current, item.measurements)
         else:
-            ignorados += 1
+            skipped += 1
 
-    if not simular:
-        if erros:
+    if not dry_run:
+        if errors:
             db.rollback()
-            raise HTTPException(status_code=422, detail=f"{len(erros)} linha(s) com erro; nada foi importado.")
+            raise HTTPException(status_code=422, detail=f"{len(errors)} linha(s) com erro; nada foi importado.")
         db.commit()
 
-    avisos = avisos_taxonomicos(validos, db) if simular and validar_nomes else []
-    return schemas.ImportarRelatorio(
-        simulacao=simular, total=len(pedido.linhas), criados=criados,
-        atualizados=atualizados, ignorados=ignorados, erros=erros[:200], avisos=avisos,
+    warnings = taxonomy_warnings(valid, db) if dry_run and validate_names else []
+    return schemas.ImportReport(
+        dry_run=dry_run, total=len(payload.rows), created=created,
+        updated=updated, skipped=skipped, errors=errors[:200], warnings=warnings,
     )
 
 
-ROTULOS_OK = {"ok"}
+OK_STATUSES = {"ok"}
 
 
-# consulta o GBIF para os nomes distintos do arquivo; os avisos nunca impedem a importação
-def avisos_taxonomicos(validos, db: Session) -> List[schemas.ImportarAviso]:
-    contagem = {}
-    for _, item in validos:
-        nome = item.especie.strip()
-        contagem[nome] = contagem.get(nome, 0) + 1
-    if not contagem:
+# checks GBIF for the distinct names in the file; warnings never block the import
+def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
+    counts = {}
+    for _, item in valid:
+        name = item.species.strip()
+        counts[name] = counts.get(name, 0) + 1
+    if not counts:
         return []
-    nomes = list(contagem)[:150]
-    resultados = gbif.validar_nomes(nomes, db)
-    avisos = []
-    indisponiveis = 0
-    for nome in nomes:
-        r = resultados.get(nome, {})
-        situacao = r.get("situacao", "indisponivel")
-        if situacao in ROTULOS_OK:
+    names = list(counts)[:150]
+    results = gbif.validate_names(names, db)
+    warnings = []
+    unavailable = 0
+    for name in names:
+        r = results.get(name, {})
+        status = r.get("status", "unavailable")
+        if status in OK_STATUSES:
             continue
-        if situacao == "indisponivel":
-            indisponiveis += contagem[nome]
+        if status == "unavailable":
+            unavailable += counts[name]
             continue
-        avisos.append(schemas.ImportarAviso(nome=nome, tipo=situacao, sugestao=r.get("sugestao"), linhas=contagem[nome]))
-    if indisponiveis:
-        avisos.append(schemas.ImportarAviso(nome="", tipo="indisponivel", linhas=indisponiveis))
-    return avisos
+        warnings.append(schemas.ImportWarning(name=name, kind=status, suggestion=r.get("suggestion"), row_count=counts[name]))
+    if unavailable:
+        warnings.append(schemas.ImportWarning(name="", kind="unavailable", row_count=unavailable))
+    return warnings
 
 
-@app.post("/taxonomia/validar", response_model=List[schemas.NomeValidado])
-def validar_nomes_cientificos(
-    pedido: schemas.ValidarNomesPedido, db: Session = Depends(get_db), auth: None = Depends(verificar_acesso)
+@app.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
+def validate_scientific_names(
+    payload: schemas.ValidateNamesRequest, db: Session = Depends(get_db), auth: None = Depends(require_login)
 ):
-    resultados = gbif.validar_nomes(pedido.nomes, db)
-    return [schemas.NomeValidado(nome=n, **r) for n, r in resultados.items()]
+    results = gbif.validate_names(payload.names, db)
+    return [schemas.ValidatedName(name=n, **r) for n, r in results.items()]
 
 
-# --- Exportação ---
-COLUNAS_BASE = [
+# --- Export ---
+# the column headers are what users see in the downloaded file, so they stay in Portuguese
+BASE_COLUMNS = [
     "Codigo Etiqueta", "Ordem", "Familia", "Especie", "Data Coleta", "Local Coleta", "Latitude", "Longitude",
     "Altitude (m)", "Sexo", "Estagio", "Determinador", "Data Determinacao", "Metodo Coleta", "Habitat",
     "Imagem", "Projeto", "Notas",
 ]
-# só aparecem no CSV completo, que exige login
-COLUNAS_INTERNAS = [
+# only present in the full CSV, which requires login
+INTERNAL_COLUMNS = [
     "Coletor", "Numero Campo", "Localizacao Fisica", "Emprestimo", "Emprestado Para", "Data Emprestimo", "Notas Internas",
 ]
 
 
-@app.get("/exportar/csv")
-def exportar_especimes_csv(
-    projeto_id: Optional[int] = None, completo: bool = False,
-    logado: bool = Depends(usuario_logado), db: Session = Depends(get_db)
+@app.get("/export/csv")
+def export_specimens_csv(
+    project_id: Optional[int] = None, full: bool = False,
+    logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
 ):
-    if completo and not logado:
+    if full and not logged_in:
         raise HTTPException(status_code=401, detail="O CSV completo exige login.")
-    query = filtrar_visiveis(db.query(models.Especime), logado).options(
-        selectinload(models.Especime.medidas), selectinload(models.Especime.projeto)
+    query = filter_visible(db.query(models.Specimen), logged_in).options(
+        selectinload(models.Specimen.measurements), selectinload(models.Specimen.project)
     )
-    if projeto_id: query = query.filter(models.Especime.projeto_id == projeto_id)
-    especimes = query.order_by(models.Especime.id).all()
+    if project_id: query = query.filter(models.Specimen.project_id == project_id)
+    specimens = query.order_by(models.Specimen.id).all()
 
-    # uma coluna por traço medido, no formato "Traço (unidade)", que o importador também entende
-    tracos = []
-    for esp in especimes:
-        for m in esp.medidas:
-            chave = (m.traco, m.unidade or "mm")
-            if chave not in tracos:
-                tracos.append(chave)
+    # one column per measured trait, as "Trait (unit)", a format the importer also understands
+    traits = []
+    for s in specimens:
+        for m in s.measurements:
+            key = (m.trait, m.unit or "mm")
+            if key not in traits:
+                traits.append(key)
 
     output = io.StringIO()
-    # BOM para o Excel abrir os acentos corretamente
-    output.write("\ufeff")
+    # BOM so Excel opens the accents correctly
+    output.write("﻿")
     writer = csv.writer(output)
-    cabecalho = COLUNAS_BASE + (COLUNAS_INTERNAS if completo else [])
-    writer.writerow(cabecalho + [f"{t} ({u})" for t, u in tracos])
-    for esp in especimes:
-        valores = {(m.traco, m.unidade or "mm"): m.valor for m in esp.medidas}
-        linha = [
-            esp.codigo_etiqueta, esp.grupo_insetos, esp.familia, esp.especie, esp.data_coleta, esp.local_coleta,
-            esp.latitude, esp.longitude, esp.altitude_m, esp.sexo, esp.estagio, esp.determinador,
-            esp.data_determinacao, esp.metodo_coleta, esp.habitat, esp.imagem_arquivo,
-            esp.projeto.titulo if esp.projeto else None, esp.notas,
+    header = BASE_COLUMNS + (INTERNAL_COLUMNS if full else [])
+    writer.writerow(header + [f"{t} ({u})" for t, u in traits])
+    for s in specimens:
+        values = {(m.trait, m.unit or "mm"): m.value for m in s.measurements}
+        row = [
+            s.catalog_number, s.insect_order, s.family, s.species, s.collection_date, s.locality,
+            s.latitude, s.longitude, s.elevation_m, s.sex, s.life_stage, s.identified_by,
+            s.identification_date, s.sampling_method, s.habitat, s.image_file,
+            s.project.title if s.project else None, s.notes,
         ]
-        if completo:
-            linha += [
-                esp.coletor, esp.numero_campo, esp.localizacao_fisica, esp.emprestimo_situacao,
-                esp.emprestimo_para, esp.emprestimo_data, esp.notas_internas,
+        if full:
+            row += [
+                s.collector, s.field_number, s.storage_location, s.loan_status,
+                s.loaned_to, s.loan_date, s.internal_notes,
             ]
-        writer.writerow(linha + [valores.get(chave) for chave in tracos])
+        writer.writerow(row + [values.get(key) for key in traits])
     output.seek(0)
-    nome = "acervo_entomobase_completo.csv" if completo else "acervo_entomobase.csv"
+    name = "acervo_entomobase_completo.csv" if full else "acervo_entomobase.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename={nome}"},
+        headers={"Content-Disposition": f"attachment; filename={name}"},
     )
 
 
 # --- Darwin Core ---
-# ajuste estes valores para os da coleção antes de publicar no GBIF
-DWC_INSTITUICAO = "UFMG"
-DWC_COLECAO = "EntomoBase"
-DWC_LICENCA = "http://creativecommons.org/licenses/by/4.0/legalcode"
-DWC_ENDERECO_ZENODO = "https://zenodo.org/records/{registro}/files/{arquivo}"
+# set these to the collection's values before publishing to GBIF
+DWC_INSTITUTION = "UFMG"
+DWC_COLLECTION = "EntomoBase"
+DWC_LICENSE = "http://creativecommons.org/licenses/by/4.0/legalcode"
+DWC_ZENODO_FILE_URL = "https://zenodo.org/records/{record}/files/{file}"
 
-DWC_CAMPOS = [
+DWC_FIELDS = [
     "occurrenceID", "basisOfRecord", "institutionCode", "collectionCode", "catalogNumber", "datasetName",
     "license", "kingdom", "class", "order", "family", "scientificName", "eventDate", "locality",
     "decimalLatitude", "decimalLongitude", "geodeticDatum", "minimumElevationInMeters", "sex", "lifeStage",
     "identifiedBy", "dateIdentified", "samplingProtocol", "habitat", "associatedMedia", "occurrenceRemarks",
 ]
-DWC_TERMOS = "http://rs.tdwg.org/dwc/terms/"
+DWC_TERMS = "http://rs.tdwg.org/dwc/terms/"
 
 
-def midia_zenodo(esp: models.Especime) -> Optional[str]:
-    url = esp.projeto.dataset_externo_url if esp.projeto else None
-    if esp.fotografia_url and esp.fotografia_url.startswith("http"):
-        return esp.fotografia_url
-    if not (url and esp.imagem_arquivo):
+def zenodo_media(s: models.Specimen) -> Optional[str]:
+    url = s.project.dataset_url if s.project else None
+    if s.photo_url and s.photo_url.startswith("http"):
+        return s.photo_url
+    if not (url and s.image_file):
         return None
-    achado = re.search(r"zenodo\.org/records?/(\d+)", url, re.I) or re.search(r"10\.5281/zenodo\.(\d+)", url, re.I)
-    # ids que começam com 0 são os dos dados fictícios
-    if not achado or achado.group(1).startswith("0"):
+    match = re.search(r"zenodo\.org/records?/(\d+)", url, re.I) or re.search(r"10\.5281/zenodo\.(\d+)", url, re.I)
+    # ids starting with 0 belong to the demo data
+    if not match or match.group(1).startswith("0"):
         return None
-    return DWC_ENDERECO_ZENODO.format(registro=achado.group(1), arquivo=urllib.parse.quote(esp.imagem_arquivo))
+    return DWC_ZENODO_FILE_URL.format(record=match.group(1), file=urllib.parse.quote(s.image_file))
 
 
 def meta_xml() -> str:
-    def campos(lista, inicio):
+    def fields(names, start):
         return "\n".join(
-            f'    <field index="{i}" term="{DWC_TERMOS}{nome}"/>' for i, nome in enumerate(lista, start=inicio)
+            f'    <field index="{i}" term="{DWC_TERMS}{name}"/>' for i, name in enumerate(names, start=start)
         )
 
     return (
@@ -488,61 +492,61 @@ def meta_xml() -> str:
         '  <core encoding="UTF-8" fieldsTerminatedBy="," linesTerminatedBy="\\n" fieldsEnclosedBy="&quot;" ignoreHeaderLines="1" rowType="http://rs.tdwg.org/dwc/terms/Occurrence">\n'
         '    <files><location>occurrence.csv</location></files>\n'
         '    <id index="0"/>\n'
-        f'{campos(DWC_CAMPOS[1:], 1)}\n'
+        f'{fields(DWC_FIELDS[1:], 1)}\n'
         '  </core>\n'
         '  <extension encoding="UTF-8" fieldsTerminatedBy="," linesTerminatedBy="\\n" fieldsEnclosedBy="&quot;" ignoreHeaderLines="1" rowType="http://rs.tdwg.org/dwc/terms/MeasurementOrFact">\n'
         '    <files><location>measurementorfact.csv</location></files>\n'
         '    <coreid index="0"/>\n'
-        f'{campos(["measurementType", "measurementValue", "measurementUnit"], 1)}\n'
+        f'{fields(["measurementType", "measurementValue", "measurementUnit"], 1)}\n'
         '  </extension>\n'
         '</archive>\n'
     )
 
 
-# a exportação Darwin Core é sempre pública: só projetos concluídos e nenhum campo interno
-@app.get("/exportar/dwc")
-def exportar_darwin_core(projeto_id: Optional[int] = None, db: Session = Depends(get_db)):
-    query = filtrar_visiveis(db.query(models.Especime), False).options(
-        selectinload(models.Especime.medidas), selectinload(models.Especime.projeto)
+# the Darwin Core export is always public: only finished projects and no internal field
+@app.get("/export/dwc")
+def export_darwin_core(project_id: Optional[int] = None, db: Session = Depends(get_db)):
+    query = filter_visible(db.query(models.Specimen), False).options(
+        selectinload(models.Specimen.measurements), selectinload(models.Specimen.project)
     )
-    if projeto_id: query = query.filter(models.Especime.projeto_id == projeto_id)
-    especimes = query.order_by(models.Especime.id).all()
+    if project_id: query = query.filter(models.Specimen.project_id == project_id)
+    specimens = query.order_by(models.Specimen.id).all()
 
-    ocorrencias = io.StringIO()
-    medidas = io.StringIO()
-    w_oc = csv.writer(ocorrencias, lineterminator="\n")
-    w_me = csv.writer(medidas, lineterminator="\n")
-    w_oc.writerow(DWC_CAMPOS)
-    w_me.writerow(["occurrenceID", "measurementType", "measurementValue", "measurementUnit"])
-    for esp in especimes:
-        ocorrencia = f"{DWC_INSTITUICAO}:{DWC_COLECAO}:{esp.codigo_etiqueta}"
-        tem_coordenadas = esp.latitude is not None and esp.longitude is not None
-        w_oc.writerow([
-            ocorrencia, "PreservedSpecimen", DWC_INSTITUICAO, DWC_COLECAO, esp.codigo_etiqueta,
-            esp.projeto.titulo if esp.projeto else "", DWC_LICENCA, "Animalia", "Insecta", esp.grupo_insetos,
-            esp.familia, esp.especie, esp.data_coleta, esp.local_coleta,
-            esp.latitude, esp.longitude, "WGS84" if tem_coordenadas else "", esp.altitude_m, esp.sexo, esp.estagio,
-            esp.determinador, esp.data_determinacao, esp.metodo_coleta, esp.habitat, midia_zenodo(esp), esp.notas,
+    occurrences = io.StringIO()
+    measurements = io.StringIO()
+    occurrence_writer = csv.writer(occurrences, lineterminator="\n")
+    measurement_writer = csv.writer(measurements, lineterminator="\n")
+    occurrence_writer.writerow(DWC_FIELDS)
+    measurement_writer.writerow(["occurrenceID", "measurementType", "measurementValue", "measurementUnit"])
+    for s in specimens:
+        occurrence_id = f"{DWC_INSTITUTION}:{DWC_COLLECTION}:{s.catalog_number}"
+        has_coordinates = s.latitude is not None and s.longitude is not None
+        occurrence_writer.writerow([
+            occurrence_id, "PreservedSpecimen", DWC_INSTITUTION, DWC_COLLECTION, s.catalog_number,
+            s.project.title if s.project else "", DWC_LICENSE, "Animalia", "Insecta", s.insect_order,
+            s.family, s.species, s.collection_date, s.locality,
+            s.latitude, s.longitude, "WGS84" if has_coordinates else "", s.elevation_m, s.sex, s.life_stage,
+            s.identified_by, s.identification_date, s.sampling_method, s.habitat, zenodo_media(s), s.notes,
         ])
-        for med in esp.medidas:
-            w_me.writerow([ocorrencia, med.traco, med.valor, med.unidade])
+        for m in s.measurements:
+            measurement_writer.writerow([occurrence_id, m.trait, m.value, m.unit])
 
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as pacote:
-        pacote.writestr("occurrence.csv", ocorrencias.getvalue())
-        pacote.writestr("measurementorfact.csv", medidas.getvalue())
-        pacote.writestr("meta.xml", meta_xml())
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("occurrence.csv", occurrences.getvalue())
+        archive.writestr("measurementorfact.csv", measurements.getvalue())
+        archive.writestr("meta.xml", meta_xml())
     return Response(
         buffer.getvalue(), media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=entomobase_darwincore.zip"},
     )
 
 
-# --- Imagens de demonstração (só para os dados fictícios; pode apagar esta rota) ---
-@app.get("/demo/imagem/{arquivo}")
-def imagem_demo(arquivo: str, db: Session = Depends(get_db)):
-    esp = db.query(models.Especime).filter(models.Especime.imagem_arquivo == arquivo).first()
-    if not esp:
+# --- Demo images (only for the demo data; this route can be removed) ---
+@app.get("/demo/image/{file_name}")
+def demo_image(file_name: str, db: Session = Depends(get_db)):
+    s = db.query(models.Specimen).filter(models.Specimen.image_file == file_name).first()
+    if not s:
         raise HTTPException(status_code=404, detail="Imagem não encontrada")
-    svg = gerar_svg(esp.grupo_insetos, esp.familia or "", esp.especie, esp.id, esp.codigo_etiqueta, esp.sexo or "")
+    svg = render_svg(s.insect_order, s.family or "", s.species, s.id, s.catalog_number, s.sex or "")
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})

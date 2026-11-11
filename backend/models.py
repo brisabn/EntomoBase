@@ -2,105 +2,105 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from sqlalchemy.orm import relationship
 from database import Base
 
-class Projeto(Base):
-    __tablename__ = "projetos"
+class Project(Base):
+    __tablename__ = "projects"
 
     id = Column(Integer, primary_key=True, index=True)
-    titulo = Column(String, nullable=False, index=True)
-    ano = Column(Integer, nullable=False, index=True)
-    grupo_insetos = Column(String, nullable=False, index=True)
-    tracos_medidos = Column(String, nullable=True)
-    local_coleta = Column(String, nullable=True)
-    capa_url = Column(String, nullable=True)
-    dataset_externo_url = Column(String, nullable=True)
-    finalizado = Column(Boolean, default=False)
-    publicacao_vinculada = Column(String, nullable=True)
-    descricao = Column(String, nullable=True)
+    title = Column(String, nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    insect_group = Column(String, nullable=False, index=True)
+    measured_traits = Column(String, nullable=True)
+    locality = Column(String, nullable=True)
+    cover_url = Column(String, nullable=True)
+    dataset_url = Column(String, nullable=True)
+    finished = Column(Boolean, default=False)
+    linked_publication = Column(String, nullable=True)
+    description = Column(String, nullable=True)
 
-    especimes = relationship("Especime", back_populates="projeto", cascade="all, delete-orphan")
+    specimens = relationship("Specimen", back_populates="project", cascade="all, delete-orphan")
 
 
-class Especime(Base):
-    __tablename__ = "especimes"
+class Specimen(Base):
+    __tablename__ = "specimens"
 
     id = Column(Integer, primary_key=True, index=True)
-    codigo_etiqueta = Column(String, unique=True, index=True, nullable=False)
-    grupo_insetos = Column(String, index=True, nullable=False)
-    familia = Column(String, index=True, nullable=True)
-    especie = Column(String, index=True, nullable=False)
-    data_coleta = Column(Date, nullable=True)
-    local_coleta = Column(String, nullable=True)
+    catalog_number = Column(String, unique=True, index=True, nullable=False)
+    insect_order = Column(String, index=True, nullable=False)
+    family = Column(String, index=True, nullable=True)
+    species = Column(String, index=True, nullable=False)
+    collection_date = Column(Date, nullable=True)
+    locality = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
-    altitude_m = Column(Float, nullable=True)
-    sexo = Column(String, nullable=True)
-    estagio = Column(String, nullable=True)
-    # nome do arquivo dentro do registro do Zenodo do projeto (ex.: COL-001.jpg)
-    imagem_arquivo = Column(String, nullable=True)
-    fotografia_url = Column(String, nullable=True)
-    notas = Column(String, nullable=True)
-    projeto_id = Column(Integer, ForeignKey("projetos.id"), nullable=True)
+    elevation_m = Column(Float, nullable=True)
+    sex = Column(String, nullable=True)
+    life_stage = Column(String, nullable=True)
+    # file name inside the project's Zenodo record (e.g. COL-001.jpg)
+    image_file = Column(String, nullable=True)
+    photo_url = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
 
-    # campos públicos de identificação e coleta
-    determinador = Column(String, nullable=True)
-    data_determinacao = Column(Date, nullable=True)
-    metodo_coleta = Column(String, nullable=True)
+    # public identification and collection fields
+    identified_by = Column(String, nullable=True)
+    identification_date = Column(Date, nullable=True)
+    sampling_method = Column(String, nullable=True)
     habitat = Column(String, nullable=True)
 
-    # campos internos: só o laboratório logado vê (ver CAMPOS_INTERNOS em schemas.py)
-    coletor = Column(String, nullable=True)
-    numero_campo = Column(String, nullable=True)
-    localizacao_fisica = Column(String, nullable=True)
-    emprestimo_situacao = Column(String, nullable=True)
-    emprestimo_para = Column(String, nullable=True)
-    emprestimo_data = Column(Date, nullable=True)
-    notas_internas = Column(String, nullable=True)
+    # internal fields: only the logged-in lab sees them (see INTERNAL_FIELDS in schemas.py)
+    collector = Column(String, nullable=True)
+    field_number = Column(String, nullable=True)
+    storage_location = Column(String, nullable=True)
+    loan_status = Column(String, nullable=True)
+    loaned_to = Column(String, nullable=True)
+    loan_date = Column(Date, nullable=True)
+    internal_notes = Column(String, nullable=True)
 
-    projeto = relationship("Projeto", back_populates="especimes")
-    medidas = relationship("Medida", back_populates="especime", cascade="all, delete-orphan", order_by="Medida.id")
-    # tabela antiga, mantida só para não perder dados na migração
-    medicoes = relationship("Medicao", back_populates="especime", cascade="all, delete-orphan")
-
-
-class Medida(Base):
-    __tablename__ = "medidas"
-
-    id = Column(Integer, primary_key=True, index=True)
-    especime_id = Column(Integer, ForeignKey("especimes.id"), nullable=False, index=True)
-    traco = Column(String, nullable=False)
-    valor = Column(Float, nullable=False)
-    unidade = Column(String, nullable=False, default="mm")
-
-    especime = relationship("Especime", back_populates="medidas")
+    project = relationship("Project", back_populates="specimens")
+    measurements = relationship("Measurement", back_populates="specimen", cascade="all, delete-orphan", order_by="Measurement.id")
+    # old table, kept only so its data is not lost by the migration
+    legacy_measurements = relationship("LegacyMeasurement", back_populates="specimen", cascade="all, delete-orphan")
 
 
-class Medicao(Base):
-    __tablename__ = "medicoes"
+class Measurement(Base):
+    __tablename__ = "measurements"
 
     id = Column(Integer, primary_key=True, index=True)
-    especime_id = Column(Integer, ForeignKey("especimes.id"), nullable=False)
-    tamanho_chifre_mm = Column(Float, nullable=True)
-    largura_pronoto_mm = Column(Float, nullable=False)
+    specimen_id = Column(Integer, ForeignKey("specimens.id"), nullable=False, index=True)
+    trait = Column(String, nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String, nullable=False, default="mm")
 
-    especime = relationship("Especime", back_populates="medicoes")
+    specimen = relationship("Specimen", back_populates="measurements")
 
-class Usuario(Base):
-    __tablename__ = "usuarios"
+
+class LegacyMeasurement(Base):
+    __tablename__ = "legacy_measurements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    specimen_id = Column(Integer, ForeignKey("specimens.id"), nullable=False)
+    horn_length_mm = Column(Float, nullable=True)
+    pronotum_width_mm = Column(Float, nullable=False)
+
+    specimen = relationship("Specimen", back_populates="legacy_measurements")
+
+class User(Base):
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    senha = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
 
 
-# cache das consultas de nomes científicos ao GBIF
+# cache of scientific name lookups on GBIF
 class Taxon(Base):
-    __tablename__ = "taxons"
+    __tablename__ = "taxa"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome_informado = Column(String, unique=True, index=True, nullable=False)
-    situacao = Column(String, nullable=False)
-    sugestao = Column(String, nullable=True)
-    chave_gbif = Column(Integer, nullable=True)
-    familia = Column(String, nullable=True)
-    ordem = Column(String, nullable=True)
-    consultado_em = Column(DateTime, nullable=False)
+    queried_name = Column(String, unique=True, index=True, nullable=False)
+    status = Column(String, nullable=False)
+    suggestion = Column(String, nullable=True)
+    gbif_key = Column(Integer, nullable=True)
+    family = Column(String, nullable=True)
+    order_name = Column(String, nullable=True)
+    queried_at = Column(DateTime, nullable=False)
