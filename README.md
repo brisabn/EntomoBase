@@ -27,6 +27,14 @@ python -m http.server 5500
 
 e abra `http://127.0.0.1:5500`.
 
+Criar o primeiro usuário do laboratório (não existe usuário padrão). Dentro de `backend`:
+
+```powershell
+python criar_admin.py seu-email@exemplo.br
+```
+
+A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mesmo e-mail troca a senha.
+
 Dados fictícios para demonstração (com a API já configurada, dentro de `backend`):
 
 ```powershell

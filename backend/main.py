@@ -11,15 +11,16 @@ from fastapi.responses import StreamingResponse, Response
 from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
-from sqlalchemy import inspect, text, or_
+from sqlalchemy import func, inspect, text, or_
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
 import gbif
 import models
 import schemas
-from database import engine, get_db
+from database import SessionLocal, engine, get_db
 from demo_imagens import gerar_svg
+from seguranca import gerar_hash, ja_e_hash, precisa_novo_hash, verificar_senha
 
 # a migração das medidas só roda na primeira vez em que a tabela nova aparece
 _tabelas_antes = set(inspect(engine).get_table_names())
@@ -65,8 +66,21 @@ def migrar_medicoes():
         ))
 
 
+# senhas guardadas em texto puro por versões antigas passam a ser guardadas só como hash
+def migrar_senhas():
+    db = SessionLocal()
+    try:
+        for usuario in db.query(models.Usuario).all():
+            if not ja_e_hash(usuario.senha):
+                usuario.senha = gerar_hash(usuario.senha)
+        db.commit()
+    finally:
+        db.close()
+
+
 migrar_colunas()
 migrar_medicoes()
+migrar_senhas()
 
 app = FastAPI(title="EntomoBase API", version="0.4.0")
 
@@ -121,23 +135,18 @@ def usuario_logado(authorization: str = Header(None)) -> bool:
         return False
 
 
-# Criar usuário padrão do laboratório se o banco estiver vazio
-db_init = next(get_db())
-if not db_init.query(models.Usuario).first():
-    db_init.add(models.Usuario(email="admin@lab.br", senha="123"))
-    db_init.commit()
-db_init.close()
-
-
 # --- Autenticação ---
+# não existe usuário padrão: o primeiro é criado com `python criar_admin.py email@exemplo.br`
 @app.post("/login")
 def login(credenciais: schemas.UsuarioLogin, db: Session = Depends(get_db)):
     usuario = db.query(models.Usuario).filter(
-        models.Usuario.email == credenciais.email,
-        models.Usuario.senha == credenciais.senha
+        func.lower(models.Usuario.email) == credenciais.email.strip().lower()
     ).first()
-    if not usuario:
+    if not verificar_senha(credenciais.senha, usuario.senha if usuario else None):
         raise HTTPException(status_code=401, detail="E-mail ou senha incorretos")
+    if precisa_novo_hash(usuario.senha):
+        usuario.senha = gerar_hash(credenciais.senha)
+        db.commit()
 
     exp = datetime.now(timezone.utc) + timedelta(hours=8)
     token = jwt.encode({"sub": usuario.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
