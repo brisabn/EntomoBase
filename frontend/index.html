@@ -16,11 +16,12 @@
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 </head>
 <body>
+  <!-- every visible text comes from i18n.js through t(); addresses come from link() -->
   <div id="app" v-cloak>
     <div class="page">
 
       <header class="topbar">
-        <a class="logo" href="#/sobre" aria-label="EntomoBase, página inicial">
+        <a class="logo" :href="link('about')" :aria-label="t('site.home_aria')">
           <svg class="logo-icon" viewBox="0 0 48 48" aria-hidden="true">
             <ellipse cx="24" cy="9.5" rx="4.6" ry="4.4" fill="currentColor"/>
             <ellipse cx="24" cy="22" rx="4.2" ry="5.8" fill="currentColor"/>
@@ -36,8 +37,8 @@
         <div class="topbar-actions">
           <div class="search-wrap" @click.stop>
             <label class="search">
-              <span class="search-label">Buscar</span>
-              <input v-model="searchTerm" type="text" placeholder="espécie, projeto, local" autocomplete="off" role="combobox" aria-label="Buscar no site" :aria-expanded="showSuggestions"
+              <span class="search-label">{{ t('search.label') }}</span>
+              <input v-model="searchTerm" type="text" :placeholder="t('search.placeholder')" autocomplete="off" role="combobox" :aria-label="t('search.aria')" :aria-expanded="showSuggestions"
                 @focus="suggestionsOpen = true" @keydown.down.prevent="moveSuggestion(1)" @keydown.up.prevent="moveSuggestion(-1)" @keydown.enter.prevent="submitSearch()">
             </label>
             <div v-if="showSuggestions" class="sug" role="listbox">
@@ -49,18 +50,19 @@
                     <span class="sug-sub">{{ s.sub }}</span>
                   </button>
                 </template>
-                <button type="button" class="sug-all" @click="submitSearch(true)">Ver todos os {{ results.total }} resultados</button>
+                <button type="button" class="sug-all" @click="submitSearch(true)">{{ t('search.see_all', { n: results.total }) }}</button>
               </template>
-              <p v-else class="sug-empty">Nada encontrado para "{{ searchTerm.trim() }}".</p>
+              <p v-else class="sug-empty">{{ t('search.nothing', { q: searchTerm.trim() }) }}</p>
             </div>
           </div>
           <span v-if="labAccess" class="user">{{ userEmail }}</span>
-          <button class="btn-dark" type="button" @click="labAccess ? logout() : openLogin()">{{ labAccess ? 'Sair' : 'Entrar' }}</button>
+          <button class="btn-light lang-switch" type="button" :aria-label="t('lang.toggle_aria')" @click="switchLanguage">{{ t('lang.toggle') }}</button>
+          <button class="btn-dark" type="button" @click="labAccess ? logout() : openLogin()">{{ labAccess ? t('auth.logout') : t('auth.login') }}</button>
         </div>
       </header>
 
-      <nav class="tabs" aria-label="Seções do site">
-        <a v-for="t in tabs" :key="t.id" :href="t.href" :class="['tab', { current: activeTab === t.id }]" :aria-current="activeTab === t.id ? 'page' : null">{{ t.label }}</a>
+      <nav class="tabs" :aria-label="t('nav.aria')">
+        <a v-for="tab in tabs" :key="tab.id" :href="tab.href" :class="['tab', { current: activeTab === tab.id }]" :aria-current="activeTab === tab.id ? 'page' : null">{{ tab.label }}</a>
       </nav>
 
       <main class="folder">
@@ -79,73 +81,73 @@
 
         <!-- SEARCH -->
         <div class="sheet" v-else-if="route.name === 'search'">
-          <h1 class="page-title">Busca</h1>
-          <p class="subtitle" v-if="query.length < 2">Digite pelo menos 2 letras para buscar em projetos, espécies, espécimes e repositórios.</p>
-          <p class="subtitle" v-else>{{ plural(results.total, 'resultado', 'resultados') }} para "{{ searchTerm.trim() }}"</p>
+          <h1 class="page-title">{{ t('search.title') }}</h1>
+          <p class="subtitle" v-if="query.length < 2">{{ t('search.min_chars') }}</p>
+          <p class="subtitle" v-else>{{ t('search.results_for', { count: count('result', results.total), q: searchTerm.trim() }) }}</p>
 
           <section class="res-section" v-if="results.projects.length">
-            <h2 class="section-title">Projetos <span class="res-count">{{ results.projects.length }}</span></h2>
+            <h2 class="section-title">{{ t('search.projects') }} <span class="res-count">{{ results.projects.length }}</span></h2>
             <div class="grid">
-              <a v-for="p in results.projects" :key="p.id" class="card" :href="'#/projetos/' + p.id">
+              <a v-for="p in results.projects" :key="p.id" class="card" :href="link('project', { id: p.id })">
                 <div class="card-cover" :style="{ background: coverColor(p) }"><span class="status">{{ statusLabel(p) }}</span></div>
                 <div class="card-body">
                   <h3 class="card-title"><highlight :text="p.title" :q="query"></highlight></h3>
                   <p class="card-meta">{{ p.insect_group }} · {{ p.year }}</p>
-                  <p class="card-count">{{ plural(countSpecies(specimensOf(p)), 'espécie', 'espécies') }}</p>
+                  <p class="card-count">{{ count('species', countSpecies(specimensOf(p))) }}</p>
                 </div>
               </a>
             </div>
           </section>
 
           <section class="res-section" v-if="results.species.length">
-            <h2 class="section-title">Espécies <span class="res-count">{{ results.species.length }}</span></h2>
+            <h2 class="section-title">{{ t('search.species') }} <span class="res-count">{{ results.species.length }}</span></h2>
             <ul class="res-list">
               <li v-for="x in results.species" :key="x.name">
-                <a class="res-row" href="#/colecao" @click.prevent="openSpecies(x.name)">
+                <a class="res-row" :href="link('collection')" @click.prevent="openSpecies(x.name)">
                   <em class="res-title"><highlight :text="x.name" :q="query"></highlight></em>
-                  <span class="res-sub">{{ x.family || 'Sem família' }} · {{ x.order }} · {{ plural(x.specimens.length, 'espécime', 'espécimes') }}</span>
+                  <span class="res-sub">{{ x.family || t('common.no_family') }} · {{ x.order }} · {{ count('specimen', x.specimens.length) }}</span>
                 </a>
               </li>
             </ul>
           </section>
 
           <section class="res-section" v-if="results.repositories.length">
-            <h2 class="section-title">Repositórios <span class="res-count">{{ results.repositories.length }}</span></h2>
+            <h2 class="section-title">{{ t('search.repositories') }} <span class="res-count">{{ results.repositories.length }}</span></h2>
             <ul class="res-list">
               <li v-for="r in results.repositories" :key="r.id">
-                <a class="res-row" :href="'#/projetos/' + r.id">
+                <a class="res-row" :href="link('project', { id: r.id })">
                   <span class="res-title"><highlight :text="r.title" :q="query"></highlight></span>
-                  <span class="res-sub">{{ r.description || 'Sem descrição.' }}</span>
+                  <span class="res-sub">{{ r.description || t('common.no_description') }}</span>
                 </a>
               </li>
             </ul>
           </section>
 
           <section class="res-section" v-if="results.specimens.length">
-            <h2 class="section-title">Espécimes <span class="res-count">{{ results.specimens.length }}</span></h2>
+            <h2 class="section-title">{{ t('search.specimens') }} <span class="res-count">{{ results.specimens.length }}</span></h2>
             <ul class="res-list">
               <li v-for="e in results.specimens.slice(0, 30)" :key="e.id">
                 <a class="res-row" :href="specimenTarget(e)">
                   <span class="res-title mono"><highlight :text="e.catalog_number" :q="query"></highlight></span>
-                  <span class="res-sub"><em>{{ e.species }}</em> · <highlight :text="e.locality || 'Local não informado'" :q="query"></highlight></span>
+                  <span class="res-sub"><em>{{ e.species }}</em> · <highlight :text="e.locality || t('common.no_locality')" :q="query"></highlight></span>
                 </a>
               </li>
             </ul>
-            <p v-if="results.specimens.length > 30" class="muted small">Mostrando 30 de {{ results.specimens.length }}. Refine a busca para ver os demais.</p>
+            <p v-if="results.specimens.length > 30" class="muted small">{{ t('search.showing_30', { n: results.specimens.length }) }}</p>
           </section>
 
           <section class="res-section" v-if="results.pages.length">
-            <h2 class="section-title">Páginas</h2>
+            <h2 class="section-title">{{ t('search.pages') }}</h2>
             <ul class="res-list">
               <li v-for="x in results.pages" :key="x.title">
-                <a class="res-row" href="#/sobre"><span class="res-title">{{ x.title }}</span><span class="res-sub">{{ x.excerpt }}</span></a>
+                <a class="res-row" :href="link('about')"><span class="res-title">{{ x.title }}</span><span class="res-sub">{{ x.excerpt }}</span></a>
               </li>
             </ul>
           </section>
 
           <div v-if="query.length >= 2 && !results.total && !loading" class="empty-state">
-            <p>Nenhum resultado encontrado.</p>
-            <p class="muted small">Tente outro nome de espécie, projeto, local ou código de etiqueta.</p>
+            <p>{{ t('search.no_results') }}</p>
+            <p class="muted small">{{ t('search.try_other') }}</p>
           </div>
         </div>
 
@@ -153,13 +155,13 @@
         <div class="sheet" v-else-if="route.name === 'projects' || route.name === 'project'">
 
           <div v-if="apiError" class="error-banner" role="alert">
-            <strong>Sem conexão com a API.</strong> {{ apiError }} Verifique se o servidor está rodando em {{ apiUrl }}.
-            <button type="button" class="link" @click="loadAll">Tentar de novo</button>
+            <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+            <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
           </div>
 
           <section v-if="route.name === 'projects'">
-            <h1 class="page-title">Projetos</h1>
-            <p class="subtitle">{{ plural(filteredProjects.length, 'projeto', 'projetos') }}</p>
+            <h1 class="page-title">{{ t('projects.title') }}</h1>
+            <p class="subtitle">{{ count('project', filteredProjects.length) }}</p>
 
             <div class="filters">
               <div class="filter" v-for="f in projectFilters" :key="f.key">
@@ -167,48 +169,48 @@
                   <span>{{ filterLabel(f) }}</span><span class="caret" aria-hidden="true"></span>
                 </button>
                 <ul v-if="openMenu === f.key" class="menu" role="listbox" @click.stop>
-                  <li><button type="button" role="option" :aria-selected="filters[f.key] === null" :class="{ selected: filters[f.key] === null }" @click="setFilter(f.key, null)">Todos</button></li>
+                  <li><button type="button" role="option" :aria-selected="filters[f.key] === null" :class="{ selected: filters[f.key] === null }" @click="setFilter(f.key, null)">{{ t('filter.all') }}</button></li>
                   <li v-for="o in filterOptions[f.key]" :key="o.value"><button type="button" role="option" :aria-selected="filters[f.key] === o.value" :class="{ selected: filters[f.key] === o.value }" @click="setFilter(f.key, o.value)">{{ o.label }}</button></li>
                 </ul>
               </div>
               <div class="filter">
                 <button type="button" class="pill" :aria-expanded="openMenu === 'sort'" aria-haspopup="listbox" @click.stop="toggleMenu('sort')">
-                  <span>Ordenar: {{ sortLabel }}</span><span class="caret" aria-hidden="true"></span>
+                  <span>{{ t('filter.sort', { label: sortLabel }) }}</span><span class="caret" aria-hidden="true"></span>
                 </button>
                 <ul v-if="openMenu === 'sort'" class="menu" role="listbox" @click.stop>
                   <li v-for="o in sortOptions" :key="o.value"><button type="button" role="option" :aria-selected="sortOrder === o.value" :class="{ selected: sortOrder === o.value }" @click="sortOrder = o.value; openMenu = null">{{ o.label }}</button></li>
                 </ul>
               </div>
-              <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">Limpar filtros</button>
-              <button v-if="labAccess" type="button" class="btn-light push-right" @click="openProjectForm()">Novo projeto</button>
+              <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">{{ t('filter.clear') }}</button>
+              <button v-if="labAccess" type="button" class="btn-light push-right" @click="openProjectForm()">{{ t('projects.new') }}</button>
             </div>
 
-            <p v-if="loading" class="empty-state">Carregando projetos...</p>
+            <p v-if="loading" class="empty-state">{{ t('projects.loading') }}</p>
             <div v-else-if="filteredProjects.length" class="grid">
-              <a v-for="p in filteredProjects" :key="p.id" class="card" :href="'#/projetos/' + p.id">
+              <a v-for="p in filteredProjects" :key="p.id" class="card" :href="link('project', { id: p.id })">
                 <div class="card-cover" :style="{ background: coverColor(p) }">
                   <span class="status">{{ statusLabel(p) }}</span>
                 </div>
                 <div class="card-body">
                   <h2 class="card-title">{{ p.title }}</h2>
                   <p class="card-meta">{{ p.insect_group }} · {{ p.year }}</p>
-                  <p class="card-count">{{ plural(countSpecies(specimensOf(p)), 'espécie', 'espécies') }}</p>
+                  <p class="card-count">{{ count('species', countSpecies(specimensOf(p))) }}</p>
                 </div>
               </a>
             </div>
             <div v-else-if="!apiError" class="empty-state">
-              <p>Nenhum projeto encontrado.</p>
-              <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">Limpar filtros</button>
+              <p>{{ t('projects.none') }}</p>
+              <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">{{ t('filter.clear') }}</button>
             </div>
           </section>
 
           <section v-else>
-            <a class="back" href="#/projetos"><icon name="back"></icon> Projetos</a>
+            <a class="back" :href="link('projects')"><icon name="back"></icon> {{ t('projects.title') }}</a>
 
-            <p v-if="loading" class="empty-state">Carregando projeto...</p>
+            <p v-if="loading" class="empty-state">{{ t('project.loading') }}</p>
             <div v-else-if="!currentProject && !apiError" class="empty-state">
-              <p>Projeto não encontrado.</p>
-              <a class="link" href="#/projetos">Ver todos os projetos</a>
+              <p>{{ t('project.not_found') }}</p>
+              <a class="link" :href="link('projects')">{{ t('project.see_all') }}</a>
             </div>
 
             <template v-else-if="currentProject">
@@ -222,75 +224,75 @@
                   <p class="subtitle">{{ currentProject.insect_group }} · {{ currentProject.year }}<template v-if="currentProject.locality"> · {{ currentProject.locality }}</template></p>
                 </div>
                 <div class="actions" v-if="labAccess">
-                  <button type="button" class="btn-light" @click="openProjectForm(currentProject)">Editar</button>
-                  <button type="button" class="btn-danger" @click="askDeleteProject(currentProject)">Excluir</button>
+                  <button type="button" class="btn-light" @click="openProjectForm(currentProject)">{{ t('common.edit') }}</button>
+                  <button type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
                 </div>
               </div>
 
               <p class="description" v-if="currentProject.description">{{ currentProject.description }}</p>
 
               <dl class="facts">
-                <div class="fact"><dt>Espécies</dt><dd>{{ countSpecies(projectSpecimens).toLocaleString('pt-BR') }}</dd></div>
-                <div class="fact"><dt>Espécimes</dt><dd>{{ projectSpecimens.length.toLocaleString('pt-BR') }}</dd></div>
-                <div class="fact"><dt>Com imagem</dt><dd>{{ totalWithImage.toLocaleString('pt-BR') }}</dd></div>
+                <div class="fact"><dt>{{ t('fact.species') }}</dt><dd>{{ n(countSpecies(projectSpecimens)) }}</dd></div>
+                <div class="fact"><dt>{{ t('fact.specimens') }}</dt><dd>{{ n(projectSpecimens.length) }}</dd></div>
+                <div class="fact"><dt>{{ t('fact.with_image') }}</dt><dd>{{ n(totalWithImage) }}</dd></div>
                 <div class="fact" v-if="projectTraits.length">
-                  <dt>Traços medidos</dt>
+                  <dt>{{ t('fact.traits') }}</dt>
                   <dd>
                     {{ projectTraits.slice(0, 2).join(', ') }}
                     <span v-if="projectTraits.length > 2" class="relative">
-                      <button type="button" class="badge" :aria-expanded="popover === 'traits'" @click.stop="togglePopover('traits')">+{{ projectTraits.length - 2 }} ver mais</button>
+                      <button type="button" class="badge" :aria-expanded="popover === 'traits'" @click.stop="togglePopover('traits')">{{ t('fact.see_more', { n: projectTraits.length - 2 }) }}</button>
                       <ul v-if="popover === 'traits'" class="popover popover-traits" @click.stop>
-                        <li v-for="t in projectTraits" :key="t">{{ t }}</li>
+                        <li v-for="trait in projectTraits" :key="trait">{{ trait }}</li>
                       </ul>
                     </span>
                   </dd>
                 </div>
-                <div class="fact" v-if="currentProject.locality"><dt>Local de coleta</dt><dd>{{ currentProject.locality }}</dd></div>
+                <div class="fact" v-if="currentProject.locality"><dt>{{ t('fact.locality') }}</dt><dd>{{ currentProject.locality }}</dd></div>
                 <div class="fact" v-if="currentProject.linked_publication">
-                  <dt>Publicação</dt>
+                  <dt>{{ t('fact.publication') }}</dt>
                   <dd>
-                    <a v-if="isUrl(currentProject.linked_publication)" class="link-ext" :href="currentProject.linked_publication" target="_blank" rel="noopener">Abrir publicação <icon name="external"></icon></a>
+                    <a v-if="isUrl(currentProject.linked_publication)" class="link-ext" :href="currentProject.linked_publication" target="_blank" rel="noopener">{{ t('fact.open_publication') }} <icon name="external"></icon></a>
                     <template v-else>{{ currentProject.linked_publication }}</template>
                   </dd>
                 </div>
                 <div class="fact">
-                  <dt>Repositório</dt>
+                  <dt>{{ t('fact.repository') }}</dt>
                   <dd>
                     <a v-if="isUrl(currentProject.dataset_url)" class="link-ext" :href="currentProject.dataset_url" target="_blank" rel="noopener">Zenodo <icon name="external"></icon></a>
-                    <span v-else class="muted">Sem repositório vinculado</span>
+                    <span v-else class="muted">{{ t('fact.no_repository') }}</span>
                   </dd>
                 </div>
               </dl>
 
               <div class="section-header">
-                <h2 class="section-title">Espécimes</h2>
+                <h2 class="section-title">{{ t('project.specimens') }}</h2>
                 <div class="actions">
-                  <button type="button" class="btn-light" @click="exportCsv(currentProject.id)">Exportar CSV</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" title="Inclui coletor, localização física e empréstimo">CSV completo (interno)</button>
-                  <button type="button" class="btn-light" @click="exportDwc(currentProject.id)" title="Pacote Darwin Core para GBIF">Darwin Core</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="openImport(currentProject.id)">Importar CSV</button>
-                  <button v-if="labAccess" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">Adicionar espécime</button>
+                  <button type="button" class="btn-light" @click="exportCsv(currentProject.id)">{{ t('export.csv') }}</button>
+                  <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full_internal') }}</button>
+                  <button type="button" class="btn-light" @click="exportDwc(currentProject.id)" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
+                  <button v-if="labAccess" type="button" class="btn-light" @click="openImport(currentProject.id)">{{ t('import.button') }}</button>
+                  <button v-if="labAccess" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">{{ t('project.add_specimen') }}</button>
                 </div>
               </div>
 
-              <div class="segmented" role="tablist" aria-label="Modo de visualização">
-                <a :href="'#/projetos/' + currentProject.id" role="tab" :aria-selected="projectView === 'table'" :class="['seg', { active: projectView === 'table' }]">Tabela</a>
-                <a :href="'#/projetos/' + currentProject.id + '/galeria'" role="tab" :aria-selected="projectView === 'gallery'" :class="['seg', { active: projectView === 'gallery' }]">Galeria</a>
-                <a :href="'#/projetos/' + currentProject.id + '/mapa'" role="tab" :aria-selected="projectView === 'map'" :class="['seg', { active: projectView === 'map' }]">Mapa</a>
+              <div class="segmented" role="tablist" :aria-label="t('view.aria')">
+                <a :href="link('project', { id: currentProject.id })" role="tab" :aria-selected="projectView === 'table'" :class="['seg', { active: projectView === 'table' }]">{{ t('view.table') }}</a>
+                <a :href="link('project', { id: currentProject.id, view: 'gallery' })" role="tab" :aria-selected="projectView === 'gallery'" :class="['seg', { active: projectView === 'gallery' }]">{{ t('view.gallery') }}</a>
+                <a :href="link('project', { id: currentProject.id, view: 'map' })" role="tab" :aria-selected="projectView === 'map'" :class="['seg', { active: projectView === 'map' }]">{{ t('view.map') }}</a>
               </div>
 
-              <p v-if="!projectSpecimens.length" class="empty-state">Nenhum espécime cadastrado neste projeto.</p>
+              <p v-if="!projectSpecimens.length" class="empty-state">{{ t('project.no_specimens') }}</p>
 
               <div v-else-if="projectView === 'table'">
                 <div class="table-top">
                   <label class="search search-table">
-                    <span class="sr-only">Buscar nesta tabela</span>
-                    <input v-model="table.query" type="text" placeholder="Buscar neste projeto" autocomplete="off" @input="table.page = 1">
+                    <span class="sr-only">{{ t('table.search_label') }}</span>
+                    <input v-model="table.query" type="text" :placeholder="t('table.search_placeholder')" autocomplete="off" @input="table.page = 1">
                   </label>
                   <label class="per-page">
-                    <span>Linhas por página</span>
+                    <span>{{ t('table.per_page') }}</span>
                     <select v-model.number="table.perPage" @change="table.page = 1">
-                      <option v-for="n in pageSizes" :key="n" :value="n">{{ n }}</option>
+                      <option v-for="size in pageSizes" :key="size" :value="size">{{ size }}</option>
                     </select>
                   </label>
                 </div>
@@ -299,19 +301,19 @@
                   <table class="table">
                     <thead>
                       <tr>
-                        <th><span class="sr-only">Imagem</span></th>
-                        <th :aria-sort="ariaSort('catalog')"><button type="button" class="th-sort" @click="sortBy('catalog')">Etiqueta <span class="sort-arrow" :data-dir="table.sort === 'catalog' ? table.dir : ''"></span></button></th>
-                        <th :aria-sort="ariaSort('species')"><button type="button" class="th-sort" @click="sortBy('species')">Espécie <span class="sort-arrow" :data-dir="table.sort === 'species' ? table.dir : ''"></span></button></th>
-                        <th :aria-sort="ariaSort('family')"><button type="button" class="th-sort" @click="sortBy('family')">Família <span class="sort-arrow" :data-dir="table.sort === 'family' ? table.dir : ''"></span></button></th>
-                        <th :aria-sort="ariaSort('locality')"><button type="button" class="th-sort" @click="sortBy('locality')">Local <span class="sort-arrow" :data-dir="table.sort === 'locality' ? table.dir : ''"></span></button></th>
-                        <th :aria-sort="ariaSort('date')"><button type="button" class="th-sort" @click="sortBy('date')">Coleta <span class="sort-arrow" :data-dir="table.sort === 'date' ? table.dir : ''"></span></button></th>
+                        <th><span class="sr-only">{{ t('table.image') }}</span></th>
+                        <th :aria-sort="ariaSort('catalog')"><button type="button" class="th-sort" @click="sortBy('catalog')">{{ t('col.catalog') }} <span class="sort-arrow" :data-dir="table.sort === 'catalog' ? table.dir : ''"></span></button></th>
+                        <th :aria-sort="ariaSort('species')"><button type="button" class="th-sort" @click="sortBy('species')">{{ t('col.species') }} <span class="sort-arrow" :data-dir="table.sort === 'species' ? table.dir : ''"></span></button></th>
+                        <th :aria-sort="ariaSort('family')"><button type="button" class="th-sort" @click="sortBy('family')">{{ t('col.family') }} <span class="sort-arrow" :data-dir="table.sort === 'family' ? table.dir : ''"></span></button></th>
+                        <th :aria-sort="ariaSort('locality')"><button type="button" class="th-sort" @click="sortBy('locality')">{{ t('col.locality') }} <span class="sort-arrow" :data-dir="table.sort === 'locality' ? table.dir : ''"></span></button></th>
+                        <th :aria-sort="ariaSort('date')"><button type="button" class="th-sort" @click="sortBy('date')">{{ t('col.date') }} <span class="sort-arrow" :data-dir="table.sort === 'date' ? table.dir : ''"></span></button></th>
                         <th v-for="c in measurementColumns" :key="c.key" class="num" :aria-sort="ariaSort('m:' + c.key)"><button type="button" class="th-sort" @click="sortBy('m:' + c.key)">{{ c.trait }} ({{ c.unit }}) <span class="sort-arrow" :data-dir="table.sort === 'm:' + c.key ? table.dir : ''"></span></button></th>
-                        <th v-if="labAccess"><span class="sr-only">Ações</span></th>
+                        <th v-if="labAccess"><span class="sr-only">{{ t('table.actions') }}</span></th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr v-for="e in tablePage" :key="e.id">
-                        <td class="col-thumb"><button type="button" class="thumb-btn" @click="openPanel(e, sortedTable)" :aria-label="'Ver detalhes de ' + e.catalog_number"><photo :src="imageUrl(e, 100)" alt="" label="—"></photo></button></td>
+                        <td class="col-thumb"><button type="button" class="thumb-btn" @click="openPanel(e, sortedTable)" :aria-label="t('table.details_aria', { code: e.catalog_number })"><photo :src="imageUrl(e, 100)" alt="" label="—"></photo></button></td>
                         <td class="mono"><button type="button" class="link" @click="openPanel(e, sortedTable)">{{ e.catalog_number }}</button></td>
                         <td><em>{{ e.species }}</em></td>
                         <td>{{ e.family || '—' }}</td>
@@ -319,24 +321,24 @@
                         <td>{{ formatDate(e.collection_date) }}</td>
                         <td v-for="c in measurementColumns" :key="c.key" class="num">{{ measurementValue(e, c) }}</td>
                         <td v-if="labAccess" class="row-actions">
-                          <button type="button" class="link" @click="openSpecimenForm(e)">Editar</button>
-                          <button type="button" class="link danger" @click="askDeleteSpecimen(e)">Excluir</button>
+                          <button type="button" class="link" @click="openSpecimenForm(e)">{{ t('common.edit') }}</button>
+                          <button type="button" class="link danger" @click="askDeleteSpecimen(e)">{{ t('common.delete') }}</button>
                         </td>
                       </tr>
-                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (labAccess ? 1 : 0)" class="muted">Nenhum espécime encontrado para essa busca.</td></tr>
+                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (labAccess ? 1 : 0)" class="muted">{{ t('table.no_match') }}</td></tr>
                     </tbody>
                   </table>
                 </div>
 
-                <nav class="pagination" aria-label="Páginas da tabela">
-                  <span class="muted small">Mostrando {{ tableRange }}</span>
+                <nav class="pagination" :aria-label="t('table.pages_aria')">
+                  <span class="muted small">{{ t('table.showing', { range: tableRange }) }}</span>
                   <div class="pages" v-if="totalPages > 1">
-                    <button type="button" class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">Anterior</button>
+                    <button type="button" class="page-btn" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">{{ t('table.prev') }}</button>
                     <template v-for="b in pageButtons" :key="b.key">
                       <span v-if="b.ellipsis" class="page-ellipsis">…</span>
                       <button v-else type="button" :class="['page-btn', 'page-num', { current: b.n === currentPage }]" :aria-current="b.n === currentPage ? 'page' : null" @click="goToPage(b.n)">{{ b.n }}</button>
                     </template>
-                    <button type="button" class="page-btn" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Próxima</button>
+                    <button type="button" class="page-btn" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">{{ t('table.next') }}</button>
                   </div>
                 </nav>
               </div>
@@ -347,7 +349,7 @@
                 <collection-map :points="mapPoints" :focus="mapFocus" @open="openPanelById" @focused="mapFocus = null"></collection-map>
                 <div class="map-footer">
                   <ul class="legend"><li v-for="l in mapLegend" :key="l.name"><span class="legend-dot" :style="{ background: l.color }"></span>{{ l.name }}</li></ul>
-                  <span class="muted small">{{ plural(mapPoints.length, 'ponto', 'pontos') }}<template v-if="withoutCoordinates"> · {{ plural(withoutCoordinates, 'espécime sem coordenadas', 'espécimes sem coordenadas') }}</template></span>
+                  <span class="muted small">{{ count('point', mapPoints.length) }}<template v-if="withoutCoordinates"> · {{ count('no_coordinates', withoutCoordinates) }}</template></span>
                 </div>
               </div>
             </template>
@@ -357,102 +359,102 @@
         <!-- COLLECTION -->
         <div class="sheet sheet-split" v-else>
 
-          <aside :class="['sidebar', { collapsed: !mobileFiltersOpen }]" aria-label="Filtros da coleção">
-            <h2 class="sidebar-title">Filtrar</h2>
+          <aside :class="['sidebar', { collapsed: !mobileFiltersOpen }]" :aria-label="t('collection.filters_aria')">
+            <h2 class="sidebar-title">{{ t('collection.filter_title') }}</h2>
             <button type="button" class="sidebar-toggle" :aria-expanded="mobileFiltersOpen" @click="mobileFiltersOpen = !mobileFiltersOpen">
-              {{ mobileFiltersOpen ? 'Ocultar filtros' : 'Mostrar filtros' }}<span v-if="collectionFiltersActive || collectionSearch"> (ativos)</span>
+              {{ mobileFiltersOpen ? t('collection.hide_filters') : t('collection.show_filters') }}<span v-if="collectionFiltersActive || collectionSearch">{{ t('collection.active') }}</span>
             </button>
             <label class="search search-sidebar">
-              <span class="sr-only">Filtrar a coleção</span>
-              <input v-model="collectionSearch" type="text" placeholder="Filtrar a coleção" autocomplete="off">
+              <span class="sr-only">{{ t('collection.filter_label') }}</span>
+              <input v-model="collectionSearch" type="text" :placeholder="t('collection.filter_placeholder')" autocomplete="off">
             </label>
 
             <fieldset class="filter-group">
-              <legend class="filter-label">Ordem</legend>
+              <legend class="filter-label">{{ t('facet.order') }}</legend>
               <label class="filter-row" v-for="o in orderFacet" :key="o.value">
                 <span class="check-label"><input type="checkbox" :value="o.value" v-model="collectionFilters.orders"> {{ o.value }}</span>
-                <span class="count">{{ o.n.toLocaleString('pt-BR') }}</span>
+                <span class="count">{{ n(o.n) }}</span>
               </label>
-              <p v-if="!orderFacet.length" class="muted small">Sem dados.</p>
+              <p v-if="!orderFacet.length" class="muted small">{{ t('common.no_data') }}</p>
             </fieldset>
 
             <div class="filter-group">
               <button type="button" class="filter-label label-btn" :aria-expanded="familiesOpen" @click="familiesOpen = !familiesOpen">
                 <span :class="['arrow', { open: familiesOpen }]" aria-hidden="true"></span>
-                Família<span v-if="collectionFilters.families.length"> ({{ collectionFilters.families.length }})</span>
+                {{ t('facet.family') }}<span v-if="collectionFilters.families.length"> ({{ collectionFilters.families.length }})</span>
               </button>
               <div v-if="familiesOpen" class="filter-list">
                 <label class="filter-row" v-for="f in familyFacet" :key="f.value">
-                  <span class="check-label"><input type="checkbox" :value="f.value" v-model="collectionFilters.families"> {{ f.value }}</span>
-                  <span class="count">{{ f.n.toLocaleString('pt-BR') }}</span>
+                  <span class="check-label"><input type="checkbox" :value="f.value" v-model="collectionFilters.families"> {{ familyLabel(f.value) }}</span>
+                  <span class="count">{{ n(f.n) }}</span>
                 </label>
-                <p v-if="!familyFacet.length" class="muted small">Sem dados.</p>
+                <p v-if="!familyFacet.length" class="muted small">{{ t('common.no_data') }}</p>
               </div>
             </div>
 
             <fieldset class="filter-group" v-if="collectionView !== 'repos'">
-              <legend class="filter-label">Repositório</legend>
+              <legend class="filter-label">{{ t('facet.repository') }}</legend>
               <label class="filter-row" v-for="r in repoFacet" :key="r.value">
                 <span class="check-label"><input type="checkbox" :value="r.value" v-model="collectionFilters.repos"> {{ r.label }}</span>
-                <span class="count">{{ r.n.toLocaleString('pt-BR') }}</span>
+                <span class="count">{{ n(r.n) }}</span>
               </label>
-              <p v-if="!repoFacet.length" class="muted small">Nenhum repositório vinculado ainda.</p>
+              <p v-if="!repoFacet.length" class="muted small">{{ t('facet.no_repos') }}</p>
             </fieldset>
 
             <fieldset class="filter-group" v-else>
-              <legend class="filter-label">Ano</legend>
+              <legend class="filter-label">{{ t('facet.year') }}</legend>
               <label class="filter-row" v-for="a in yearFacet" :key="a.value">
                 <span class="check-label"><input type="checkbox" :value="a.value" v-model="collectionFilters.years"> {{ a.value }}</span>
-                <span class="count">{{ a.n.toLocaleString('pt-BR') }}</span>
+                <span class="count">{{ n(a.n) }}</span>
               </label>
-              <p v-if="!yearFacet.length" class="muted small">Sem dados.</p>
+              <p v-if="!yearFacet.length" class="muted small">{{ t('common.no_data') }}</p>
             </fieldset>
 
-            <button type="button" class="link link-strong" @click="clearCollectionFilters">Limpar filtros</button>
+            <button type="button" class="link link-strong" @click="clearCollectionFilters">{{ t('filter.clear') }}</button>
           </aside>
 
           <section class="content">
             <div v-if="apiError" class="error-banner" role="alert">
-              <strong>Sem conexão com a API.</strong> {{ apiError }} Verifique se o servidor está rodando em {{ apiUrl }}.
-              <button type="button" class="link" @click="loadAll">Tentar de novo</button>
+              <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+              <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
             </div>
 
-            <h1 class="page-title">Coleção</h1>
-            <p class="subtitle" v-if="collectionView === 'repos'">{{ plural(filteredRepositories.length, 'repositório', 'repositórios') }} · hospedados no Zenodo</p>
-            <p class="subtitle" v-else-if="collectionView === 'tree'">{{ plural(totalSpecies, 'espécie', 'espécies') }} · {{ plural(filteredSpecimens.length, 'espécime', 'espécimes') }}</p>
-            <p class="subtitle" v-else>{{ plural(filteredSpecimens.length, 'espécime', 'espécimes') }} · {{ plural(totalWithImage, 'com imagem', 'com imagem') }}</p>
+            <h1 class="page-title">{{ t('collection.title') }}</h1>
+            <p class="subtitle" v-if="collectionView === 'repos'">{{ count('repository', filteredRepositories.length) }} · {{ t('collection.hosted') }}</p>
+            <p class="subtitle" v-else-if="collectionView === 'tree'">{{ count('species', totalSpecies) }} · {{ count('specimen', filteredSpecimens.length) }}</p>
+            <p class="subtitle" v-else>{{ count('specimen', filteredSpecimens.length) }} · {{ count('with_image', totalWithImage) }}</p>
 
             <div class="view-bar">
-              <div class="segmented" role="tablist" aria-label="Modo de visualização">
-                <a href="#/colecao" role="tab" :aria-selected="collectionView === 'tree'" :class="['seg', { active: collectionView === 'tree' }]">Árvore</a>
-                <a href="#/colecao/repositorios" role="tab" :aria-selected="collectionView === 'repos'" :class="['seg', { active: collectionView === 'repos' }]">Repositórios</a>
-                <a href="#/colecao/mapa" role="tab" :aria-selected="collectionView === 'map'" :class="['seg', { active: collectionView === 'map' }]">Mapa</a>
+              <div class="segmented" role="tablist" :aria-label="t('view.aria')">
+                <a :href="link('collection')" role="tab" :aria-selected="collectionView === 'tree'" :class="['seg', { active: collectionView === 'tree' }]">{{ t('view.tree') }}</a>
+                <a :href="link('collection', { view: 'repos' })" role="tab" :aria-selected="collectionView === 'repos'" :class="['seg', { active: collectionView === 'repos' }]">{{ t('view.repos') }}</a>
+                <a :href="link('collection', { view: 'map' })" role="tab" :aria-selected="collectionView === 'map'" :class="['seg', { active: collectionView === 'map' }]">{{ t('view.map') }}</a>
               </div>
               <div class="actions">
-                <button v-if="labAccess" type="button" class="btn-light" @click="openImport()">Importar CSV</button>
-                <button type="button" class="btn-light" @click="exportCsv()">Exportar CSV</button>
-                <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(null, true)" title="Inclui coletor, localização física e empréstimo">CSV completo</button>
-                <button type="button" class="btn-light" @click="exportDwc()" title="Pacote Darwin Core para GBIF">Darwin Core</button>
+                <button v-if="labAccess" type="button" class="btn-light" @click="openImport()">{{ t('import.button') }}</button>
+                <button type="button" class="btn-light" @click="exportCsv()">{{ t('export.csv') }}</button>
+                <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(null, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full') }}</button>
+                <button type="button" class="btn-light" @click="exportDwc()" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
               </div>
             </div>
 
             <div :class="['card-white', { frameless: collectionView === 'map' }]">
-              <p v-if="loading" class="empty-state">Carregando coleção...</p>
+              <p v-if="loading" class="empty-state">{{ t('collection.loading') }}</p>
 
               <template v-else-if="collectionView === 'map'">
                 <div class="map-area">
                   <collection-map :points="mapPoints" :focus="mapFocus" @open="openPanelById" @focused="mapFocus = null"></collection-map>
                   <div class="map-footer">
                     <ul class="legend"><li v-for="l in mapLegend" :key="l.name"><span class="legend-dot" :style="{ background: l.color }"></span>{{ l.name }}</li></ul>
-                    <span class="muted small">{{ plural(mapPoints.length, 'ponto', 'pontos') }}<template v-if="withoutCoordinates"> · {{ plural(withoutCoordinates, 'espécime sem coordenadas', 'espécimes sem coordenadas') }}</template></span>
+                    <span class="muted small">{{ count('point', mapPoints.length) }}<template v-if="withoutCoordinates"> · {{ count('no_coordinates', withoutCoordinates) }}</template></span>
                   </div>
                 </div>
               </template>
 
               <template v-else-if="collectionView === 'tree'">
                 <div class="tree-tools">
-                  <button type="button" class="link-dark" @click="expandAll">Expandir tudo</button>
-                  <button type="button" class="link-dark" @click="collapseAll">Recolher tudo</button>
+                  <button type="button" class="link-dark" @click="expandAll">{{ t('tree.expand') }}</button>
+                  <button type="button" class="link-dark" @click="collapseAll">{{ t('tree.collapse') }}</button>
                 </div>
 
                 <ul class="tree" v-if="tree.length">
@@ -460,15 +462,15 @@
                     <button type="button" class="node-header node-header-order" :aria-expanded="isExpanded('o:' + o.name)" @click="toggle('o:' + o.name)">
                       <span :class="['arrow', { open: isExpanded('o:' + o.name) }]" aria-hidden="true"></span>
                       <strong>{{ o.name }}</strong>
-                      <span class="node-info">· {{ plural(o.families.length, 'família', 'famílias') }} · {{ plural(o.speciesCount, 'espécie', 'espécies') }}</span>
+                      <span class="node-info">· {{ count('family', o.families.length) }} · {{ count('species', o.speciesCount) }}</span>
                     </button>
 
                     <ul v-if="isExpanded('o:' + o.name)" class="sub">
                       <li v-for="f in o.families" :key="f.name" class="node-family">
                         <button type="button" class="node-header node-header-family" :aria-expanded="isExpanded('f:' + o.name + '|' + f.name)" @click="toggle('f:' + o.name + '|' + f.name)">
                           <span :class="['arrow', { open: isExpanded('f:' + o.name + '|' + f.name) }]" aria-hidden="true"></span>
-                          <strong>{{ f.name }}</strong>
-                          <span class="node-info">· {{ plural(f.species.length, 'espécie', 'espécies') }}</span>
+                          <strong>{{ familyLabel(f.name) }}</strong>
+                          <span class="node-info">· {{ count('species', f.species.length) }}</span>
                         </button>
 
                         <ul v-if="isExpanded('f:' + o.name + '|' + f.name)" class="sub sub-species">
@@ -476,7 +478,7 @@
                             <div class="species-row">
                               <button type="button" class="species-name" :aria-expanded="isExpanded('s:' + o.name + '|' + f.name + '|' + s.name)" @click="toggle('s:' + o.name + '|' + f.name + '|' + s.name)">
                                 <em>{{ s.name }}</em>
-                                <span class="node-info">{{ plural(s.specimens.length, 'espécime', 'espécimes') }}</span>
+                                <span class="node-info">{{ count('specimen', s.specimens.length) }}</span>
                               </button>
                               <div class="repo-links">
                                 <template v-if="s.repos.length">
@@ -488,15 +490,15 @@
                                     </ul>
                                   </span>
                                 </template>
-                                <span v-else class="muted small">Sem repositório</span>
+                                <span v-else class="muted small">{{ t('tree.no_repo') }}</span>
                               </div>
                             </div>
                             <ul v-if="isExpanded('s:' + o.name + '|' + f.name + '|' + s.name)" class="specimen-list">
                               <li v-for="e in s.specimens" :key="e.id">
                                 <button type="button" class="link mono" @click="openPanel(e, s.specimens)">{{ e.catalog_number }}</button>
-                                <span>{{ e.locality || 'Local não informado' }}</span>
+                                <span>{{ e.locality || t('common.no_locality') }}</span>
                                 <span>{{ formatDate(e.collection_date) }}</span>
-                                <a v-if="e.project_id && projectsById[e.project_id]" class="link" :href="'#/projetos/' + e.project_id">{{ projectsById[e.project_id].title }}</a>
+                                <a v-if="e.project_id && projectsById[e.project_id]" class="link" :href="link('project', { id: e.project_id })">{{ projectsById[e.project_id].title }}</a>
                               </li>
                             </ul>
                           </li>
@@ -506,8 +508,8 @@
                   </li>
                 </ul>
                 <div v-else class="empty-state">
-                  <p>Nenhuma espécie encontrada.</p>
-                  <button type="button" class="link" @click="clearCollectionFilters">Limpar filtros e busca</button>
+                  <p>{{ t('tree.none') }}</p>
+                  <button type="button" class="link" @click="clearCollectionFilters">{{ t('collection.clear') }}</button>
                 </div>
               </template>
 
@@ -515,17 +517,17 @@
                 <ul class="repos" v-if="filteredRepositories.length">
                   <li v-for="r in filteredRepositories" :key="r.id" class="repo">
                     <div class="repo-text">
-                      <h3 class="repo-name"><a :href="'#/projetos/' + r.id">{{ r.title }}</a></h3>
-                      <p class="repo-desc">{{ r.description || 'Sem descrição.' }}</p>
+                      <h3 class="repo-name"><a :href="link('project', { id: r.id })">{{ r.title }}</a></h3>
+                      <p class="repo-desc">{{ r.description || t('common.no_description') }}</p>
                       <p class="repo-meta">{{ repositorySummary(r) }}</p>
                     </div>
                     <a class="link-ext" :href="r.dataset_url" target="_blank" rel="noopener">Zenodo <icon name="external"></icon></a>
                   </li>
                 </ul>
                 <div v-else class="empty-state">
-                  <p>Nenhum repositório encontrado.</p>
-                  <p class="muted small" v-if="!repositories.length">Adicione o link do Zenodo na edição de um projeto para que ele apareça aqui.</p>
-                  <button v-else type="button" class="link" @click="clearCollectionFilters">Limpar filtros e busca</button>
+                  <p>{{ t('repos.none') }}</p>
+                  <p class="muted small" v-if="!repositories.length">{{ t('repos.hint') }}</p>
+                  <button v-else type="button" class="link" @click="clearCollectionFilters">{{ t('collection.clear') }}</button>
                 </div>
               </template>
             </div>
@@ -535,23 +537,23 @@
 
       <footer class="footer">
         <span>EntomoBase · UFMG</span>
-        <span>Dados sob licença [CC BY 4.0]</span>
-        <button type="button" class="footer-link" @click="openInfo('cite')">Como citar</button>
-        <button type="button" class="footer-link" @click="openInfo('contact')">Contato</button>
+        <span>{{ t('footer.license') }}</span>
+        <button type="button" class="footer-link" @click="openInfo('cite')">{{ t('footer.cite') }}</button>
+        <button type="button" class="footer-link" @click="openInfo('contact')">{{ t('footer.contact') }}</button>
       </footer>
     </div>
 
     <!-- LOGIN -->
     <div v-if="showLogin" class="modal-backdrop" @click.self="showLogin = false">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t-login">
-        <h2 id="t-login" class="modal-title">Entrar</h2>
+        <h2 id="t-login" class="modal-title">{{ t('login.title') }}</h2>
         <form @submit.prevent="login">
-          <label class="field"><span>E-mail</span><input v-autofocus v-model="credentials.email" type="email" required autocomplete="username"></label>
-          <label class="field"><span>Senha</span><input v-model="credentials.password" type="password" required autocomplete="current-password"></label>
+          <label class="field"><span>{{ t('login.email') }}</span><input v-autofocus v-model="credentials.email" type="email" required autocomplete="username"></label>
+          <label class="field"><span>{{ t('login.password') }}</span><input v-model="credentials.password" type="password" required autocomplete="current-password"></label>
           <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
           <div class="modal-actions">
-            <button type="button" class="btn-light" @click="showLogin = false">Cancelar</button>
-            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? 'Entrando...' : 'Acessar' }}</button>
+            <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
+            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('login.submitting') : t('login.submit') }}</button>
           </div>
         </form>
       </div>
@@ -560,26 +562,26 @@
     <!-- PROJECT FORM -->
     <div v-if="projectForm" class="modal-backdrop" @click.self="projectForm = null">
       <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="t-proj">
-        <h2 id="t-proj" class="modal-title">{{ projectForm.id ? 'Editar projeto' : 'Novo projeto' }}</h2>
+        <h2 id="t-proj" class="modal-title">{{ projectForm.id ? t('projectForm.edit') : t('projectForm.new') }}</h2>
         <form @submit.prevent="saveProject">
-          <label class="field"><span>Título</span><input v-autofocus v-model="projectForm.title" required></label>
+          <label class="field"><span>{{ t('projectForm.title') }}</span><input v-autofocus v-model="projectForm.title" required></label>
           <div class="fields-2">
-            <label class="field"><span>Ano</span><input v-model.number="projectForm.year" type="number" min="1900" max="2100" required></label>
-            <label class="field"><span>Grupo de insetos</span><input v-model="projectForm.insect_group" list="list-groups" required></label>
+            <label class="field"><span>{{ t('projectForm.year') }}</span><input v-model.number="projectForm.year" type="number" min="1900" max="2100" required></label>
+            <label class="field"><span>{{ t('projectForm.group') }}</span><input v-model="projectForm.insect_group" list="list-groups" required></label>
           </div>
           <div class="fields-2">
-            <label class="field"><span>Local de coleta</span><input v-model="projectForm.locality"></label>
-            <label class="field"><span>Traços medidos</span><input v-model="projectForm.measured_traits"></label>
+            <label class="field"><span>{{ t('projectForm.locality') }}</span><input v-model="projectForm.locality"></label>
+            <label class="field"><span>{{ t('projectForm.traits') }}</span><input v-model="projectForm.measured_traits"></label>
           </div>
-          <label class="field"><span>Descrição</span><textarea v-model="projectForm.description" rows="3"></textarea></label>
-          <label class="field"><span>Link do repositório (Zenodo)</span><input v-model="projectForm.dataset_url" type="url" placeholder="https://zenodo.org/records/..."></label>
-          <label class="field"><span>Publicação vinculada (link ou referência)</span><input v-model="projectForm.linked_publication"></label>
-          <label class="field"><span>URL da imagem de capa</span><input v-model="projectForm.cover_url" type="url"></label>
-          <label class="check"><input type="checkbox" v-model="projectForm.finished"> Projeto concluído (visível ao público)</label>
+          <label class="field"><span>{{ t('projectForm.description') }}</span><textarea v-model="projectForm.description" rows="3"></textarea></label>
+          <label class="field"><span>{{ t('projectForm.dataset') }}</span><input v-model="projectForm.dataset_url" type="url" placeholder="https://zenodo.org/records/..."></label>
+          <label class="field"><span>{{ t('projectForm.publication') }}</span><input v-model="projectForm.linked_publication"></label>
+          <label class="field"><span>{{ t('projectForm.cover') }}</span><input v-model="projectForm.cover_url" type="url"></label>
+          <label class="check"><input type="checkbox" v-model="projectForm.finished"> {{ t('projectForm.finished') }}</label>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">
-            <button type="button" class="btn-light" @click="projectForm = null">Cancelar</button>
-            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? 'Salvando...' : 'Salvar' }}</button>
+            <button type="button" class="btn-light" @click="projectForm = null">{{ t('common.cancel') }}</button>
+            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('common.saving') : t('common.save') }}</button>
           </div>
         </form>
       </div>
@@ -588,86 +590,86 @@
     <!-- SPECIMEN FORM -->
     <div v-if="specimenForm" class="modal-backdrop" @click.self="specimenForm = null">
       <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="t-spec">
-        <h2 id="t-spec" class="modal-title">{{ specimenForm.id ? 'Editar espécime' : 'Novo espécime' }}</h2>
+        <h2 id="t-spec" class="modal-title">{{ specimenForm.id ? t('specimenForm.edit') : t('specimenForm.new') }}</h2>
         <form @submit.prevent="saveSpecimen">
           <div class="fields-2">
-            <label class="field"><span>Código da etiqueta</span><input v-autofocus v-model="specimenForm.catalog_number" required></label>
-            <label class="field"><span>Projeto</span>
+            <label class="field"><span>{{ t('sf.catalog') }}</span><input v-autofocus v-model="specimenForm.catalog_number" required></label>
+            <label class="field"><span>{{ t('sf.project') }}</span>
               <select v-model="specimenForm.project_id">
-                <option :value="null">Nenhum</option>
+                <option :value="null">{{ t('sf.none') }}</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.title }}</option>
               </select>
             </label>
           </div>
           <div class="fields-3">
-            <label class="field"><span>Ordem</span><input v-model="specimenForm.insect_order" list="list-orders" required></label>
-            <label class="field"><span>Família</span><input v-model="specimenForm.family" list="list-families"></label>
-            <label class="field"><span>Espécie</span><input v-model="specimenForm.species" required @blur="checkName"></label>
+            <label class="field"><span>{{ t('sf.order') }}</span><input v-model="specimenForm.insect_order" list="list-orders" required></label>
+            <label class="field"><span>{{ t('sf.family') }}</span><input v-model="specimenForm.family" list="list-families"></label>
+            <label class="field"><span>{{ t('sf.species') }}</span><input v-model="specimenForm.species" required @blur="checkName"></label>
           </div>
           <p v-if="nameHint" class="gbif-hint" role="status">
-            <template v-if="nameHint.status === 'not_found'">O GBIF não reconhece "{{ nameHint.name }}". Confira a grafia.</template>
-            <template v-else-if="nameHint.status === 'genus_only'">O GBIF só reconheceu o gênero <em>{{ nameHint.suggestion }}</em>.</template>
-            <template v-else-if="nameHint.status === 'synonym'">No GBIF, "{{ nameHint.name }}" é sinônimo de <em>{{ nameHint.suggestion }}</em>.</template>
-            <template v-else>No GBIF, a grafia aceita parece ser <em>{{ nameHint.suggestion }}</em>.</template>
-            <button v-if="nameHint.suggestion && nameHint.status !== 'genus_only'" type="button" class="link" @click="useSuggestedName">Usar este nome</button>
+            <template v-if="nameHint.status === 'not_found'">{{ t('gbif.not_found', { name: nameHint.name }) }}</template>
+            <template v-else-if="nameHint.status === 'genus_only'">{{ t('gbif.genus_only') }} <em>{{ nameHint.suggestion }}</em>.</template>
+            <template v-else-if="nameHint.status === 'synonym'">{{ t('gbif.synonym', { name: nameHint.name }) }} <em>{{ nameHint.suggestion }}</em>.</template>
+            <template v-else>{{ t('gbif.fuzzy') }} <em>{{ nameHint.suggestion }}</em>.</template>
+            <button v-if="nameHint.suggestion && nameHint.status !== 'genus_only'" type="button" class="link" @click="useSuggestedName">{{ t('gbif.use') }}</button>
           </p>
           <div class="fields-2">
-            <label class="field"><span>Data da coleta</span><input v-model="specimenForm.collection_date" type="date"></label>
-            <label class="field"><span>Local de coleta</span><input v-model="specimenForm.locality"></label>
+            <label class="field"><span>{{ t('sf.date') }}</span><input v-model="specimenForm.collection_date" type="date"></label>
+            <label class="field"><span>{{ t('sf.locality') }}</span><input v-model="specimenForm.locality"></label>
           </div>
           <div class="fields-3">
-            <label class="field"><span>Latitude</span><input v-model="specimenForm.latitude" type="number" step="any" min="-90" max="90"></label>
-            <label class="field"><span>Longitude</span><input v-model="specimenForm.longitude" type="number" step="any" min="-180" max="180"></label>
-            <label class="field"><span>Altitude (m)</span><input v-model="specimenForm.elevation_m" type="number" step="any"></label>
+            <label class="field"><span>{{ t('sf.latitude') }}</span><input v-model="specimenForm.latitude" type="number" step="any" min="-90" max="90"></label>
+            <label class="field"><span>{{ t('sf.longitude') }}</span><input v-model="specimenForm.longitude" type="number" step="any" min="-180" max="180"></label>
+            <label class="field"><span>{{ t('sf.elevation') }}</span><input v-model="specimenForm.elevation_m" type="number" step="any"></label>
           </div>
           <div class="fields-2">
-            <label class="field"><span>Sexo</span><input v-model="specimenForm.sex" list="list-sexes"></label>
-            <label class="field"><span>Estágio</span><input v-model="specimenForm.life_stage" list="list-stages"></label>
+            <label class="field"><span>{{ t('sf.sex') }}</span><input v-model="specimenForm.sex" list="list-sexes"></label>
+            <label class="field"><span>{{ t('sf.stage') }}</span><input v-model="specimenForm.life_stage" list="list-stages"></label>
           </div>
           <fieldset class="form-group">
-            <legend>Identificação e coleta (público)</legend>
+            <legend>{{ t('sf.id_legend') }}</legend>
             <div class="fields-2">
-              <label class="field"><span>Determinador</span><input v-model="specimenForm.identified_by"></label>
-              <label class="field"><span>Data da determinação</span><input v-model="specimenForm.identification_date" type="date"></label>
+              <label class="field"><span>{{ t('sf.identified_by') }}</span><input v-model="specimenForm.identified_by"></label>
+              <label class="field"><span>{{ t('sf.id_date') }}</span><input v-model="specimenForm.identification_date" type="date"></label>
             </div>
             <div class="fields-2">
-              <label class="field"><span>Método de coleta</span><input v-model="specimenForm.sampling_method" list="list-methods" placeholder="armadilha, rede entomológica..."></label>
-              <label class="field"><span>Habitat</span><input v-model="specimenForm.habitat"></label>
+              <label class="field"><span>{{ t('sf.method') }}</span><input v-model="specimenForm.sampling_method" list="list-methods" :placeholder="t('sf.method_placeholder')"></label>
+              <label class="field"><span>{{ t('sf.habitat') }}</span><input v-model="specimenForm.habitat"></label>
             </div>
           </fieldset>
           <fieldset class="form-group">
-            <legend>Medidas</legend>
+            <legend>{{ t('sf.measurements') }}</legend>
             <div class="measurement-row" v-for="(m, i) in specimenForm.measurements" :key="i">
-              <input v-model="m.trait" list="list-traits" placeholder="Traço" aria-label="Nome do traço">
-              <input v-model="m.value" type="number" step="any" min="0" placeholder="Valor" aria-label="Valor">
-              <input v-model="m.unit" class="unit" aria-label="Unidade">
-              <button type="button" class="link danger" @click="removeMeasurement(i)">Remover</button>
+              <input v-model="m.trait" list="list-traits" :placeholder="t('sf.trait')" :aria-label="t('sf.trait_aria')">
+              <input v-model="m.value" type="number" step="any" min="0" :placeholder="t('sf.value')" :aria-label="t('sf.value')">
+              <input v-model="m.unit" class="unit" :aria-label="t('sf.unit_aria')">
+              <button type="button" class="link danger" @click="removeMeasurement(i)">{{ t('sf.remove') }}</button>
             </div>
-            <button type="button" class="link" @click="addMeasurement">Adicionar medida</button>
+            <button type="button" class="link" @click="addMeasurement">{{ t('sf.add_measurement') }}</button>
           </fieldset>
-          <label class="field"><span>Arquivo da imagem no repositório do projeto</span><input v-model="specimenForm.image_file" placeholder="ex.: RDO-0001.jpg"></label>
-          <label class="field"><span>URL da fotografia (opcional, substitui o repositório)</span><input v-model="specimenForm.photo_url" type="url"></label>
-          <label class="field"><span>Notas (públicas)</span><textarea v-model="specimenForm.notes" rows="2"></textarea></label>
+          <label class="field"><span>{{ t('sf.image_file') }}</span><input v-model="specimenForm.image_file" :placeholder="t('sf.image_placeholder')"></label>
+          <label class="field"><span>{{ t('sf.photo_url') }}</span><input v-model="specimenForm.photo_url" type="url"></label>
+          <label class="field"><span>{{ t('sf.notes') }}</span><textarea v-model="specimenForm.notes" rows="2"></textarea></label>
           <fieldset class="form-group internal">
-            <legend>Acervo interno (não aparece para visitantes)</legend>
+            <legend>{{ t('sf.internal_legend') }}</legend>
             <div class="fields-2">
-              <label class="field"><span>Coletor</span><input v-model="specimenForm.collector"></label>
-              <label class="field"><span>Número de campo</span><input v-model="specimenForm.field_number"></label>
+              <label class="field"><span>{{ t('sf.collector') }}</span><input v-model="specimenForm.collector"></label>
+              <label class="field"><span>{{ t('sf.field_number') }}</span><input v-model="specimenForm.field_number"></label>
             </div>
             <div class="fields-2">
-              <label class="field"><span>Localização física</span><input v-model="specimenForm.storage_location" placeholder="ex.: Armário 2, caixa 14"></label>
-              <label class="field"><span>Situação</span><input v-model="specimenForm.loan_status" list="list-loan" placeholder="no acervo, emprestado..."></label>
+              <label class="field"><span>{{ t('sf.storage') }}</span><input v-model="specimenForm.storage_location" :placeholder="t('sf.storage_placeholder')"></label>
+              <label class="field"><span>{{ t('sf.loan_status') }}</span><input v-model="specimenForm.loan_status" list="list-loan" :placeholder="t('sf.loan_placeholder')"></label>
             </div>
             <div class="fields-2">
-              <label class="field"><span>Emprestado para</span><input v-model="specimenForm.loaned_to"></label>
-              <label class="field"><span>Data do empréstimo</span><input v-model="specimenForm.loan_date" type="date"></label>
+              <label class="field"><span>{{ t('sf.loaned_to') }}</span><input v-model="specimenForm.loaned_to"></label>
+              <label class="field"><span>{{ t('sf.loan_date') }}</span><input v-model="specimenForm.loan_date" type="date"></label>
             </div>
-            <label class="field"><span>Notas internas</span><textarea v-model="specimenForm.internal_notes" rows="2"></textarea></label>
+            <label class="field"><span>{{ t('sf.internal_notes') }}</span><textarea v-model="specimenForm.internal_notes" rows="2"></textarea></label>
           </fieldset>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">
-            <button type="button" class="btn-light" @click="specimenForm = null">Cancelar</button>
-            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? 'Salvando...' : 'Salvar' }}</button>
+            <button type="button" class="btn-light" @click="specimenForm = null">{{ t('common.cancel') }}</button>
+            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('common.saving') : t('common.save') }}</button>
           </div>
         </form>
       </div>
@@ -677,20 +679,20 @@
     <datalist id="list-orders"><option v-for="g in suggestions.orders" :key="g" :value="g"></option></datalist>
     <datalist id="list-families"><option v-for="g in suggestions.families" :key="g" :value="g"></option></datalist>
     <datalist id="list-traits"><option v-for="g in suggestions.traits" :key="g" :value="g"></option></datalist>
-    <datalist id="list-methods"><option>armadilha de queda</option><option>armadilha luminosa</option><option>armadilha Malaise</option><option>rede entomológica</option><option>busca ativa</option><option>guarda-chuva entomológico</option></datalist>
-    <datalist id="list-loan"><option>no acervo</option><option>emprestado</option><option>em análise</option></datalist>
+    <datalist id="list-methods"><option v-for="g in suggestions.methods" :key="g" :value="g"></option></datalist>
+    <datalist id="list-loan"><option v-for="g in suggestions.loan" :key="g" :value="g"></option></datalist>
     <datalist id="list-sexes"><option v-for="g in suggestions.sexes" :key="g" :value="g"></option></datalist>
     <datalist id="list-stages"><option v-for="g in suggestions.stages" :key="g" :value="g"></option></datalist>
 
     <!-- SPECIMEN DETAIL PANEL -->
     <div v-if="panelSpecimen" class="modal-backdrop panel-backdrop" @click.self="panel = null">
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="t-panel">
-        <button type="button" class="panel-close" @click="panel = null" aria-label="Fechar"><icon name="close"></icon></button>
+        <button type="button" class="panel-close" @click="panel = null" :aria-label="t('panel.close')"><icon name="close"></icon></button>
         <div class="panel-image">
-          <photo :src="imageUrl(panelSpecimen, 900)" :alt="panelSpecimen.species" label="Imagem não disponível"></photo>
+          <photo :src="imageUrl(panelSpecimen, 900)" :alt="panelSpecimen.species" :label="t('panel.no_image')"></photo>
           <template v-if="panel.ids.length > 1">
-            <button type="button" class="nav nav-left" @click="movePanel(-1)" aria-label="Anterior"><icon name="left"></icon></button>
-            <button type="button" class="nav nav-right" @click="movePanel(1)" aria-label="Próximo"><icon name="right"></icon></button>
+            <button type="button" class="nav nav-left" @click="movePanel(-1)" :aria-label="t('panel.prev')"><icon name="left"></icon></button>
+            <button type="button" class="nav nav-right" @click="movePanel(1)" :aria-label="t('panel.next')"><icon name="right"></icon></button>
             <span class="panel-position">{{ panel.index + 1 }} / {{ panel.ids.length }}</span>
           </template>
         </div>
@@ -700,20 +702,20 @@
           <p class="mono panel-code">{{ panelSpecimen.catalog_number }}</p>
 
           <dl class="panel-data">
-            <div><dt>Coleta</dt><dd>{{ formatDate(panelSpecimen.collection_date) }}</dd></div>
-            <div><dt>Local</dt><dd>{{ panelSpecimen.locality || '—' }}</dd></div>
-            <div v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null"><dt>Coordenadas</dt><dd>{{ panelSpecimen.latitude.toFixed(4) }}, {{ panelSpecimen.longitude.toFixed(4) }}</dd></div>
-            <div v-if="panelSpecimen.elevation_m !== null"><dt>Altitude</dt><dd>{{ fmt(panelSpecimen.elevation_m) }} m</dd></div>
-            <div v-if="panelSpecimen.sex"><dt>Sexo</dt><dd>{{ panelSpecimen.sex }}</dd></div>
-            <div v-if="panelSpecimen.life_stage"><dt>Estágio</dt><dd>{{ panelSpecimen.life_stage }}</dd></div>
-            <div v-if="panelSpecimen.identified_by"><dt>Determinador</dt><dd>{{ panelSpecimen.identified_by }}<template v-if="panelSpecimen.identification_date"> · {{ formatDate(panelSpecimen.identification_date) }}</template></dd></div>
-            <div v-if="panelSpecimen.sampling_method"><dt>Método de coleta</dt><dd>{{ panelSpecimen.sampling_method }}</dd></div>
-            <div v-if="panelSpecimen.habitat"><dt>Habitat</dt><dd>{{ panelSpecimen.habitat }}</dd></div>
-            <div v-if="panelSpecimen.image_file"><dt>Arquivo</dt><dd class="mono">{{ panelSpecimen.image_file }}</dd></div>
+            <div><dt>{{ t('panel.collected') }}</dt><dd>{{ formatDate(panelSpecimen.collection_date) }}</dd></div>
+            <div><dt>{{ t('panel.locality') }}</dt><dd>{{ panelSpecimen.locality || '—' }}</dd></div>
+            <div v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null"><dt>{{ t('panel.coordinates') }}</dt><dd>{{ panelSpecimen.latitude.toFixed(4) }}, {{ panelSpecimen.longitude.toFixed(4) }}</dd></div>
+            <div v-if="panelSpecimen.elevation_m !== null"><dt>{{ t('panel.elevation') }}</dt><dd>{{ fmt(panelSpecimen.elevation_m) }} m</dd></div>
+            <div v-if="panelSpecimen.sex"><dt>{{ t('sf.sex') }}</dt><dd>{{ vocab('sex', panelSpecimen.sex) }}</dd></div>
+            <div v-if="panelSpecimen.life_stage"><dt>{{ t('sf.stage') }}</dt><dd>{{ vocab('life_stage', panelSpecimen.life_stage) }}</dd></div>
+            <div v-if="panelSpecimen.identified_by"><dt>{{ t('sf.identified_by') }}</dt><dd>{{ panelSpecimen.identified_by }}<template v-if="panelSpecimen.identification_date"> · {{ formatDate(panelSpecimen.identification_date) }}</template></dd></div>
+            <div v-if="panelSpecimen.sampling_method"><dt>{{ t('sf.method') }}</dt><dd>{{ vocab('sampling_method', panelSpecimen.sampling_method) }}</dd></div>
+            <div v-if="panelSpecimen.habitat"><dt>{{ t('sf.habitat') }}</dt><dd>{{ panelSpecimen.habitat }}</dd></div>
+            <div v-if="panelSpecimen.image_file"><dt>{{ t('panel.file') }}</dt><dd class="mono">{{ panelSpecimen.image_file }}</dd></div>
           </dl>
 
           <div v-if="(panelSpecimen.measurements || []).length" class="panel-measurements">
-            <h3 class="panel-subtitle">Medidas</h3>
+            <h3 class="panel-subtitle">{{ t('panel.measurements') }}</h3>
             <table class="table table-mini">
               <tbody><tr v-for="m in panelSpecimen.measurements" :key="m.id"><th scope="row">{{ m.trait }}</th><td class="num">{{ fmt(m.value) }} {{ m.unit }}</td></tr></tbody>
             </table>
@@ -722,27 +724,27 @@
           <p v-if="panelSpecimen.notes" class="panel-notes">{{ panelSpecimen.notes }}</p>
 
           <div v-if="labAccess && (panelSpecimen.collector || panelSpecimen.field_number || panelSpecimen.storage_location || panelSpecimen.loan_status || panelSpecimen.internal_notes)" class="panel-internal">
-            <h3 class="panel-subtitle">Interno do laboratório</h3>
+            <h3 class="panel-subtitle">{{ t('panel.internal') }}</h3>
             <dl class="panel-data">
-              <div v-if="panelSpecimen.collector"><dt>Coletor</dt><dd>{{ panelSpecimen.collector }}</dd></div>
-              <div v-if="panelSpecimen.field_number"><dt>Número de campo</dt><dd>{{ panelSpecimen.field_number }}</dd></div>
-              <div v-if="panelSpecimen.storage_location"><dt>Localização física</dt><dd>{{ panelSpecimen.storage_location }}</dd></div>
-              <div v-if="panelSpecimen.loan_status"><dt>Situação</dt><dd>{{ panelSpecimen.loan_status }}<template v-if="panelSpecimen.loaned_to"> · {{ panelSpecimen.loaned_to }}</template><template v-if="panelSpecimen.loan_date"> ({{ formatDate(panelSpecimen.loan_date) }})</template></dd></div>
+              <div v-if="panelSpecimen.collector"><dt>{{ t('sf.collector') }}</dt><dd>{{ panelSpecimen.collector }}</dd></div>
+              <div v-if="panelSpecimen.field_number"><dt>{{ t('sf.field_number') }}</dt><dd>{{ panelSpecimen.field_number }}</dd></div>
+              <div v-if="panelSpecimen.storage_location"><dt>{{ t('sf.storage') }}</dt><dd>{{ panelSpecimen.storage_location }}</dd></div>
+              <div v-if="panelSpecimen.loan_status"><dt>{{ t('sf.loan_status') }}</dt><dd>{{ vocab('loan_status', panelSpecimen.loan_status) }}<template v-if="panelSpecimen.loaned_to"> · {{ panelSpecimen.loaned_to }}</template><template v-if="panelSpecimen.loan_date"> ({{ formatDate(panelSpecimen.loan_date) }})</template></dd></div>
             </dl>
             <p v-if="panelSpecimen.internal_notes" class="panel-notes">{{ panelSpecimen.internal_notes }}</p>
           </div>
 
           <div class="panel-links">
-            <a v-if="panelProject" class="link" :href="'#/projetos/' + panelProject.id" @click="panel = null">{{ panelProject.title }}</a>
-            <a v-if="fileUrl(panelSpecimen)" class="link-ext" :href="fileUrl(panelSpecimen)" target="_blank" rel="noopener">Arquivo original no Zenodo <icon name="external"></icon></a>
-            <a v-if="recordUrl(panelSpecimen)" class="link-ext" :href="recordUrl(panelSpecimen)" target="_blank" rel="noopener">Repositório <icon name="external"></icon></a>
+            <a v-if="panelProject" class="link" :href="link('project', { id: panelProject.id })" @click="panel = null">{{ panelProject.title }}</a>
+            <a v-if="fileUrl(panelSpecimen)" class="link-ext" :href="fileUrl(panelSpecimen)" target="_blank" rel="noopener">{{ t('panel.zenodo_file') }} <icon name="external"></icon></a>
+            <a v-if="recordUrl(panelSpecimen)" class="link-ext" :href="recordUrl(panelSpecimen)" target="_blank" rel="noopener">{{ t('panel.repository') }} <icon name="external"></icon></a>
           </div>
 
           <div class="actions panel-actions">
-            <button v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null" type="button" class="btn-light" @click="showOnMap(panelSpecimen)">Ver no mapa</button>
+            <button v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null" type="button" class="btn-light" @click="showOnMap(panelSpecimen)">{{ t('panel.show_on_map') }}</button>
             <template v-if="labAccess">
-              <button type="button" class="btn-light" @click="editFromPanel(panelSpecimen)">Editar</button>
-              <button type="button" class="btn-danger" @click="deleteFromPanel(panelSpecimen)">Excluir</button>
+              <button type="button" class="btn-light" @click="editFromPanel(panelSpecimen)">{{ t('common.edit') }}</button>
+              <button type="button" class="btn-danger" @click="deleteFromPanel(panelSpecimen)">{{ t('common.delete') }}</button>
             </template>
           </div>
         </div>
@@ -752,46 +754,46 @@
     <!-- CSV IMPORT -->
     <div v-if="importJob" class="modal-backdrop" @click.self="importJob = null">
       <div class="modal modal-import" role="dialog" aria-modal="true" aria-labelledby="t-imp">
-        <h2 id="t-imp" class="modal-title">Importar espécimes de um CSV</h2>
+        <h2 id="t-imp" class="modal-title">{{ t('import.title') }}</h2>
 
         <div class="imp-step">
           <div class="fields-2">
             <label class="field" v-if="!importJob.fixedProject">
-              <span>Projeto de destino</span>
+              <span>{{ t('import.target') }}</span>
               <select v-model="importJob.projectId" @change="scheduleDryRun">
-                <option :value="null">Definido pela coluna do CSV</option>
+                <option :value="null">{{ t('import.by_column') }}</option>
                 <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.title }}</option>
               </select>
             </label>
-            <p v-else class="field"><span>Projeto de destino</span><strong>{{ importJob.projectName }}</strong></p>
+            <p v-else class="field"><span>{{ t('import.target') }}</span><strong>{{ importJob.projectName }}</strong></p>
             <div class="field">
-              <span>Arquivo CSV</span>
-              <input type="file" accept=".csv,.tsv,.txt,text/csv" @change="readImportFile" aria-label="Arquivo CSV">
+              <span>{{ t('import.file') }}</span>
+              <input type="file" accept=".csv,.tsv,.txt,text/csv" @change="readImportFile" :aria-label="t('import.file')">
             </div>
           </div>
-          <button type="button" class="link" @click="downloadTemplate">Baixar modelo de CSV</button>
-          <p class="muted small">Aceita vírgula, ponto e vírgula ou tab. Colunas de medidas no formato "Traço (unidade)" são reconhecidas automaticamente. O arquivo exportado pelo site pode ser reimportado.</p>
+          <button type="button" class="link" @click="downloadTemplate">{{ t('import.template') }}</button>
+          <p class="muted small">{{ t('import.help') }}</p>
         </div>
 
         <template v-if="importJob.headers.length">
           <div class="imp-step">
-            <h3 class="panel-subtitle">Colunas de {{ importJob.fileName }}</h3>
+            <h3 class="panel-subtitle">{{ t('import.columns_of', { file: importJob.fileName }) }}</h3>
             <div class="table-wrap table-import">
               <table class="table">
-                <thead><tr><th>Coluna</th><th>Exemplo</th><th>Destino</th></tr></thead>
+                <thead><tr><th>{{ t('import.column') }}</th><th>{{ t('import.example') }}</th><th>{{ t('import.target_column') }}</th></tr></thead>
                 <tbody>
                   <tr v-for="(h, i) in importJob.headers" :key="i">
                     <td><strong>{{ h }}</strong></td>
                     <td class="muted">{{ (importJob.data[0] || [])[i] }}</td>
                     <td>
-                      <select v-model="importJob.mapping[i].target" @change="$nextTick(scheduleDryRun)" :aria-label="'Destino da coluna ' + h">
-                        <option value="ignore">Ignorar</option>
-                        <option value="measurement">Medida</option>
-                        <option v-for="c in importFields" :key="c[0]" :value="'field:' + c[0]">{{ c[1] }}</option>
+                      <select v-model="importJob.mapping[i].target" @change="$nextTick(scheduleDryRun)" :aria-label="t('import.target_aria', { header: h })">
+                        <option value="ignore">{{ t('import.ignore') }}</option>
+                        <option value="measurement">{{ t('import.measurement') }}</option>
+                        <option v-for="field in importFields" :key="field" :value="'field:' + field">{{ t('importField.' + field) }}</option>
                       </select>
                       <span v-if="importJob.mapping[i].target === 'measurement'" class="imp-measurement">
-                        <input v-model="importJob.mapping[i].trait" @input="$nextTick(scheduleDryRun)" placeholder="Traço" aria-label="Nome do traço">
-                        <input v-model="importJob.mapping[i].unit" @input="$nextTick(scheduleDryRun)" class="unit" aria-label="Unidade">
+                        <input v-model="importJob.mapping[i].trait" @input="$nextTick(scheduleDryRun)" :placeholder="t('sf.trait')" :aria-label="t('sf.trait_aria')">
+                        <input v-model="importJob.mapping[i].unit" @input="$nextTick(scheduleDryRun)" class="unit" :aria-label="t('sf.unit_aria')">
                       </span>
                     </td>
                   </tr>
@@ -801,61 +803,61 @@
           </div>
 
           <div class="imp-step">
-            <h3 class="panel-subtitle">Valores padrão (usados quando a coluna não existe ou a célula está vazia)</h3>
+            <h3 class="panel-subtitle">{{ t('import.defaults') }}</h3>
             <div class="fields-3">
-              <label class="field"><span>Ordem</span><input v-model="importJob.defaults.insect_order" list="list-orders" @input="$nextTick(scheduleDryRun)"></label>
-              <label class="field"><span>Família</span><input v-model="importJob.defaults.family" list="list-families" @input="$nextTick(scheduleDryRun)"></label>
-              <label class="field"><span>Espécie</span><input v-model="importJob.defaults.species" @input="$nextTick(scheduleDryRun)"></label>
+              <label class="field"><span>{{ t('sf.order') }}</span><input v-model="importJob.defaults.insect_order" list="list-orders" @input="$nextTick(scheduleDryRun)"></label>
+              <label class="field"><span>{{ t('sf.family') }}</span><input v-model="importJob.defaults.family" list="list-families" @input="$nextTick(scheduleDryRun)"></label>
+              <label class="field"><span>{{ t('sf.species') }}</span><input v-model="importJob.defaults.species" @input="$nextTick(scheduleDryRun)"></label>
             </div>
             <div class="imp-duplicates">
-              <span>Se o código da etiqueta já existir:</span>
-              <label class="check"><input type="radio" value="ignore" v-model="importJob.duplicates" @change="scheduleDryRun"> Ignorar a linha</label>
-              <label class="check"><input type="radio" value="update" v-model="importJob.duplicates" @change="scheduleDryRun"> Atualizar o espécime</label>
+              <span>{{ t('import.if_exists') }}</span>
+              <label class="check"><input type="radio" value="ignore" v-model="importJob.duplicates" @change="scheduleDryRun"> {{ t('import.skip_row') }}</label>
+              <label class="check"><input type="radio" value="update" v-model="importJob.duplicates" @change="scheduleDryRun"> {{ t('import.update') }}</label>
             </div>
           </div>
 
           <div class="imp-step imp-report" aria-live="polite">
-            <h3 class="panel-subtitle">Prévia</h3>
-            <p v-if="importJob.checking" class="muted">Verificando...</p>
+            <h3 class="panel-subtitle">{{ t('import.preview') }}</h3>
+            <p v-if="importJob.checking" class="muted">{{ t('import.checking') }}</p>
             <template v-else>
               <p v-if="importJob.report" class="imp-counts">
-                <span><strong>{{ importJob.report.created }}</strong> novos</span>
-                <span><strong>{{ importJob.report.updated }}</strong> atualizados</span>
-                <span><strong>{{ importJob.report.skipped }}</strong> ignorados</span>
-                <span :class="{ 'error-text': importJob.report.errors.length + importJob.clientErrors.length }"><strong>{{ importJob.report.errors.length + importJob.clientErrors.length }}</strong> com erro</span>
+                <span><strong>{{ importJob.report.created }}</strong> {{ t('import.new') }}</span>
+                <span><strong>{{ importJob.report.updated }}</strong> {{ t('import.updated') }}</span>
+                <span><strong>{{ importJob.report.skipped }}</strong> {{ t('import.skipped') }}</span>
+                <span :class="{ 'error-text': importJob.report.errors.length + importJob.clientErrors.length }"><strong>{{ importJob.report.errors.length + importJob.clientErrors.length }}</strong> {{ t('import.with_error') }}</span>
               </p>
               <ul class="imp-errors" v-if="importJob.clientErrors.length || (importJob.report && importJob.report.errors.length)">
                 <li v-for="(er, k) in importJob.clientErrors.concat(importJob.report ? importJob.report.errors : []).slice(0, 12)" :key="k">
-                  Linha {{ er.line }}<template v-if="er.catalog_number"> ({{ er.catalog_number }})</template>: {{ describeProblems(er.problems) }}
+                  {{ t('import.line', { n: er.line }) }}<template v-if="er.catalog_number"> ({{ er.catalog_number }})</template>: {{ describeProblems(er.problems) }}
                 </li>
               </ul>
-              <p v-if="importJob.clientErrors.length + (importJob.report ? importJob.report.errors.length : 0) > 12" class="muted small">Mostrando os 12 primeiros erros.</p>
+              <p v-if="importJob.clientErrors.length + (importJob.report ? importJob.report.errors.length : 0) > 12" class="muted small">{{ t('import.first_12') }}</p>
               <div v-if="importJob.report && importJob.report.warnings.length" class="imp-warnings">
                 <p class="imp-warnings-title">
-                  Nomes para conferir no GBIF (não impedem a importação)
-                  <button v-if="importJob.report.warnings.some((w) => w.suggestion && (w.kind === 'fuzzy' || w.kind === 'synonym'))" type="button" class="link" @click="applyAllSuggestions">Aplicar todas as sugestões</button>
+                  {{ t('import.names_title') }}
+                  <button v-if="importJob.report.warnings.some((w) => w.suggestion && (w.kind === 'fuzzy' || w.kind === 'synonym'))" type="button" class="link" @click="applyAllSuggestions">{{ t('import.apply_all') }}</button>
                 </p>
                 <ul>
                   <li v-for="w in importJob.report.warnings" :key="w.kind + w.name">
-                    <template v-if="w.kind === 'unavailable'">O GBIF não respondeu; {{ plural(w.row_count, 'linha', 'linhas') }} sem conferência de nome.</template>
+                    <template v-if="w.kind === 'unavailable'">{{ t('import.gbif_down', { rows: count('row', w.row_count) }) }}</template>
                     <template v-else>
-                      <strong>{{ warningLabel(w.kind) }}:</strong> <em>{{ w.name }}</em> ({{ plural(w.row_count, 'linha', 'linhas') }})<template v-if="w.suggestion"> &rarr; <em>{{ w.suggestion }}</em></template>
-                      <button v-if="w.suggestion && (w.kind === 'fuzzy' || w.kind === 'synonym')" type="button" class="link" @click="applySuggestion(w)">Usar sugestão</button>
+                      <strong>{{ warningLabel(w.kind) }}:</strong> <em>{{ w.name }}</em> ({{ count('row', w.row_count) }})<template v-if="w.suggestion"> &rarr; <em>{{ w.suggestion }}</em></template>
+                      <button v-if="w.suggestion && (w.kind === 'fuzzy' || w.kind === 'synonym')" type="button" class="link" @click="applySuggestion(w)">{{ t('import.use_suggestion') }}</button>
                     </template>
                   </li>
                 </ul>
               </div>
-              <p v-if="!importJob.report && !importJob.clientErrors.length" class="muted">Nenhuma linha válida para importar ainda.</p>
+              <p v-if="!importJob.report && !importJob.clientErrors.length" class="muted">{{ t('import.no_valid') }}</p>
             </template>
           </div>
         </template>
 
         <p v-if="importJob.error" class="form-error" role="alert">{{ importJob.error }}</p>
         <div class="modal-actions">
-          <button type="button" class="btn-light" @click="importJob = null">Cancelar</button>
+          <button type="button" class="btn-light" @click="importJob = null">{{ t('common.cancel') }}</button>
           <button type="button" class="btn-dark" @click="confirmImport"
             :disabled="importJob.submitting || importJob.checking || !importJob.report || importJob.clientErrors.length > 0 || importJob.report.errors.length > 0 || (importJob.report.created + importJob.report.updated) === 0">
-            {{ importJob.submitting ? 'Importando...' : 'Importar' }}
+            {{ importJob.submitting ? t('import.importing') : t('import.submit') }}
           </button>
         </div>
       </div>
@@ -868,8 +870,8 @@
         <p class="modal-text">{{ confirmation.text }}</p>
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
         <div class="modal-actions">
-          <button type="button" class="btn-light" @click="confirmation = null">Cancelar</button>
-          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? 'Excluindo...' : 'Excluir' }}</button>
+          <button type="button" class="btn-light" @click="confirmation = null">{{ t('common.cancel') }}</button>
+          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? t('confirm.deleting') : t('common.delete') }}</button>
         </div>
       </div>
     </div>
@@ -878,21 +880,21 @@
     <div v-if="info" class="modal-backdrop" @click.self="info = null">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t-info">
         <template v-if="info === 'cite'">
-          <h2 id="t-info" class="modal-title">Como citar</h2>
+          <h2 id="t-info" class="modal-title">{{ t('cite.title') }}</h2>
           <p class="citation">{{ citationText }}</p>
-          <p class="muted small">Ao usar dados de um projeto específico, cite também o repositório no Zenodo indicado na página do projeto.</p>
+          <p class="muted small">{{ t('cite.note') }}</p>
           <div class="modal-actions">
-            <button type="button" class="btn-light" @click="info = null">Fechar</button>
-            <button type="button" class="btn-dark" @click="copyCitation">Copiar citação</button>
+            <button type="button" class="btn-light" @click="info = null">{{ t('common.close') }}</button>
+            <button type="button" class="btn-dark" @click="copyCitation">{{ t('cite.copy') }}</button>
           </div>
         </template>
         <template v-else>
-          <h2 id="t-info" class="modal-title">Contato</h2>
+          <h2 id="t-info" class="modal-title">{{ t('contact.title') }}</h2>
           <p class="modal-text">
             <a v-if="contactIsEmail" class="link" :href="'mailto:' + contact">{{ contact }}</a>
             <template v-else>{{ contact }}</template>
           </p>
-          <div class="modal-actions"><button type="button" class="btn-dark" @click="info = null">Fechar</button></div>
+          <div class="modal-actions"><button type="button" class="btn-dark" @click="info = null">{{ t('common.close') }}</button></div>
         </template>
       </div>
     </div>
@@ -903,14 +905,14 @@
   <template id="tpl-gallery">
     <div>
       <div class="gallery">
-        <button type="button" v-for="e in items" :key="e.id" class="g-item" @click="$emit('open', e)" :aria-label="'Ver detalhes de ' + e.species + ', ' + e.catalog_number">
-          <photo :src="$root.imageUrl(e, 400)" alt="" label="Sem imagem"></photo>
+        <button type="button" v-for="e in items" :key="e.id" class="g-item" @click="$emit('open', e)" :aria-label="$root.t('gallery.details', { species: e.species, code: e.catalog_number })">
+          <photo :src="$root.imageUrl(e, 400)" alt="" :label="$root.t('photo.none')"></photo>
           <span class="g-stripe" :style="{ background: $root.orderColor(e.insect_order) }"></span>
           <span class="g-caption"><em>{{ e.species }}</em><span class="mono">{{ e.catalog_number }}</span></span>
           <span class="g-hover">
             <strong class="g-species">{{ e.species }}</strong>
-            <span class="g-line g-truncate">{{ e.locality || 'Local não informado' }}</span>
-            <span class="g-line" v-if="e.sex || e.life_stage">{{ [e.sex, e.life_stage].filter(Boolean).join(' · ') }}</span>
+            <span class="g-line g-truncate">{{ e.locality || $root.t('common.no_locality') }}</span>
+            <span class="g-line" v-if="e.sex || e.life_stage">{{ [$root.vocab('sex', e.sex), $root.vocab('life_stage', e.life_stage)].filter(Boolean).join(' · ') }}</span>
             <span class="g-measurements">
               <span v-for="m in $root.measurementSummary(e, 2)" :key="m.trait"><span>{{ m.trait }}</span><strong>{{ m.text }}</strong></span>
             </span>
@@ -918,7 +920,7 @@
         </button>
       </div>
       <div v-if="remaining > 0" class="gallery-more">
-        <button type="button" class="btn-light" @click="$emit('more')">Mostrar mais ({{ remaining.toLocaleString('pt-BR') }} restantes)</button>
+        <button type="button" class="btn-light" @click="$emit('more')">{{ $root.t('gallery.more', { n: $root.n(remaining) }) }}</button>
       </div>
     </div>
   </template>

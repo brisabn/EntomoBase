@@ -1,15 +1,32 @@
 const { createApp, markRaw } = Vue;
 
-// texts shown to the site's users stay in Portuguese; everything else is in English
+// every text shown to users comes from i18n.js (Portuguese and English); everything else is in English
 
 const COVER_PALETTE = ['#c9d9a2', '#e9b78a', '#e3b9a3', '#b8cfc0'];
 const ORDER_COLORS = ['#c8762b', '#4f7a3a', '#8a4f7d', '#2f6f8f', '#b04a3a', '#7a6a2a'];
 const GALLERY_PAGE_SIZE = 48;
+const LANGUAGES = ['pt', 'en'];
+const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
-// table sort keys as they appear in the address bar (?o=especie); measurement columns keep their "m:" key
-const SORT_TO_URL = { catalog: 'codigo', species: 'especie', family: 'familia', locality: 'local', date: 'data' };
-const SORT_FROM_URL = Object.fromEntries(Object.entries(SORT_TO_URL).map(([key, value]) => [value, key]));
-const sortFromUrl = (value) => SORT_FROM_URL[value] || (value && value.startsWith('m:') ? value : 'catalog');
+// words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
+const ROUTE_WORDS = {
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories' }
+};
+// table sort keys as they appear in the address bar (?o=especie / ?o=species); measurement columns keep their "m:" key
+const SORT_WORDS = {
+  pt: { catalog: 'codigo', species: 'especie', family: 'familia', locality: 'local', date: 'data' },
+  en: { catalog: 'catalog', species: 'species', family: 'family', locality: 'locality', date: 'date' }
+};
+
+// the internal key for a word of the address bar, accepting the words of both languages
+function wordKey(table, word) {
+  for (const lang of LANGUAGES) {
+    const found = Object.entries(table[lang]).find(([, w]) => w === word);
+    if (found) return found[0];
+  }
+  return null;
+}
 
 const ICONS = {
   external: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
@@ -24,8 +41,10 @@ const isUrl = (s) => /^https?:\/\//i.test((s || '').trim());
 const orNull = (s) => ((s ?? '').toString().trim() || null);
 const num = (v) => (v === '' || v === null || v === undefined || Number.isNaN(v) ? null : Number(v));
 const cmp = (a, b) => a.localeCompare(b, 'pt-BR');
-const fmt = (v) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-const NO_FAMILY = 'Sem família';
+// internal key for specimens without a family; shown with the "no family" text of the language
+const NO_FAMILY = '';
+// fields whose values come from a fixed vocabulary (see VOCABULARY in i18n.js)
+const VOCABULARY_FIELDS = ['sex', 'life_stage', 'loan_status', 'sampling_method'];
 
 function tokenIsValid(token) {
   if (!token) return false;
@@ -45,6 +64,11 @@ function countBy(list, keyFn) {
     map.get(k).add(e.species);
   });
   return map;
+}
+
+// reads the saved language choice; browser storage can be unavailable
+function savedLanguage() {
+  try { return localStorage.getItem('entomobase_lang'); } catch { return null; }
 }
 
 // ------------------------------------------------------------------ CSV
@@ -77,7 +101,7 @@ function parseCsv(text) {
   return rows;
 }
 
-// header names accepted in imported files; the Portuguese ones are what users write
+// header names accepted in imported files, in Portuguese and English
 const ALIASES = {
   catalog_number: ['codigo_etiqueta', 'codigo', 'etiqueta', 'cod', 'id_etiqueta', 'tombo', 'catalog_number'],
   insect_order: ['ordem', 'grupo', 'grupo_insetos', 'order', 'insect_order'],
@@ -107,15 +131,12 @@ const ALIASES = {
   project: ['projeto', 'titulo_projeto', 'project'],
   project_id: ['projeto_id', 'id_projeto', 'project_id']
 };
+// order of the fields in the column target menu; labels are importField.* in i18n.js
 const IMPORT_FIELDS = [
-  ['catalog_number', 'Código da etiqueta'], ['insect_order', 'Ordem'], ['family', 'Família'], ['species', 'Espécie'],
-  ['collection_date', 'Data da coleta'], ['locality', 'Local de coleta'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
-  ['elevation_m', 'Altitude (m)'], ['sex', 'Sexo'], ['life_stage', 'Estágio'], ['image_file', 'Arquivo da imagem'],
-  ['photo_url', 'URL da fotografia'], ['notes', 'Notas'], ['project', 'Projeto (título)'], ['project_id', 'Projeto (id)'],
-  ['identified_by', 'Determinador'], ['identification_date', 'Data da determinação'], ['sampling_method', 'Método de coleta'], ['habitat', 'Habitat'],
-  ['collector', 'Coletor (interno)'], ['field_number', 'Número de campo (interno)'], ['storage_location', 'Localização física (interno)'],
-  ['loan_status', 'Empréstimo (interno)'], ['loaned_to', 'Emprestado para (interno)'], ['loan_date', 'Data do empréstimo (interno)'],
-  ['internal_notes', 'Notas internas']
+  'catalog_number', 'insect_order', 'family', 'species', 'collection_date', 'locality', 'latitude', 'longitude',
+  'elevation_m', 'sex', 'life_stage', 'image_file', 'photo_url', 'notes', 'project', 'project_id',
+  'identified_by', 'identification_date', 'sampling_method', 'habitat', 'collector', 'field_number', 'storage_location',
+  'loan_status', 'loaned_to', 'loan_date', 'internal_notes'
 ];
 
 function headerKey(h) {
@@ -176,11 +197,7 @@ const app = createApp({
       suggestionsOpen: false,
       suggestionIndex: -1,
       sortOrder: 'recent',
-      sortOptions: [
-        { value: 'recent', label: 'Mais recentes' },
-        { value: 'title', label: 'Título (A-Z)' },
-        { value: 'species', label: 'Mais espécies' }
-      ],
+      sortKeys: ['recent', 'title', 'species'],
       loading: true,
       apiError: null,
       projects: [],
@@ -211,46 +228,41 @@ const app = createApp({
       confirmation: null,
       info: null,
       toast: null,
-      projectFilters: [
-        { key: 'year', label: 'Ano' },
-        { key: 'group', label: 'Grupo' },
-        { key: 'status', label: 'Status' },
-        { key: 'locality', label: 'Local' }
-      ],
-      tabs: [
-        { id: 'about', label: 'Sobre', href: '#/sobre' },
-        { id: 'projects', label: 'Projetos', href: '#/projetos' },
-        { id: 'collection', label: 'Coleção', href: '#/colecao' }
-      ],
-      aboutText: '[Texto: o que é a EntomoBase, quem mantém, objetivo científico e como os dados são organizados.]',
-      contact: '[e-mail de contato]',
+      projectFilterKeys: ['year', 'group', 'status', 'locality'],
       importFields: IMPORT_FIELDS,
-      team: [
-        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' },
-        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' },
-        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' }
-      ]
+      teamSize: 3
     };
   },
 
   computed: {
+    locale() { return LOCALES[this.lang]; },
     labAccess() { return !!this.token; },
     activeTab() { return this.route.name === 'project' ? 'projects' : this.route.name; },
     collectionView() { return this.route.view || 'tree'; },
     projectView() { return this.route.view || 'table'; },
+    tabs() {
+      return ['about', 'projects', 'collection'].map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
+    },
+    sortOptions() { return this.sortKeys.map((value) => ({ value, label: this.t(`sort.${value}`) })); },
+    projectFilters() { return this.projectFilterKeys.map((key) => ({ key, label: this.t(`filter.${key}`) })); },
+    aboutText() { return this.t('about.text'); },
+    contact() { return this.t('contact.value'); },
+    team() {
+      return Array.from({ length: this.teamSize }, () => ({ initials: 'NS', name: this.t('about.team_name'), role: this.t('about.team_role') }));
+    },
     contactIsEmail() { return /^[^\s@\[\]]+@[^\s@\[\]]+\.[^\s@\[\]]+$/.test(this.contact); },
 
     citationText() {
-      const date = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-      return `EntomoBase. Universidade Federal de Minas Gerais. Disponível em: ${location.href.split('#')[0]}. Acesso em: ${date}.`;
+      const date = new Date().toLocaleDateString(this.locale, { day: 'numeric', month: 'long', year: 'numeric' });
+      return this.t('cite.text', { url: location.href.split('#')[0], date });
     },
 
     pageTitle() {
-      const names = { about: 'Sobre', projects: 'Projetos', collection: 'Coleção', search: 'Busca' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search' };
       if (this.route.name === 'project') {
-        return this.currentProject ? `${this.currentProject.title} · EntomoBase` : 'Projeto · EntomoBase';
+        return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
-      return `${names[this.route.name]} · EntomoBase`;
+      return `${this.t(names[this.route.name])} · EntomoBase`;
     },
 
     // ---------- base data ----------
@@ -287,7 +299,8 @@ const app = createApp({
       const q = norm(this.table.query).trim();
       let list = this.projectSpecimens;
       if (q) {
-        list = list.filter((e) => norm([e.catalog_number, e.species, e.family, e.locality, e.identified_by, e.sex, e.life_stage].join(' ')).includes(q));
+        list = list.filter((e) => norm([e.catalog_number, e.species, e.family, e.locality, e.identified_by, e.sex, e.life_stage,
+          this.vocab('sex', e.sex), this.vocab('life_stage', e.life_stage)].join(' ')).includes(q));
       }
       const { sort, dir } = this.table;
       const value = (e) => {
@@ -320,9 +333,9 @@ const app = createApp({
     },
     tableRange() {
       const n = this.sortedTable.length;
-      if (!n) return '0 de 0';
+      if (!n) return this.t('table.range_empty');
       const start = (this.currentPage - 1) * this.table.perPage + 1;
-      return `${start} a ${Math.min(n, start + this.table.perPage - 1)} de ${n.toLocaleString('pt-BR')}`;
+      return this.t('table.range', { start, end: Math.min(n, start + this.table.perPage - 1), total: this.n(n) });
     },
     pageButtons() {
       const total = this.totalPages;
@@ -358,8 +371,8 @@ const app = createApp({
     filterOptions() {
       const unique = (fn) => [...new Set(this.projects.map(fn).filter((v) => v !== null && v !== undefined && v !== ''))];
       const status = [];
-      if (this.projects.some((p) => p.finished)) status.push({ value: 'finished', label: 'Concluído' });
-      if (this.projects.some((p) => !p.finished)) status.push({ value: 'in_progress', label: 'Em andamento' });
+      if (this.projects.some((p) => p.finished)) status.push({ value: 'finished', label: this.t('status.finished') });
+      if (this.projects.some((p) => !p.finished)) status.push({ value: 'in_progress', label: this.t('status.in_progress') });
       return {
         year: unique((p) => p.year).sort((a, b) => b - a).map((v) => ({ value: v, label: String(v) })),
         group: unique((p) => p.insect_group).sort(cmp).map((v) => ({ value: v, label: v })),
@@ -376,7 +389,7 @@ const app = createApp({
       });
       return map;
     },
-    sortLabel() { return this.sortOptions.find((o) => o.value === this.sortOrder).label; },
+    sortLabel() { return this.t(`sort.${this.sortOrder}`); },
     filteredProjects() {
       const f = this.filters;
       const list = this.projects.filter((p) => {
@@ -418,31 +431,34 @@ const app = createApp({
         .map((i) => i.e);
       r.repositories = this.repositories.filter((x) => norm(`${x.title} ${x.description || ''}`).includes(q));
       const aboutText = norm([this.aboutText, ...this.team.map((m) => `${m.name} ${m.role}`)].join(' '));
-      if (aboutText.includes(q)) r.pages = [{ title: 'Sobre', excerpt: this.aboutText }];
+      if (aboutText.includes(q)) r.pages = [{ title: this.t('tab.about'), excerpt: this.aboutText }];
       r.total = r.projects.length + r.species.length + r.specimens.length + r.repositories.length + r.pages.length;
       return r;
     },
     searchSuggestions() {
       const r = this.results;
       const list = [];
-      r.projects.slice(0, 4).forEach((p) => list.push({ group: 'Projetos', label: p.title, sub: `${p.insect_group} · ${p.year}`, href: `#/projetos/${p.id}` }));
-      r.species.slice(0, 4).forEach((x) => list.push({ group: 'Espécies', label: x.name, italic: true, sub: x.family || x.order, species: x.name }));
-      r.repositories.slice(0, 2).forEach((x) => list.push({ group: 'Repositórios', label: x.title, sub: 'Zenodo', href: `#/projetos/${x.id}` }));
-      r.specimens.slice(0, 3).forEach((e) => list.push({ group: 'Espécimes', label: e.catalog_number, sub: e.species, href: this.specimenTarget(e) }));
-      r.pages.forEach((x) => list.push({ group: 'Páginas', label: x.title, sub: '', href: '#/sobre' }));
+      r.projects.slice(0, 4).forEach((p) => list.push({ group: this.t('search.projects'), label: p.title, sub: `${p.insect_group} · ${p.year}`, href: this.link('project', { id: p.id }) }));
+      r.species.slice(0, 4).forEach((x) => list.push({ group: this.t('search.species'), label: x.name, italic: true, sub: x.family || x.order, species: x.name }));
+      r.repositories.slice(0, 2).forEach((x) => list.push({ group: this.t('search.repositories'), label: x.title, sub: 'Zenodo', href: this.link('project', { id: x.id }) }));
+      r.specimens.slice(0, 3).forEach((e) => list.push({ group: this.t('search.specimens'), label: e.catalog_number, sub: e.species, href: this.specimenTarget(e) }));
+      r.pages.forEach((x) => list.push({ group: this.t('search.pages'), label: x.title, sub: '', href: this.link('about') }));
       return list;
     },
 
     // ---------- collection ----------
     suggestions() {
       const unique = (list) => [...new Set(list.filter(Boolean))].sort(cmp);
+      const vocabulary = (field) => Object.keys(VOCABULARY[field]).map((v) => this.vocab(field, v));
       return {
         groups: unique(this.projects.map((p) => p.insect_group)),
         orders: unique(this.specimens.map((e) => e.insect_order)),
         families: unique(this.specimens.map((e) => e.family)),
         traits: unique(this.specimens.flatMap((e) => (e.measurements || []).map((m) => m.trait))),
-        sexes: ['macho', 'fêmea', 'indeterminado'],
-        stages: ['adulto', 'operária', 'soldado', 'rainha', 'ninfa', 'larva', 'pupa']
+        sexes: vocabulary('sex'),
+        stages: ['adulto', 'operária', 'soldado', 'rainha', 'ninfa', 'larva', 'pupa'].map((v) => this.vocab('life_stage', v)),
+        methods: vocabulary('sampling_method'),
+        loan: vocabulary('loan_status')
       };
     },
     repositories() {
@@ -570,11 +586,12 @@ const app = createApp({
 
   watch: {
     pageTitle: { immediate: true, handler(t) { document.title = t; } },
+    lang: { immediate: true, handler(lang) { document.documentElement.lang = LOCALES[lang]; } },
     searchTerm(v) {
       this.suggestionIndex = -1;
       this.suggestionsOpen = true;
       if (this.route.name === 'search') {
-        history.replaceState(null, '', v.trim() ? `#/busca/${encodeURIComponent(v.trim())}` : '#/busca');
+        history.replaceState(null, '', this.link('search', { q: v.trim() }));
       }
     },
     table: { deep: true, handler() { this.syncTableUrl(); } },
@@ -610,20 +627,61 @@ const app = createApp({
 
   methods: {
     isUrl,
-    fmt,
+
+    // ---------- texts and formats ----------
+    t(key, params = {}) { return translate(this.lang, key, params); },
+    describeProblems(problems) { return (problems || []).map((p) => describeProblem(this.lang, p)).join('; '); },
+    // formatted number in the current language
+    n(value) { return Number(value).toLocaleString(this.locale); },
+    fmt(value) { return Number(value).toLocaleString(this.locale, { maximumFractionDigits: 2 }); },
+    // "12 espécies" / "12 species"; kind is one of the count.* keys of i18n.js
+    count(kind, value) { return this.t(`count.${kind}`, { n: this.n(value), count: value }); },
+    vocab(field, value) { return displayValue(this.lang, field, value); },
+    familyLabel(name) { return name === NO_FAMILY ? this.t('common.no_family') : name; },
+
+    // ---------- addresses ----------
+    // builds the address of a page in a language: link('project', { id: 3, view: 'map' }) -> #/projetos/3/mapa
+    link(name, { id, view, q } = {}, lang = this.lang) {
+      const w = ROUTE_WORDS[lang];
+      const prefix = lang === 'en' ? '#/en/' : '#/';
+      if (name === 'project') return `${prefix}${w.projects}/${id}${view && view !== 'table' ? '/' + w[view] : ''}`;
+      if (name === 'collection') return `${prefix}${w.collection}${view && view !== 'tree' ? '/' + w[view] : ''}`;
+      if (name === 'search') return `${prefix}${w.search}${q ? '/' + encodeURIComponent(q) : ''}`;
+      return prefix + w[name];
+    },
+    // the same page as the current one, in lang (used by the language switch and the table address)
+    currentLink(lang = this.lang) {
+      const r = this.route;
+      if (r.name === 'project') {
+        const base = this.link('project', { id: r.id, view: r.view }, lang);
+        if (r.view !== 'table') return base;
+        const qs = this.tableQuery(lang);
+        return base + (qs ? '?' + qs : '');
+      }
+      if (r.name === 'collection') return this.link('collection', { view: r.view }, lang);
+      if (r.name === 'search') return this.link('search', { q: this.searchTerm.trim() }, lang);
+      return this.link(r.name, {}, lang);
+    },
+    switchLanguage() {
+      const target = this.lang === 'pt' ? 'en' : 'pt';
+      try { localStorage.setItem('entomobase_lang', target); } catch { /* storage unavailable */ }
+      location.hash = this.currentLink(target);
+    },
 
     // ---------- project table ----------
-    syncTableUrl() {
-      if (this.route.name !== 'project' || this.route.view !== 'table') return;
+    tableQuery(lang) {
       const t = this.table;
       const qs = new URLSearchParams();
       if (this.currentPage > 1) qs.set('p', this.currentPage);
       if (t.perPage !== 25) qs.set('n', t.perPage);
-      if (t.sort !== 'catalog') qs.set('o', SORT_TO_URL[t.sort] || t.sort);
+      if (t.sort !== 'catalog') qs.set('o', SORT_WORDS[lang][t.sort] || t.sort);
       if (t.dir !== 'asc') qs.set('d', t.dir);
       if (t.query.trim()) qs.set('q', t.query.trim());
-      const s = qs.toString();
-      const target = `#/projetos/${this.route.id}${s ? '?' + s : ''}`;
+      return qs.toString();
+    },
+    syncTableUrl() {
+      if (this.route.name !== 'project' || this.route.view !== 'table') return;
+      const target = this.currentLink();
       if (location.hash !== target) history.replaceState(null, '', target);
     },
     sortBy(key) {
@@ -638,29 +696,40 @@ const app = createApp({
     ariaSort(key) { return this.table.sort === key ? (this.table.dir === 'asc' ? 'ascending' : 'descending') : 'none'; },
 
     // ---------- navigation ----------
-    // the address bar keeps Portuguese paths (#/projetos, #/colecao); they are translated to route names here
+    // reads the language and the page from the address bar (#/projetos/1 or #/en/projects/1)
     applyRoute() {
       const [path, search = ''] = (location.hash || '').replace(/^#\/?/, '').split('?');
-      const [a, b, c] = path.split('/').filter(Boolean);
+      let parts = path.split('/').filter(Boolean);
+      let lang = 'pt';
+      if (parts[0] === 'en') { lang = 'en'; parts = parts.slice(1); }
+      else if (!parts.length) {
+        // first visit without an address: the saved choice, otherwise the browser language
+        const preferred = savedLanguage() || ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'pt');
+        if (preferred === 'en') { location.replace(this.link('about', {}, 'en')); return; }
+      }
+      this.lang = lang;
+      const [a, b, c] = parts;
+      const page = wordKey(ROUTE_WORDS, a);
       const qs = new URLSearchParams(search);
       let route;
-      if (a === 'projetos') {
-        const projectViews = { galeria: 'gallery', mapa: 'map' };
-        route = b ? { name: 'project', id: Number(b), view: projectViews[c] || 'table' } : { name: 'projects' };
-      } else if (a === 'colecao') {
-        const collectionViews = { repositorios: 'repos', mapa: 'map' };
-        route = { name: 'collection', view: collectionViews[b] || 'tree' };
-      } else if (a === 'busca') route = { name: 'search' };
+      if (page === 'projects') {
+        const view = wordKey(ROUTE_WORDS, c);
+        route = b ? { name: 'project', id: Number(b), view: ['gallery', 'map'].includes(view) ? view : 'table' } : { name: 'projects' };
+      } else if (page === 'collection') {
+        const view = wordKey(ROUTE_WORDS, b);
+        route = { name: 'collection', view: ['repos', 'map'].includes(view) ? view : 'tree' };
+      } else if (page === 'search') route = { name: 'search' };
       else route = { name: 'about' };
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
       this.route = route;
       if (route.name === 'project') {
         const n = Number(qs.get('n'));
+        const sortWord = qs.get('o');
         this.table = {
           page: Math.max(1, Number(qs.get('p')) || 1),
           perPage: this.pageSizes.includes(n) ? n : 25,
-          sort: sortFromUrl(qs.get('o')),
+          sort: wordKey(SORT_WORDS, sortWord) || (sortWord && sortWord.startsWith('m:') ? sortWord : 'catalog'),
           dir: qs.get('d') === 'desc' ? 'desc' : 'asc',
           query: qs.get('q') || ''
         };
@@ -702,10 +771,6 @@ const app = createApp({
       this.toastTimer = setTimeout(() => { this.toast = null; }, 4500);
     },
 
-    // ---------- texts ----------
-    t(key, params = {}) { return translate(this.lang, key, params); },
-    describeProblems(problems) { return (problems || []).map((p) => describeProblem(this.lang, p)).join('; '); },
-
     // ---------- API ----------
     // the API sends {"detail": {"code", "params", "problems"?}}; the message comes from i18n.js
     async errorMessage(res) {
@@ -727,14 +792,14 @@ const app = createApp({
       try {
         res = await fetch(this.apiUrl + path, { method, headers, body: body !== null ? JSON.stringify(body) : undefined });
       } catch {
-        throw new Error('Não foi possível conectar à API.');
+        throw new Error(this.t('error.connection'));
       }
       if (res.status === 401 && this.token && path !== '/login') {
         this.endSession();
-        this.loginError = 'Sua sessão expirou. Entre novamente.';
+        this.loginError = this.t('error.session_expired_login');
         this.showLogin = true;
         this.projectForm = this.specimenForm = this.confirmation = this.importJob = null;
-        throw new Error('Sessão expirada.');
+        throw new Error(this.t('error.session_expired_short'));
       }
       if (!res.ok) throw new Error(await this.errorMessage(res));
       return res.status === 204 ? null : res.json();
@@ -783,10 +848,9 @@ const app = createApp({
     },
 
     // ---------- display helpers ----------
-    plural(n, one, many) { return `${n.toLocaleString('pt-BR')} ${n === 1 ? one : many}`; },
     specimensOf(p) { return this.specimensByProject[p.id] || []; },
     countSpecies(list) { return new Set((list || []).map((e) => e.species)).size; },
-    statusLabel(p) { return p.finished ? 'Concluído' : 'Em andamento'; },
+    statusLabel(p) { return p.finished ? this.t('status.finished') : this.t('status.in_progress'); },
     coverColor(p) { return COVER_PALETTE[(p.id - 1 + COVER_PALETTE.length) % COVER_PALETTE.length]; },
     coverStyle(p) {
       const style = { backgroundColor: this.coverColor(p) };
@@ -798,17 +862,18 @@ const app = createApp({
       return style;
     },
     familyOf(e) { return e.family || NO_FAMILY; },
+    // dd/mm/yyyy in Portuguese, yyyy-mm-dd in English
     formatDate(d) {
       if (!d) return '—';
       const [y, m, day] = d.split('-');
-      return `${day}/${m}/${y}`;
+      return this.lang === 'en' ? `${y}-${m}-${day}` : `${day}/${m}/${y}`;
     },
     measurementValue(e, column) {
       const m = (e.measurements || []).find((x) => `${x.trait}|${x.unit}` === column.key);
-      return m ? fmt(m.value) : '—';
+      return m ? this.fmt(m.value) : '—';
     },
     measurementSummary(e, n = 3) {
-      return (e.measurements || []).slice(0, n).map((m) => ({ trait: m.trait, text: `${fmt(m.value)} ${m.unit}` }));
+      return (e.measurements || []).slice(0, n).map((m) => ({ trait: m.trait, text: `${this.fmt(m.value)} ${m.unit}` }));
     },
     orderColor(o) { return this.orderColors[o] || '#555'; },
     reposOf(specimens) {
@@ -822,7 +887,7 @@ const app = createApp({
     repositorySummary(r) {
       const list = this.specimensOf(r);
       const orders = [...new Set(list.map((e) => e.insect_order))].sort(cmp);
-      const parts = [this.plural(this.countSpecies(list), 'espécie', 'espécies')];
+      const parts = [this.count('species', this.countSpecies(list))];
       if (orders.length) parts.push(orders.join(', '));
       parts.push(String(r.year));
       return parts.join(' · ');
@@ -865,11 +930,11 @@ const app = createApp({
     showOnMap(e) {
       this.mapFocus = e.id;
       this.panel = null;
-      const target = this.route.name === 'project' ? `#/projetos/${this.route.id}/mapa` : '#/colecao/mapa';
+      const target = this.route.name === 'project' ? this.link('project', { id: this.route.id, view: 'map' }) : this.link('collection', { view: 'map' });
       if (location.hash === target) return;
       location.hash = target;
     },
-    specimenTarget(e) { return e.project_id ? `#/projetos/${e.project_id}` : '#/colecao'; },
+    specimenTarget(e) { return e.project_id ? this.link('project', { id: e.project_id }) : this.link('collection'); },
     editFromPanel(e) { this.panel = null; this.openSpecimenForm(e); },
     deleteFromPanel(e) { this.panel = null; this.askDeleteSpecimen(e); },
 
@@ -896,12 +961,12 @@ const app = createApp({
       const t = this.searchTerm.trim();
       if (!t) return;
       this.suggestionsOpen = false;
-      location.hash = `#/busca/${encodeURIComponent(t)}`;
+      location.hash = this.link('search', { q: t });
     },
     openSpecies(name) {
       this.collectionFilters = { orders: [], families: [], repos: [], years: [] };
       this.collectionSearch = name;
-      location.hash = '#/colecao';
+      location.hash = this.link('collection');
     },
 
     // ---------- project filters ----------
@@ -970,8 +1035,8 @@ const app = createApp({
         const saved = await this.api(f.id ? `/projects/${f.id}` : '/projects', { method: f.id ? 'PUT' : 'POST', body });
         this.projectForm = null;
         await this.loadAll();
-        this.notify(f.id ? 'Projeto atualizado.' : 'Projeto criado.');
-        if (!f.id) location.hash = `#/projetos/${saved.id}`;
+        this.notify(this.t(f.id ? 'notify.project_updated' : 'notify.project_created'));
+        if (!f.id) location.hash = this.link('project', { id: saved.id });
       } catch (e) {
         this.formError = e.message;
       }
@@ -981,18 +1046,19 @@ const app = createApp({
       this.formError = null;
       const n = this.specimensOf(p).length;
       this.confirmation = {
-        title: 'Excluir projeto',
-        text: `"${p.title}" será excluído${n ? ` junto com ${this.plural(n, 'espécime', 'espécimes')}` : ''}. Essa ação não pode ser desfeita.`,
+        title: this.t('confirm.project_title'),
+        text: this.t('confirm.project_text', { title: p.title, with: n ? this.count('specimen', n) : '' }),
         action: async () => {
           await this.api(`/projects/${p.id}`, { method: 'DELETE' });
-          location.hash = '#/projetos';
+          location.hash = this.link('projects');
           await this.loadAll();
-          this.notify('Projeto excluído.');
+          this.notify(this.t('notify.project_deleted'));
         }
       };
     },
 
     // ---------- specimens: create, edit, delete ----------
+    // values with a fixed vocabulary are shown in the current language and stored in Portuguese on save
     openSpecimenForm(e = null, projectId = null) {
       this.formError = null;
       this.nameHint = null;
@@ -1001,11 +1067,13 @@ const app = createApp({
           id: e.id, catalog_number: e.catalog_number, insect_order: e.insect_order, family: e.family || '',
           species: e.species, collection_date: e.collection_date || '', locality: e.locality || '',
           latitude: e.latitude ?? '', longitude: e.longitude ?? '', elevation_m: e.elevation_m ?? '',
-          sex: e.sex || '', life_stage: e.life_stage || '', image_file: e.image_file || '', photo_url: e.photo_url || '',
+          sex: this.vocab('sex', e.sex) || '', life_stage: this.vocab('life_stage', e.life_stage) || '',
+          image_file: e.image_file || '', photo_url: e.photo_url || '',
           notes: e.notes || '', project_id: e.project_id ?? null,
-          identified_by: e.identified_by || '', identification_date: e.identification_date || '', sampling_method: e.sampling_method || '', habitat: e.habitat || '',
+          identified_by: e.identified_by || '', identification_date: e.identification_date || '',
+          sampling_method: this.vocab('sampling_method', e.sampling_method) || '', habitat: e.habitat || '',
           collector: e.collector || '', field_number: e.field_number || '', storage_location: e.storage_location || '',
-          loan_status: e.loan_status || '', loaned_to: e.loaned_to || '', loan_date: e.loan_date || '',
+          loan_status: this.vocab('loan_status', e.loan_status) || '', loaned_to: e.loaned_to || '', loan_date: e.loan_date || '',
           internal_notes: e.internal_notes || '',
           measurements: (e.measurements || []).map((m) => ({ trait: m.trait, value: m.value, unit: m.unit }))
         };
@@ -1056,18 +1124,19 @@ const app = createApp({
         const trait = (m.trait || '').trim();
         if (value === null && !trait) continue;
         if (value === null) continue;
-        if (!trait) { this.formError = 'Dê um nome ao traço de cada medida preenchida.'; return; }
+        if (!trait) { this.formError = this.t('sf.trait_required'); return; }
         measurements.push({ trait, value, unit: (m.unit || 'mm').trim() || 'mm' });
       }
+      const stored = (field) => storedValue(field, orNull(f[field]));
       const body = {
         catalog_number: f.catalog_number.trim(), insect_order: f.insect_order.trim(), family: orNull(f.family),
         species: f.species.trim(), collection_date: orNull(f.collection_date), locality: orNull(f.locality),
         latitude: num(f.latitude), longitude: num(f.longitude), elevation_m: num(f.elevation_m),
-        sex: orNull(f.sex), life_stage: orNull(f.life_stage), image_file: orNull(f.image_file), photo_url: orNull(f.photo_url),
+        sex: stored('sex'), life_stage: stored('life_stage'), image_file: orNull(f.image_file), photo_url: orNull(f.photo_url),
         notes: orNull(f.notes), project_id: f.project_id || null, measurements,
-        identified_by: orNull(f.identified_by), identification_date: orNull(f.identification_date), sampling_method: orNull(f.sampling_method), habitat: orNull(f.habitat),
+        identified_by: orNull(f.identified_by), identification_date: orNull(f.identification_date), sampling_method: stored('sampling_method'), habitat: orNull(f.habitat),
         collector: orNull(f.collector), field_number: orNull(f.field_number), storage_location: orNull(f.storage_location),
-        loan_status: orNull(f.loan_status), loaned_to: orNull(f.loaned_to), loan_date: orNull(f.loan_date),
+        loan_status: stored('loan_status'), loaned_to: orNull(f.loaned_to), loan_date: orNull(f.loan_date),
         internal_notes: orNull(f.internal_notes)
       };
       this.submitting = true;
@@ -1075,7 +1144,7 @@ const app = createApp({
         await this.api(f.id ? `/specimens/${f.id}` : '/specimens', { method: f.id ? 'PUT' : 'POST', body });
         this.specimenForm = null;
         await this.loadAll();
-        this.notify(f.id ? 'Espécime atualizado.' : 'Espécime adicionado.');
+        this.notify(this.t(f.id ? 'notify.specimen_updated' : 'notify.specimen_added'));
       } catch (e) {
         this.formError = e.message;
       }
@@ -1084,12 +1153,12 @@ const app = createApp({
     askDeleteSpecimen(e) {
       this.formError = null;
       this.confirmation = {
-        title: 'Excluir espécime',
-        text: `O espécime ${e.catalog_number} (${e.species}) será excluído. Essa ação não pode ser desfeita.`,
+        title: this.t('confirm.specimen_title'),
+        text: this.t('confirm.specimen_text', { code: e.catalog_number, species: e.species }),
         action: async () => {
           await this.api(`/specimens/${e.id}`, { method: 'DELETE' });
           await this.loadAll();
-          this.notify('Espécime excluído.');
+          this.notify(this.t('notify.specimen_deleted'));
         }
       };
     },
@@ -1122,8 +1191,8 @@ const app = createApp({
       job.error = null;
       try {
         const rows = parseCsv(await file.text());
-        if (rows.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalho e pelo menos uma linha de dados.');
-        if (rows.length - 1 > 5000) throw new Error('O arquivo tem mais de 5.000 linhas. Divida em partes menores.');
+        if (rows.length < 2) throw new Error(this.t('import.need_rows'));
+        if (rows.length - 1 > 5000) throw new Error(this.t('import.too_many'));
         job.fileName = file.name;
         job.headers = rows[0].map((h) => h.trim());
         job.mapping = job.headers.map((h) => interpretHeader(h));
@@ -1162,7 +1231,8 @@ const app = createApp({
           } else if (field === 'project_id') {
             const v = parseNumber(raw);
             if (Number.isNaN(v)) problems.push({ code: 'invalid_project_id', params: { value: raw } }); else o.project_id = v;
-          } else o[field] = raw;
+          } else if (VOCABULARY_FIELDS.includes(field)) o[field] = storedValue(field, raw);
+          else o[field] = raw;
         });
         ['insect_order', 'family', 'species'].forEach((c) => {
           if (!o[c] && job.defaults[c].trim()) o[c] = job.defaults[c].trim();
@@ -1208,10 +1278,10 @@ const app = createApp({
         this.importJob = null;
         await this.loadAll();
         const parts = [];
-        if (report.created) parts.push(this.plural(report.created, 'espécime criado', 'espécimes criados'));
-        if (report.updated) parts.push(this.plural(report.updated, 'atualizado', 'atualizados'));
-        if (report.skipped) parts.push(this.plural(report.skipped, 'ignorado', 'ignorados'));
-        this.notify(`Importação concluída: ${parts.join(', ') || 'nada novo'}.`);
+        if (report.created) parts.push(this.count('created', report.created));
+        if (report.updated) parts.push(this.count('updated', report.updated));
+        if (report.skipped) parts.push(this.count('skipped', report.skipped));
+        this.notify(this.t('import.done', { parts: parts.join(', ') || this.t('import.nothing_new') }));
       } catch (e) {
         job.error = e.message;
         job.submitting = false;
@@ -1227,9 +1297,7 @@ const app = createApp({
       });
       this.runDryRun();
     },
-    warningLabel(kind) {
-      return { fuzzy: 'Nome aproximado', synonym: 'Sinônimo', genus_only: 'Só o gênero foi reconhecido', not_found: 'Não encontrado no GBIF' }[kind] || kind;
-    },
+    warningLabel(kind) { return this.t(`warning.${kind}`); },
     downloadTemplate() {
       const job = this.importJob;
       const p = this.projectsById[job.projectId];
@@ -1263,7 +1331,7 @@ const app = createApp({
         el.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
-        this.notify(e.message === 'Failed to fetch' ? 'Não foi possível conectar à API.' : e.message);
+        this.notify(e.message === 'Failed to fetch' ? this.t('error.connection') : e.message);
       }
     },
     exportCsv(projectId = null, full = false) {
@@ -1282,9 +1350,9 @@ const app = createApp({
     async copyCitation() {
       try {
         await navigator.clipboard.writeText(this.citationText);
-        this.notify('Citação copiada.');
+        this.notify(this.t('notify.citation_copied'));
       } catch {
-        this.notify('Não foi possível copiar. Selecione o texto e copie manualmente.');
+        this.notify(this.t('notify.copy_failed'));
       }
     }
   }
@@ -1327,7 +1395,7 @@ app.component('photo', {
   props: ['src', 'alt', 'label'],
   data() { return { failed: false }; },
   watch: { src() { this.failed = false; } },
-  template: '<div :class="[\'photo-frame\', { empty: !src || failed }]"><img v-if="src && !failed" :src="src" :alt="alt" loading="lazy" decoding="async" @error="failed = true"><span v-else class="photo-missing">{{ label || \'Sem imagem\' }}</span></div>'
+  template: '<div :class="[\'photo-frame\', { empty: !src || failed }]"><img v-if="src && !failed" :src="src" :alt="alt" loading="lazy" decoding="async" @error="failed = true"><span v-else class="photo-missing">{{ label || $root.t(\'photo.none\') }}</span></div>'
 });
 
 app.component('gallery', {
@@ -1341,7 +1409,7 @@ app.component('collection-map', {
   props: ['points', 'focus'],
   emits: ['open', 'focused'],
   data() { return { unavailable: false, leafletMap: null, cluster: null, markers: {} }; },
-  template: '<div class="map-box"><div ref="el" class="map" role="application" aria-label="Mapa de coleta"></div><p v-if="unavailable" class="map-error">Não foi possível carregar o mapa (biblioteca Leaflet indisponível). Verifique a conexão com a internet.</p></div>',
+  template: '<div class="map-box"><div ref="el" class="map" role="application" :aria-label="$root.t(\'map.aria\')"></div><p v-if="unavailable" class="map-error">{{ $root.t(\'map.unavailable\') }}</p></div>',
   mounted() {
     if (typeof L === 'undefined' || !L.markerClusterGroup) { this.unavailable = true; return; }
     const map = L.map(this.$refs.el, { scrollWheelZoom: false, worldCopyJump: true }).setView([-15, -47], 4);
@@ -1380,7 +1448,7 @@ app.component('collection-map', {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'pop-button';
-      button.textContent = 'Ver detalhes';
+      button.textContent = this.$root.t('map.details');
       button.addEventListener('click', () => this.$emit('open', p.id));
       node.append(name, line, button);
       return node;
