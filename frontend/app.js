@@ -1,135 +1,139 @@
 const { createApp, markRaw } = Vue;
 
-const PALETA_CAPAS = ['#c9d9a2', '#e9b78a', '#e3b9a3', '#b8cfc0'];
-const CORES_ORDEM = ['#c8762b', '#4f7a3a', '#8a4f7d', '#2f6f8f', '#b04a3a', '#7a6a2a'];
-const POR_PAGINA_GALERIA = 48;
+// texts shown to the site's users stay in Portuguese; everything else is in English
 
-const ICONES = {
-  externo: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
-  voltar: '<path d="M19 12H5m6-6-6 6 6 6"/>',
-  esq: '<path d="m15 5-7 7 7 7"/>',
-  dir: '<path d="m9 5 7 7-7 7"/>',
-  fechar: '<path d="M6 6l12 12M18 6 6 18"/>'
+const COVER_PALETTE = ['#c9d9a2', '#e9b78a', '#e3b9a3', '#b8cfc0'];
+const ORDER_COLORS = ['#c8762b', '#4f7a3a', '#8a4f7d', '#2f6f8f', '#b04a3a', '#7a6a2a'];
+const GALLERY_PAGE_SIZE = 48;
+
+const ICONS = {
+  external: '<path d="M7 17 17 7M8.5 7H17v8.5"/>',
+  back: '<path d="M19 12H5m6-6-6 6 6 6"/>',
+  left: '<path d="m15 5-7 7 7 7"/>',
+  right: '<path d="m9 5 7 7-7 7"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>'
 };
 
 const norm = (s) => (s ?? '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const ehUrl = (s) => /^https?:\/\//i.test((s || '').trim());
-const nulo = (s) => ((s ?? '').toString().trim() || null);
+const isUrl = (s) => /^https?:\/\//i.test((s || '').trim());
+const orNull = (s) => ((s ?? '').toString().trim() || null);
 const num = (v) => (v === '' || v === null || v === undefined || Number.isNaN(v) ? null : Number(v));
 const cmp = (a, b) => a.localeCompare(b, 'pt-BR');
 const fmt = (v) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
-const SEM_FAMILIA = 'Sem família';
+const NO_FAMILY = 'Sem família';
 
-function tokenValido(token) {
+function tokenIsValid(token) {
   if (!token) return false;
   try {
-    const corpo = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return !corpo.exp || corpo.exp * 1000 > Date.now();
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return !payload.exp || payload.exp * 1000 > Date.now();
   } catch {
     return false;
   }
 }
 
-function contarPor(lista, chaveFn) {
-  const mapa = new Map();
-  lista.forEach((e) => {
-    const k = chaveFn(e);
-    if (!mapa.has(k)) mapa.set(k, new Set());
-    mapa.get(k).add(e.especie);
+function countBy(list, keyFn) {
+  const map = new Map();
+  list.forEach((e) => {
+    const k = keyFn(e);
+    if (!map.has(k)) map.set(k, new Set());
+    map.get(k).add(e.species);
   });
-  return mapa;
+  return map;
 }
 
 // ------------------------------------------------------------------ CSV
-function lerCsv(texto) {
-  texto = texto.replace(/^﻿/, '');
-  const primeira = texto.split(/\r?\n/, 1)[0] || '';
-  const delim = [';', '\t', ','].map((d) => [d, primeira.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
-  const linhas = [];
-  let campo = '';
-  let linha = [];
-  let aspas = false;
-  const fechar = () => {
-    linha.push(campo);
-    campo = '';
-    if (linha.some((x) => x.trim() !== '')) linhas.push(linha);
-    linha = [];
+function parseCsv(text) {
+  text = text.replace(/^﻿/, '');
+  const first = text.split(/\r?\n/, 1)[0] || '';
+  const delimiter = [';', '\t', ','].map((d) => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = [];
+  let cell = '';
+  let row = [];
+  let quoted = false;
+  const endRow = () => {
+    row.push(cell);
+    cell = '';
+    if (row.some((x) => x.trim() !== '')) rows.push(row);
+    row = [];
   };
-  for (let i = 0; i < texto.length; i++) {
-    const c = texto[i];
-    if (aspas) {
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
       if (c === '"') {
-        if (texto[i + 1] === '"') { campo += '"'; i++; } else aspas = false;
-      } else campo += c;
-    } else if (c === '"') aspas = true;
-    else if (c === delim) { linha.push(campo); campo = ''; }
-    else if (c === '\n' || c === '\r') { if (c === '\r' && texto[i + 1] === '\n') i++; fechar(); }
-    else campo += c;
+        if (text[i + 1] === '"') { cell += '"'; i++; } else quoted = false;
+      } else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === delimiter) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; endRow(); }
+    else cell += c;
   }
-  if (campo !== '' || linha.length) fechar();
-  return linhas;
+  if (cell !== '' || row.length) endRow();
+  return rows;
 }
 
+// header names accepted in imported files; the Portuguese ones are what users write
 const ALIASES = {
-  codigo_etiqueta: ['codigo_etiqueta', 'codigo', 'etiqueta', 'cod', 'id_etiqueta', 'tombo'],
-  grupo_insetos: ['ordem', 'grupo', 'grupo_insetos', 'order'],
-  familia: ['familia', 'family'],
-  especie: ['especie', 'species', 'nome_cientifico'],
-  data_coleta: ['data_coleta', 'data', 'data_da_coleta', 'date'],
-  local_coleta: ['local_coleta', 'local', 'localidade'],
+  catalog_number: ['codigo_etiqueta', 'codigo', 'etiqueta', 'cod', 'id_etiqueta', 'tombo', 'catalog_number'],
+  insect_order: ['ordem', 'grupo', 'grupo_insetos', 'order', 'insect_order'],
+  family: ['familia', 'family'],
+  species: ['especie', 'species', 'nome_cientifico'],
+  collection_date: ['data_coleta', 'data', 'data_da_coleta', 'date', 'collection_date'],
+  locality: ['local_coleta', 'local', 'localidade', 'locality'],
   latitude: ['latitude', 'lat'],
   longitude: ['longitude', 'lon', 'lng', 'long'],
-  altitude_m: ['altitude', 'altitude_m', 'alt'],
-  sexo: ['sexo', 'sex'],
-  estagio: ['estagio', 'estadio', 'casta'],
-  imagem_arquivo: ['imagem', 'imagem_arquivo', 'arquivo_imagem', 'arquivo', 'foto', 'imagem_zenodo'],
-  fotografia_url: ['fotografia_url', 'url_imagem', 'foto_url'],
-  notas: ['notas', 'observacoes', 'obs', 'observacao'],
-  determinador: ['determinador', 'identificado_por', 'identificador'],
-  data_determinacao: ['data_determinacao', 'data_da_determinacao', 'data_identificacao'],
-  metodo_coleta: ['metodo_coleta', 'metodo', 'metodo_de_coleta'],
+  elevation_m: ['altitude', 'altitude_m', 'alt', 'elevation_m'],
+  sex: ['sexo', 'sex'],
+  life_stage: ['estagio', 'estadio', 'casta', 'life_stage'],
+  image_file: ['imagem', 'imagem_arquivo', 'arquivo_imagem', 'arquivo', 'foto', 'imagem_zenodo', 'image_file'],
+  photo_url: ['fotografia_url', 'url_imagem', 'foto_url', 'photo_url'],
+  notes: ['notas', 'observacoes', 'obs', 'observacao', 'notes'],
+  identified_by: ['determinador', 'identificado_por', 'identificador', 'identified_by'],
+  identification_date: ['data_determinacao', 'data_da_determinacao', 'data_identificacao', 'identification_date'],
+  sampling_method: ['metodo_coleta', 'metodo', 'metodo_de_coleta', 'sampling_method'],
   habitat: ['habitat'],
-  coletor: ['coletor', 'coletado_por', 'coletores'],
-  numero_campo: ['numero_campo', 'numero_de_campo', 'n_campo'],
-  localizacao_fisica: ['localizacao_fisica', 'localizacao', 'caixa', 'gaveta'],
-  emprestimo_situacao: ['emprestimo', 'emprestimo_situacao', 'situacao_emprestimo'],
-  emprestimo_para: ['emprestado_para', 'emprestimo_para'],
-  emprestimo_data: ['data_emprestimo', 'emprestimo_data'],
-  notas_internas: ['notas_internas', 'observacoes_internas'],
-  projeto: ['projeto', 'titulo_projeto'],
-  projeto_id: ['projeto_id', 'id_projeto']
+  collector: ['coletor', 'coletado_por', 'coletores', 'collector'],
+  field_number: ['numero_campo', 'numero_de_campo', 'n_campo', 'field_number'],
+  storage_location: ['localizacao_fisica', 'localizacao', 'caixa', 'gaveta', 'storage_location'],
+  loan_status: ['emprestimo', 'emprestimo_situacao', 'situacao_emprestimo', 'loan_status'],
+  loaned_to: ['emprestado_para', 'emprestimo_para', 'loaned_to'],
+  loan_date: ['data_emprestimo', 'emprestimo_data', 'loan_date'],
+  internal_notes: ['notas_internas', 'observacoes_internas', 'internal_notes'],
+  project: ['projeto', 'titulo_projeto', 'project'],
+  project_id: ['projeto_id', 'id_projeto', 'project_id']
 };
-const CAMPOS_IMPORTACAO = [
-  ['codigo_etiqueta', 'Código da etiqueta'], ['grupo_insetos', 'Ordem'], ['familia', 'Família'], ['especie', 'Espécie'],
-  ['data_coleta', 'Data da coleta'], ['local_coleta', 'Local de coleta'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
-  ['altitude_m', 'Altitude (m)'], ['sexo', 'Sexo'], ['estagio', 'Estágio'], ['imagem_arquivo', 'Arquivo da imagem'],
-  ['fotografia_url', 'URL da fotografia'], ['notas', 'Notas'], ['projeto', 'Projeto (título)'], ['projeto_id', 'Projeto (id)'],
-  ['determinador', 'Determinador'], ['data_determinacao', 'Data da determinação'], ['metodo_coleta', 'Método de coleta'], ['habitat', 'Habitat'],
-  ['coletor', 'Coletor (interno)'], ['numero_campo', 'Número de campo (interno)'], ['localizacao_fisica', 'Localização física (interno)'],
-  ['emprestimo_situacao', 'Empréstimo (interno)'], ['emprestimo_para', 'Emprestado para (interno)'], ['emprestimo_data', 'Data do empréstimo (interno)'],
-  ['notas_internas', 'Notas internas']
+const IMPORT_FIELDS = [
+  ['catalog_number', 'Código da etiqueta'], ['insect_order', 'Ordem'], ['family', 'Família'], ['species', 'Espécie'],
+  ['collection_date', 'Data da coleta'], ['locality', 'Local de coleta'], ['latitude', 'Latitude'], ['longitude', 'Longitude'],
+  ['elevation_m', 'Altitude (m)'], ['sex', 'Sexo'], ['life_stage', 'Estágio'], ['image_file', 'Arquivo da imagem'],
+  ['photo_url', 'URL da fotografia'], ['notes', 'Notas'], ['project', 'Projeto (título)'], ['project_id', 'Projeto (id)'],
+  ['identified_by', 'Determinador'], ['identification_date', 'Data da determinação'], ['sampling_method', 'Método de coleta'], ['habitat', 'Habitat'],
+  ['collector', 'Coletor (interno)'], ['field_number', 'Número de campo (interno)'], ['storage_location', 'Localização física (interno)'],
+  ['loan_status', 'Empréstimo (interno)'], ['loaned_to', 'Emprestado para (interno)'], ['loan_date', 'Data do empréstimo (interno)'],
+  ['internal_notes', 'Notas internas']
 ];
 
-function chaveCabecalho(h) {
+function headerKey(h) {
   return norm(h.replace(/\([^)]*\)/g, '')).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
-function interpretarCabecalho(h) {
-  const chave = chaveCabecalho(h);
-  for (const [campo, nomes] of Object.entries(ALIASES)) {
-    if (nomes.includes(chave)) return { destino: `campo:${campo}`, traco: '', unidade: 'mm' };
+function interpretHeader(h) {
+  const key = headerKey(h);
+  for (const [field, names] of Object.entries(ALIASES)) {
+    if (names.includes(key)) return { target: `field:${field}`, trait: '', unit: 'mm' };
   }
-  if (chave === 'id') return { destino: 'ignorar', traco: '', unidade: 'mm' };
+  if (key === 'id') return { target: 'ignore', trait: '', unit: 'mm' };
   const m = /\(([^)]*)\)\s*$/.exec(h);
-  return { destino: 'medida', traco: h.replace(/\([^)]*\)\s*$/, '').trim(), unidade: m && m[1].trim() ? m[1].trim() : 'mm' };
+  return { target: 'measurement', trait: h.replace(/\([^)]*\)\s*$/, '').trim(), unit: m && m[1].trim() ? m[1].trim() : 'mm' };
 }
 
-function numeroBr(v) {
+// accepts the Brazilian decimal comma
+function parseNumber(v) {
   const t = String(v).trim().replace(/\s/g, '').replace(',', '.');
   return t !== '' && Number.isFinite(Number(t)) ? Number(t) : NaN;
 }
 
-function dataIso(v) {
+function toIsoDate(v) {
   const t = String(v).trim();
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
@@ -139,20 +143,20 @@ function dataIso(v) {
 }
 
 // ------------------------------------------------------------------ Zenodo
-// as regras de montagem das URLs ficam todas aqui, para ajustar fácil se o Zenodo mudar
+// all URL building rules live here, so they are easy to adjust if Zenodo changes
 const Zenodo = {
-  idDoRegistro(url) {
+  recordId(url) {
     const t = url || '';
     const m = /zenodo\.org\/records?\/(\d+)/i.exec(t) || /10\.5281\/zenodo\.(\d+)/i.exec(t);
     return m ? m[1] : null;
   },
-  // ids que começam com 0 são fictícios (o Zenodo nunca usa); as imagens vêm da rota /demo da API
-  ehDemo(id) { return !!id && id.startsWith('0'); },
-  miniatura(id, arquivo, largura) {
-    return `https://zenodo.org/api/iiif/record:${id}:${encodeURIComponent(arquivo)}/full/${largura},/0/default.jpg`;
+  // ids starting with 0 are fake (Zenodo never uses them); their images come from the API /demo route
+  isDemo(id) { return !!id && id.startsWith('0'); },
+  thumbnail(id, file, width) {
+    return `https://zenodo.org/api/iiif/record:${id}:${encodeURIComponent(file)}/full/${width},/0/default.jpg`;
   },
-  arquivo(id, arquivo) {
-    return `https://zenodo.org/records/${id}/files/${encodeURIComponent(arquivo)}`;
+  file(id, file) {
+    return `https://zenodo.org/records/${id}/files/${encodeURIComponent(file)}`;
   }
 };
 
@@ -160,1243 +164,1247 @@ const app = createApp({
   data() {
     return {
       apiUrl: ((window.ENTOMOBASE_CONFIG || {}).apiUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
-      rota: { nome: 'sobre' },
-      termoBusca: '',
-      buscaColecao: '',
-      sugAberta: false,
-      idxSug: -1,
-      ordenacao: 'recentes',
-      opcoesOrdem: [
-        { valor: 'recentes', rotulo: 'Mais recentes' },
-        { valor: 'titulo', rotulo: 'Título (A-Z)' },
-        { valor: 'especies', rotulo: 'Mais espécies' }
+      route: { name: 'about' },
+      searchTerm: '',
+      collectionSearch: '',
+      suggestionsOpen: false,
+      suggestionIndex: -1,
+      sortOrder: 'recent',
+      sortOptions: [
+        { value: 'recent', label: 'Mais recentes' },
+        { value: 'title', label: 'Título (A-Z)' },
+        { value: 'species', label: 'Mais espécies' }
       ],
-      carregando: true,
-      erroApi: null,
-      projetos: [],
-      especimes: [],
+      loading: true,
+      apiError: null,
+      projects: [],
+      specimens: [],
       token: null,
       userEmail: null,
       showLogin: false,
-      loginErro: null,
-      credenciais: { email: '', senha: '' },
-      enviando: false,
-      menuAberto: null,
+      loginError: null,
+      credentials: { email: '', password: '' },
+      submitting: false,
+      openMenu: null,
       popover: null,
-      filtros: { ano: null, grupo: null, status: null, local: null },
-      colecaoFiltros: { ordens: [], familias: [], repos: [], anos: [] },
-      familiasAbertas: false,
-      filtrosMobileAbertos: false,
-      abertos: {},
-      limiteGaleria: POR_PAGINA_GALERIA,
-      painel: null,
-      mapaFoco: null,
-      formProjeto: null,
-      formEspecime: null,
-      importacao: null,
-      erroForm: null,
-      dicaNome: null,
-      tab: { pagina: 1, porPagina: 25, ordem: 'codigo', dir: 'asc', busca: '' },
-      tamanhosPagina: [25, 50, 100],
-      confirmacao: null,
+      filters: { year: null, group: null, status: null, locality: null },
+      collectionFilters: { orders: [], families: [], repos: [], years: [] },
+      familiesOpen: false,
+      mobileFiltersOpen: false,
+      expanded: {},
+      galleryLimit: GALLERY_PAGE_SIZE,
+      panel: null,
+      mapFocus: null,
+      projectForm: null,
+      specimenForm: null,
+      importJob: null,
+      formError: null,
+      nameHint: null,
+      table: { page: 1, perPage: 25, sort: 'catalog', dir: 'asc', query: '' },
+      pageSizes: [25, 50, 100],
+      confirmation: null,
       info: null,
       toast: null,
-      filtrosProjeto: [
-        { chave: 'ano', rotulo: 'Ano' },
-        { chave: 'grupo', rotulo: 'Grupo' },
-        { chave: 'status', rotulo: 'Status' },
-        { chave: 'local', rotulo: 'Local' }
+      projectFilters: [
+        { key: 'year', label: 'Ano' },
+        { key: 'group', label: 'Grupo' },
+        { key: 'status', label: 'Status' },
+        { key: 'locality', label: 'Local' }
       ],
-      abas: [
-        { id: 'sobre', rotulo: 'Sobre', href: '#/sobre' },
-        { id: 'projetos', rotulo: 'Projetos', href: '#/projetos' },
-        { id: 'colecao', rotulo: 'Coleção', href: '#/colecao' }
+      tabs: [
+        { id: 'about', label: 'Sobre', href: '#/sobre' },
+        { id: 'projects', label: 'Projetos', href: '#/projetos' },
+        { id: 'collection', label: 'Coleção', href: '#/colecao' }
       ],
-      textoSobre: '[Texto: o que é a EntomoBase, quem mantém, objetivo científico e como os dados são organizados.]',
-      contato: '[e-mail de contato]',
-      camposImportacao: CAMPOS_IMPORTACAO,
-      equipe: [
-        { iniciais: 'NS', nome: '[Nome Sobrenome]', papel: 'Graduando em Ciências Biológicas (UFMG)' },
-        { iniciais: 'NS', nome: '[Nome Sobrenome]', papel: 'Graduando em Ciências Biológicas (UFMG)' },
-        { iniciais: 'NS', nome: '[Nome Sobrenome]', papel: 'Graduando em Ciências Biológicas (UFMG)' }
+      aboutText: '[Texto: o que é a EntomoBase, quem mantém, objetivo científico e como os dados são organizados.]',
+      contact: '[e-mail de contato]',
+      importFields: IMPORT_FIELDS,
+      team: [
+        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' },
+        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' },
+        { initials: 'NS', name: '[Nome Sobrenome]', role: 'Graduando em Ciências Biológicas (UFMG)' }
       ]
     };
   },
 
   computed: {
-    acessoLab() { return !!this.token; },
-    abaAtiva() { return this.rota.nome === 'projeto' ? 'projetos' : this.rota.nome; },
-    visaoColecao() { return this.rota.visao || 'arvore'; },
-    vistaProjeto() { return this.rota.vista || 'tabela'; },
-    contatoEhEmail() { return /^[^\s@\[\]]+@[^\s@\[\]]+\.[^\s@\[\]]+$/.test(this.contato); },
+    labAccess() { return !!this.token; },
+    activeTab() { return this.route.name === 'project' ? 'projects' : this.route.name; },
+    collectionView() { return this.route.view || 'tree'; },
+    projectView() { return this.route.view || 'table'; },
+    contactIsEmail() { return /^[^\s@\[\]]+@[^\s@\[\]]+\.[^\s@\[\]]+$/.test(this.contact); },
 
-    textoCitacao() {
-      const data = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
-      return `EntomoBase. Universidade Federal de Minas Gerais. Disponível em: ${location.href.split('#')[0]}. Acesso em: ${data}.`;
+    citationText() {
+      const date = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+      return `EntomoBase. Universidade Federal de Minas Gerais. Disponível em: ${location.href.split('#')[0]}. Acesso em: ${date}.`;
     },
 
-    tituloPagina() {
-      const nomes = { sobre: 'Sobre', projetos: 'Projetos', colecao: 'Coleção', busca: 'Busca' };
-      if (this.rota.nome === 'projeto') {
-        return this.projetoAtual ? `${this.projetoAtual.titulo} · EntomoBase` : 'Projeto · EntomoBase';
+    pageTitle() {
+      const names = { about: 'Sobre', projects: 'Projetos', collection: 'Coleção', search: 'Busca' };
+      if (this.route.name === 'project') {
+        return this.currentProject ? `${this.currentProject.title} · EntomoBase` : 'Projeto · EntomoBase';
       }
-      return `${nomes[this.rota.nome]} · EntomoBase`;
+      return `${names[this.route.name]} · EntomoBase`;
     },
 
-    // ---------- dados base ----------
-    projetosPorId() {
-      const mapa = {};
-      this.projetos.forEach((p) => { mapa[p.id] = p; });
-      return mapa;
+    // ---------- base data ----------
+    projectsById() {
+      const map = {};
+      this.projects.forEach((p) => { map[p.id] = p; });
+      return map;
     },
-    especimesPorId() {
-      const mapa = {};
-      this.especimes.forEach((e) => { mapa[e.id] = e; });
-      return mapa;
+    specimensById() {
+      const map = {};
+      this.specimens.forEach((e) => { map[e.id] = e; });
+      return map;
     },
-    especimesPorProjeto() {
-      const mapa = {};
-      this.especimes.forEach((e) => {
-        if (e.projeto_id === null || e.projeto_id === undefined) return;
-        (mapa[e.projeto_id] = mapa[e.projeto_id] || []).push(e);
+    specimensByProject() {
+      const map = {};
+      this.specimens.forEach((e) => {
+        if (e.project_id === null || e.project_id === undefined) return;
+        (map[e.project_id] = map[e.project_id] || []).push(e);
       });
-      return mapa;
+      return map;
     },
-    coresOrdem() {
-      const ordens = [...new Set(this.especimes.map((e) => e.grupo_insetos))].sort(cmp);
-      const mapa = {};
-      ordens.forEach((o, i) => { mapa[o] = CORES_ORDEM[i % CORES_ORDEM.length]; });
-      return mapa;
+    orderColors() {
+      const orders = [...new Set(this.specimens.map((e) => e.insect_order))].sort(cmp);
+      const map = {};
+      orders.forEach((o, i) => { map[o] = ORDER_COLORS[i % ORDER_COLORS.length]; });
+      return map;
     },
 
-    // ---------- projetos ----------
-    projetoAtual() {
-      return this.rota.nome === 'projeto' ? (this.projetosPorId[this.rota.id] || null) : null;
+    // ---------- projects ----------
+    currentProject() {
+      return this.route.name === 'project' ? (this.projectsById[this.route.id] || null) : null;
     },
-    tabelaOrdenada() {
-      const q = norm(this.tab.busca).trim();
-      let lista = this.especimesDoProjeto;
+    sortedTable() {
+      const q = norm(this.table.query).trim();
+      let list = this.projectSpecimens;
       if (q) {
-        lista = lista.filter((e) => norm([e.codigo_etiqueta, e.especie, e.familia, e.local_coleta, e.determinador, e.sexo, e.estagio].join(' ')).includes(q));
+        list = list.filter((e) => norm([e.catalog_number, e.species, e.family, e.locality, e.identified_by, e.sex, e.life_stage].join(' ')).includes(q));
       }
-      const { ordem, dir } = this.tab;
-      const valor = (e) => {
-        if (ordem === 'especie') return e.especie;
-        if (ordem === 'familia') return e.familia;
-        if (ordem === 'local') return e.local_coleta;
-        if (ordem === 'data') return e.data_coleta;
-        if (ordem.startsWith('m:')) {
-          const m = (e.medidas || []).find((x) => `${x.traco}|${x.unidade}` === ordem.slice(2));
-          return m ? m.valor : null;
+      const { sort, dir } = this.table;
+      const value = (e) => {
+        if (sort === 'species') return e.species;
+        if (sort === 'family') return e.family;
+        if (sort === 'locality') return e.locality;
+        if (sort === 'date') return e.collection_date;
+        if (sort.startsWith('m:')) {
+          const m = (e.measurements || []).find((x) => `${x.trait}|${x.unit}` === sort.slice(2));
+          return m ? m.value : null;
         }
-        return e.codigo_etiqueta;
+        return e.catalog_number;
       };
-      const vazio = (v) => v === null || v === undefined || v === '';
-      const sinal = dir === 'desc' ? -1 : 1;
-      return [...lista].sort((a, b) => {
-        const x = valor(a);
-        const y = valor(b);
-        if (vazio(x)) return vazio(y) ? 0 : 1;
-        if (vazio(y)) return -1;
+      const empty = (v) => v === null || v === undefined || v === '';
+      const sign = dir === 'desc' ? -1 : 1;
+      return [...list].sort((a, b) => {
+        const x = value(a);
+        const y = value(b);
+        if (empty(x)) return empty(y) ? 0 : 1;
+        if (empty(y)) return -1;
         const r = typeof x === 'number' && typeof y === 'number' ? x - y : cmp(String(x), String(y));
-        return r * sinal || cmp(a.codigo_etiqueta, b.codigo_etiqueta);
+        return r * sign || cmp(a.catalog_number, b.catalog_number);
       });
     },
-    totalPaginas() { return Math.max(1, Math.ceil(this.tabelaOrdenada.length / this.tab.porPagina)); },
-    paginaAtual() { return Math.min(Math.max(1, this.tab.pagina), this.totalPaginas); },
-    tabelaPagina() {
-      const ini = (this.paginaAtual - 1) * this.tab.porPagina;
-      return this.tabelaOrdenada.slice(ini, ini + this.tab.porPagina);
+    totalPages() { return Math.max(1, Math.ceil(this.sortedTable.length / this.table.perPage)); },
+    currentPage() { return Math.min(Math.max(1, this.table.page), this.totalPages); },
+    tablePage() {
+      const start = (this.currentPage - 1) * this.table.perPage;
+      return this.sortedTable.slice(start, start + this.table.perPage);
     },
-    faixaTabela() {
-      const n = this.tabelaOrdenada.length;
+    tableRange() {
+      const n = this.sortedTable.length;
       if (!n) return '0 de 0';
-      const ini = (this.paginaAtual - 1) * this.tab.porPagina + 1;
-      return `${ini} a ${Math.min(n, ini + this.tab.porPagina - 1)} de ${n.toLocaleString('pt-BR')}`;
+      const start = (this.currentPage - 1) * this.table.perPage + 1;
+      return `${start} a ${Math.min(n, start + this.table.perPage - 1)} de ${n.toLocaleString('pt-BR')}`;
     },
-    botoesPagina() {
-      const total = this.totalPaginas;
-      const atual = this.paginaAtual;
-      const nums = new Set([1, total, atual - 1, atual, atual + 1]);
-      if (atual <= 3) { nums.add(2); nums.add(3); nums.add(4); }
-      if (atual >= total - 2) { nums.add(total - 1); nums.add(total - 2); nums.add(total - 3); }
-      const lista = [...nums].filter((n) => n >= 1 && n <= total).sort((x, y) => x - y);
-      const saida = [];
-      lista.forEach((n, i) => {
-        if (i && n - lista[i - 1] > 1) saida.push({ reticencias: true, chave: `r${n}` });
-        saida.push({ n, chave: `p${n}` });
+    pageButtons() {
+      const total = this.totalPages;
+      const current = this.currentPage;
+      const nums = new Set([1, total, current - 1, current, current + 1]);
+      if (current <= 3) { nums.add(2); nums.add(3); nums.add(4); }
+      if (current >= total - 2) { nums.add(total - 1); nums.add(total - 2); nums.add(total - 3); }
+      const list = [...nums].filter((n) => n >= 1 && n <= total).sort((x, y) => x - y);
+      const out = [];
+      list.forEach((n, i) => {
+        if (i && n - list[i - 1] > 1) out.push({ ellipsis: true, key: `r${n}` });
+        out.push({ n, key: `p${n}` });
       });
-      return saida;
+      return out;
     },
-    tracosProjeto() {
-      const p = this.projetoAtual;
-      return p && p.tracos_medidos ? p.tracos_medidos.split(',').map((t) => t.trim()).filter(Boolean) : [];
+    projectTraits() {
+      const p = this.currentProject;
+      return p && p.measured_traits ? p.measured_traits.split(',').map((t) => t.trim()).filter(Boolean) : [];
     },
-    especimesDoProjeto() {
-      const p = this.projetoAtual;
+    projectSpecimens() {
+      const p = this.currentProject;
       if (!p) return [];
-      return [...(this.especimesPorProjeto[p.id] || [])].sort((a, b) => cmp(a.codigo_etiqueta, b.codigo_etiqueta));
+      return [...(this.specimensByProject[p.id] || [])].sort((a, b) => cmp(a.catalog_number, b.catalog_number));
     },
-    colunasMedidas() {
-      const colunas = [];
-      this.especimesDoProjeto.forEach((e) => (e.medidas || []).forEach((m) => {
-        const chave = `${m.traco}|${m.unidade}`;
-        if (!colunas.some((c) => c.chave === chave)) colunas.push({ chave, traco: m.traco, unidade: m.unidade });
+    measurementColumns() {
+      const columns = [];
+      this.projectSpecimens.forEach((e) => (e.measurements || []).forEach((m) => {
+        const key = `${m.trait}|${m.unit}`;
+        if (!columns.some((c) => c.key === key)) columns.push({ key, trait: m.trait, unit: m.unit });
       }));
-      return colunas;
+      return columns;
     },
-    opcoesFiltro() {
-      const unicos = (fn) => [...new Set(this.projetos.map(fn).filter((v) => v !== null && v !== undefined && v !== ''))];
+    filterOptions() {
+      const unique = (fn) => [...new Set(this.projects.map(fn).filter((v) => v !== null && v !== undefined && v !== ''))];
       const status = [];
-      if (this.projetos.some((p) => p.finalizado)) status.push({ valor: 'concluido', rotulo: 'Concluído' });
-      if (this.projetos.some((p) => !p.finalizado)) status.push({ valor: 'andamento', rotulo: 'Em andamento' });
+      if (this.projects.some((p) => p.finished)) status.push({ value: 'finished', label: 'Concluído' });
+      if (this.projects.some((p) => !p.finished)) status.push({ value: 'in_progress', label: 'Em andamento' });
       return {
-        ano: unicos((p) => p.ano).sort((a, b) => b - a).map((v) => ({ valor: v, rotulo: String(v) })),
-        grupo: unicos((p) => p.grupo_insetos).sort(cmp).map((v) => ({ valor: v, rotulo: v })),
-        local: unicos((p) => p.local_coleta).sort(cmp).map((v) => ({ valor: v, rotulo: v })),
+        year: unique((p) => p.year).sort((a, b) => b - a).map((v) => ({ value: v, label: String(v) })),
+        group: unique((p) => p.insect_group).sort(cmp).map((v) => ({ value: v, label: v })),
+        locality: unique((p) => p.locality).sort(cmp).map((v) => ({ value: v, label: v })),
         status
       };
     },
-    filtrosProjetoAtivos() { return Object.values(this.filtros).some((v) => v !== null); },
-    indiceProjetos() {
-      const mapa = {};
-      this.projetos.forEach((p) => {
-        const especies = (this.especimesPorProjeto[p.id] || []).map((e) => `${e.especie} ${e.familia || ''}`).join(' ');
-        mapa[p.id] = norm([p.titulo, p.grupo_insetos, p.local_coleta, p.ano, p.descricao, p.tracos_medidos, especies].join(' '));
+    projectFiltersActive() { return Object.values(this.filters).some((v) => v !== null); },
+    projectIndex() {
+      const map = {};
+      this.projects.forEach((p) => {
+        const species = (this.specimensByProject[p.id] || []).map((e) => `${e.species} ${e.family || ''}`).join(' ');
+        map[p.id] = norm([p.title, p.insect_group, p.locality, p.year, p.description, p.measured_traits, species].join(' '));
       });
-      return mapa;
+      return map;
     },
-    rotuloOrdenacao() { return this.opcoesOrdem.find((o) => o.valor === this.ordenacao).rotulo; },
-    projetosFiltrados() {
-      const f = this.filtros;
-      const lista = this.projetos.filter((p) => {
-        if (f.ano !== null && p.ano !== f.ano) return false;
-        if (f.grupo !== null && p.grupo_insetos !== f.grupo) return false;
-        if (f.status !== null && (p.finalizado ? 'concluido' : 'andamento') !== f.status) return false;
-        if (f.local !== null && p.local_coleta !== f.local) return false;
+    sortLabel() { return this.sortOptions.find((o) => o.value === this.sortOrder).label; },
+    filteredProjects() {
+      const f = this.filters;
+      const list = this.projects.filter((p) => {
+        if (f.year !== null && p.year !== f.year) return false;
+        if (f.group !== null && p.insect_group !== f.group) return false;
+        if (f.status !== null && (p.finished ? 'finished' : 'in_progress') !== f.status) return false;
+        if (f.locality !== null && p.locality !== f.locality) return false;
         return true;
       });
-      if (this.ordenacao === 'titulo') lista.sort((a, b) => cmp(a.titulo, b.titulo));
-      else if (this.ordenacao === 'especies') {
-        lista.sort((a, b) => this.contarEspecies(this.especimesDe(b)) - this.contarEspecies(this.especimesDe(a)) || cmp(a.titulo, b.titulo));
-      } else lista.sort((a, b) => b.ano - a.ano || a.id - b.id);
-      return lista;
+      if (this.sortOrder === 'title') list.sort((a, b) => cmp(a.title, b.title));
+      else if (this.sortOrder === 'species') {
+        list.sort((a, b) => this.countSpecies(this.specimensOf(b)) - this.countSpecies(this.specimensOf(a)) || cmp(a.title, b.title));
+      } else list.sort((a, b) => b.year - a.year || a.id - b.id);
+      return list;
     },
 
-    // ---------- busca global ----------
-    consulta() { return norm(this.termoBusca).trim(); },
-    mostrarSug() { return this.sugAberta && this.consulta.length >= 2 && this.rota.nome !== 'busca'; },
-    especiesGlobais() {
-      const mapa = new Map();
-      this.especimes.forEach((e) => {
-        if (!mapa.has(e.especie)) mapa.set(e.especie, { nome: e.especie, ordem: e.grupo_insetos, familia: e.familia || '', especimes: [] });
-        mapa.get(e.especie).especimes.push(e);
+    // ---------- global search ----------
+    query() { return norm(this.searchTerm).trim(); },
+    showSuggestions() { return this.suggestionsOpen && this.query.length >= 2 && this.route.name !== 'search'; },
+    globalSpecies() {
+      const map = new Map();
+      this.specimens.forEach((e) => {
+        if (!map.has(e.species)) map.set(e.species, { name: e.species, order: e.insect_order, family: e.family || '', specimens: [] });
+        map.get(e.species).specimens.push(e);
       });
-      return [...mapa.values()];
+      return [...map.values()];
     },
-    resultados() {
-      const q = this.consulta;
-      const vazio = { projetos: [], especies: [], especimes: [], repositorios: [], paginas: [], total: 0 };
-      if (q.length < 2) return vazio;
-      const r = { ...vazio };
-      r.projetos = this.projetos.filter((p) => this.indiceProjetos[p.id].includes(q)).sort((a, b) => b.ano - a.ano || a.id - b.id);
-      r.especies = this.especiesGlobais
-        .filter((x) => norm(`${x.nome} ${x.familia} ${x.ordem}`).includes(q))
-        .sort((a, b) => cmp(a.nome, b.nome));
-      r.especimes = this.especimesIndexados
-        .filter((i) => norm(`${i.e.codigo_etiqueta} ${i.e.local_coleta || ''}`).includes(q))
+    results() {
+      const q = this.query;
+      const empty = { projects: [], species: [], specimens: [], repositories: [], pages: [], total: 0 };
+      if (q.length < 2) return empty;
+      const r = { ...empty };
+      r.projects = this.projects.filter((p) => this.projectIndex[p.id].includes(q)).sort((a, b) => b.year - a.year || a.id - b.id);
+      r.species = this.globalSpecies
+        .filter((x) => norm(`${x.name} ${x.family} ${x.order}`).includes(q))
+        .sort((a, b) => cmp(a.name, b.name));
+      r.specimens = this.indexedSpecimens
+        .filter((i) => norm(`${i.e.catalog_number} ${i.e.locality || ''}`).includes(q))
         .map((i) => i.e);
-      r.repositorios = this.repositorios.filter((x) => norm(`${x.titulo} ${x.descricao || ''}`).includes(q));
-      const textoSobre = norm([this.textoSobre, ...this.equipe.map((m) => `${m.nome} ${m.papel}`)].join(' '));
-      if (textoSobre.includes(q)) r.paginas = [{ titulo: 'Sobre', trecho: this.textoSobre }];
-      r.total = r.projetos.length + r.especies.length + r.especimes.length + r.repositorios.length + r.paginas.length;
+      r.repositories = this.repositories.filter((x) => norm(`${x.title} ${x.description || ''}`).includes(q));
+      const aboutText = norm([this.aboutText, ...this.team.map((m) => `${m.name} ${m.role}`)].join(' '));
+      if (aboutText.includes(q)) r.pages = [{ title: 'Sobre', excerpt: this.aboutText }];
+      r.total = r.projects.length + r.species.length + r.specimens.length + r.repositories.length + r.pages.length;
       return r;
     },
-    sugestoesBusca() {
-      const r = this.resultados;
-      const lista = [];
-      r.projetos.slice(0, 4).forEach((p) => lista.push({ grupo: 'Projetos', rotulo: p.titulo, sub: `${p.grupo_insetos} · ${p.ano}`, href: `#/projetos/${p.id}` }));
-      r.especies.slice(0, 4).forEach((x) => lista.push({ grupo: 'Espécies', rotulo: x.nome, italico: true, sub: x.familia || x.ordem, especie: x.nome }));
-      r.repositorios.slice(0, 2).forEach((x) => lista.push({ grupo: 'Repositórios', rotulo: x.titulo, sub: 'Zenodo', href: `#/projetos/${x.id}` }));
-      r.especimes.slice(0, 3).forEach((e) => lista.push({ grupo: 'Espécimes', rotulo: e.codigo_etiqueta, sub: e.especie, href: this.destinoEspecime(e) }));
-      r.paginas.forEach((x) => lista.push({ grupo: 'Páginas', rotulo: x.titulo, sub: '', href: '#/sobre' }));
-      return lista;
+    searchSuggestions() {
+      const r = this.results;
+      const list = [];
+      r.projects.slice(0, 4).forEach((p) => list.push({ group: 'Projetos', label: p.title, sub: `${p.insect_group} · ${p.year}`, href: `#/projetos/${p.id}` }));
+      r.species.slice(0, 4).forEach((x) => list.push({ group: 'Espécies', label: x.name, italic: true, sub: x.family || x.order, species: x.name }));
+      r.repositories.slice(0, 2).forEach((x) => list.push({ group: 'Repositórios', label: x.title, sub: 'Zenodo', href: `#/projetos/${x.id}` }));
+      r.specimens.slice(0, 3).forEach((e) => list.push({ group: 'Espécimes', label: e.catalog_number, sub: e.species, href: this.specimenTarget(e) }));
+      r.pages.forEach((x) => list.push({ group: 'Páginas', label: x.title, sub: '', href: '#/sobre' }));
+      return list;
     },
 
-    // ---------- coleção ----------
-    sugestoes() {
-      const unicos = (lista) => [...new Set(lista.filter(Boolean))].sort(cmp);
+    // ---------- collection ----------
+    suggestions() {
+      const unique = (list) => [...new Set(list.filter(Boolean))].sort(cmp);
       return {
-        grupos: unicos(this.projetos.map((p) => p.grupo_insetos)),
-        ordens: unicos(this.especimes.map((e) => e.grupo_insetos)),
-        familias: unicos(this.especimes.map((e) => e.familia)),
-        tracos: unicos(this.especimes.flatMap((e) => (e.medidas || []).map((m) => m.traco))),
-        sexos: ['macho', 'fêmea', 'indeterminado'],
-        estagios: ['adulto', 'operária', 'soldado', 'rainha', 'ninfa', 'larva', 'pupa']
+        groups: unique(this.projects.map((p) => p.insect_group)),
+        orders: unique(this.specimens.map((e) => e.insect_order)),
+        families: unique(this.specimens.map((e) => e.family)),
+        traits: unique(this.specimens.flatMap((e) => (e.measurements || []).map((m) => m.trait))),
+        sexes: ['macho', 'fêmea', 'indeterminado'],
+        stages: ['adulto', 'operária', 'soldado', 'rainha', 'ninfa', 'larva', 'pupa']
       };
     },
-    repositorios() {
-      return this.projetos
-        .filter((p) => ehUrl(p.dataset_externo_url))
-        .sort((a, b) => b.ano - a.ano || cmp(a.titulo, b.titulo));
+    repositories() {
+      return this.projects
+        .filter((p) => isUrl(p.dataset_url))
+        .sort((a, b) => b.year - a.year || cmp(a.title, b.title));
     },
-    especimesIndexados() {
-      return this.especimes.map((e) => {
-        const p = this.projetosPorId[e.projeto_id];
-        return { e, texto: norm([e.especie, e.familia, e.grupo_insetos, e.codigo_etiqueta, e.local_coleta, p ? p.titulo : ''].join(' ')) };
+    indexedSpecimens() {
+      return this.specimens.map((e) => {
+        const p = this.projectsById[e.project_id];
+        return { e, text: norm([e.species, e.family, e.insect_order, e.catalog_number, e.locality, p ? p.title : ''].join(' ')) };
       });
     },
-    espBase() {
-      const q = norm(this.buscaColecao).trim();
-      return this.especimesIndexados.filter((i) => !q || i.texto.includes(q)).map((i) => i.e);
+    baseSpecimens() {
+      const q = norm(this.collectionSearch).trim();
+      return this.indexedSpecimens.filter((i) => !q || i.text.includes(q)).map((i) => i.e);
     },
-    espFiltrados() {
-      const f = this.colecaoFiltros;
-      return this.espBase.filter((e) => {
-        if (f.ordens.length && !f.ordens.includes(e.grupo_insetos)) return false;
-        if (f.familias.length && !f.familias.includes(this.familiaDe(e))) return false;
-        if (f.repos.length && !f.repos.includes(e.projeto_id)) return false;
-        if (f.anos.length) {
-          const p = this.projetosPorId[e.projeto_id];
-          if (!p || !f.anos.includes(p.ano)) return false;
+    filteredSpecimens() {
+      const f = this.collectionFilters;
+      return this.baseSpecimens.filter((e) => {
+        if (f.orders.length && !f.orders.includes(e.insect_order)) return false;
+        if (f.families.length && !f.families.includes(this.familyOf(e))) return false;
+        if (f.repos.length && !f.repos.includes(e.project_id)) return false;
+        if (f.years.length) {
+          const p = this.projectsById[e.project_id];
+          if (!p || !f.years.includes(p.year)) return false;
         }
         return true;
       });
     },
-    filtrosColecaoAtivos() {
-      const f = this.colecaoFiltros;
-      return !!(f.ordens.length || f.familias.length || f.repos.length || f.anos.length);
+    collectionFiltersActive() {
+      const f = this.collectionFilters;
+      return !!(f.orders.length || f.families.length || f.repos.length || f.years.length);
     },
 
-    facetaOrdens() {
-      return [...contarPor(this.espBase, (e) => e.grupo_insetos)]
-        .map(([valor, s]) => ({ valor, n: s.size })).sort((a, b) => cmp(a.valor, b.valor));
+    orderFacet() {
+      return [...countBy(this.baseSpecimens, (e) => e.insect_order)]
+        .map(([value, s]) => ({ value, n: s.size })).sort((a, b) => cmp(a.value, b.value));
     },
-    facetaFamilias() {
-      const o = this.colecaoFiltros.ordens;
-      const base = o.length ? this.espBase.filter((e) => o.includes(e.grupo_insetos)) : this.espBase;
-      return [...contarPor(base, (e) => this.familiaDe(e))]
-        .map(([valor, s]) => ({ valor, n: s.size }))
-        .sort((a, b) => (a.valor === SEM_FAMILIA) - (b.valor === SEM_FAMILIA) || cmp(a.valor, b.valor));
+    familyFacet() {
+      const o = this.collectionFilters.orders;
+      const base = o.length ? this.baseSpecimens.filter((e) => o.includes(e.insect_order)) : this.baseSpecimens;
+      return [...countBy(base, (e) => this.familyOf(e))]
+        .map(([value, s]) => ({ value, n: s.size }))
+        .sort((a, b) => (a.value === NO_FAMILY) - (b.value === NO_FAMILY) || cmp(a.value, b.value));
     },
-    facetaRepos() {
-      const contagem = contarPor(this.espBase, (e) => e.projeto_id);
-      return this.repositorios.map((r) => ({ valor: r.id, rotulo: r.titulo, n: contagem.has(r.id) ? contagem.get(r.id).size : 0 }));
+    repoFacet() {
+      const counts = countBy(this.baseSpecimens, (e) => e.project_id);
+      return this.repositories.map((r) => ({ value: r.id, label: r.title, n: counts.has(r.id) ? counts.get(r.id).size : 0 }));
     },
-    facetaAnos() {
-      const mapa = new Map();
-      this.repositorios.forEach((r) => mapa.set(r.ano, (mapa.get(r.ano) || 0) + 1));
-      return [...mapa].map(([valor, n]) => ({ valor, n })).sort((a, b) => b.valor - a.valor);
+    yearFacet() {
+      const map = new Map();
+      this.repositories.forEach((r) => map.set(r.year, (map.get(r.year) || 0) + 1));
+      return [...map].map(([value, n]) => ({ value, n })).sort((a, b) => b.value - a.value);
     },
 
-    arvore() {
-      const ordens = new Map();
-      this.espFiltrados.forEach((e) => {
-        const fam = this.familiaDe(e);
-        if (!ordens.has(e.grupo_insetos)) ordens.set(e.grupo_insetos, new Map());
-        const familias = ordens.get(e.grupo_insetos);
-        if (!familias.has(fam)) familias.set(fam, new Map());
-        const especies = familias.get(fam);
-        if (!especies.has(e.especie)) especies.set(e.especie, []);
-        especies.get(e.especie).push(e);
+    tree() {
+      const orders = new Map();
+      this.filteredSpecimens.forEach((e) => {
+        const fam = this.familyOf(e);
+        if (!orders.has(e.insect_order)) orders.set(e.insect_order, new Map());
+        const families = orders.get(e.insect_order);
+        if (!families.has(fam)) families.set(fam, new Map());
+        const species = families.get(fam);
+        if (!species.has(e.species)) species.set(e.species, []);
+        species.get(e.species).push(e);
       });
-      return [...ordens].sort(([a], [b]) => cmp(a, b)).map(([nome, familias]) => {
-        const lista = [...familias]
-          .sort(([a], [b]) => (a === SEM_FAMILIA) - (b === SEM_FAMILIA) || cmp(a, b))
-          .map(([fnome, especies]) => ({
-            nome: fnome,
-            especies: [...especies].sort(([a], [b]) => cmp(a, b)).map(([snome, especimes]) => ({
-              nome: snome,
-              especimes: especimes.sort((x, y) => cmp(x.codigo_etiqueta, y.codigo_etiqueta)),
-              repos: this.reposDe(especimes)
+      return [...orders].sort(([a], [b]) => cmp(a, b)).map(([name, families]) => {
+        const list = [...families]
+          .sort(([a], [b]) => (a === NO_FAMILY) - (b === NO_FAMILY) || cmp(a, b))
+          .map(([familyName, species]) => ({
+            name: familyName,
+            species: [...species].sort(([a], [b]) => cmp(a, b)).map(([speciesName, specimens]) => ({
+              name: speciesName,
+              specimens: specimens.sort((x, y) => cmp(x.catalog_number, y.catalog_number)),
+              repos: this.reposOf(specimens)
             }))
           }));
         return {
-          nome,
-          familias: lista,
-          nEspecies: lista.reduce((acc, f) => acc + f.especies.length, 0)
+          name,
+          families: list,
+          speciesCount: list.reduce((acc, f) => acc + f.species.length, 0)
         };
       });
     },
-    totalEspecies() { return this.arvore.reduce((acc, o) => acc + o.nEspecies, 0); },
+    totalSpecies() { return this.tree.reduce((acc, o) => acc + o.speciesCount, 0); },
 
-    repositoriosFiltrados() {
-      const f = this.colecaoFiltros;
-      const q = norm(this.buscaColecao).trim();
-      const comEspecimes = new Set(this.espFiltrados.map((e) => e.projeto_id));
-      const filtraEspecimes = f.ordens.length || f.familias.length;
-      return this.repositorios.filter((r) => {
-        if (f.anos.length && !f.anos.includes(r.ano)) return false;
-        if (!filtraEspecimes && !q) return true;
-        if (comEspecimes.has(r.id)) return true;
-        return !filtraEspecimes && norm(`${r.titulo} ${r.descricao || ''}`).includes(q);
+    filteredRepositories() {
+      const f = this.collectionFilters;
+      const q = norm(this.collectionSearch).trim();
+      const withSpecimens = new Set(this.filteredSpecimens.map((e) => e.project_id));
+      const filtersSpecimens = f.orders.length || f.families.length;
+      return this.repositories.filter((r) => {
+        if (f.years.length && !f.years.includes(r.year)) return false;
+        if (!filtersSpecimens && !q) return true;
+        if (withSpecimens.has(r.id)) return true;
+        return !filtersSpecimens && norm(`${r.title} ${r.description || ''}`).includes(q);
       });
     },
 
-    // ---------- galeria, mapa e painel ----------
-    listaContexto() { return this.rota.nome === 'projeto' ? this.especimesDoProjeto : this.espFiltrados; },
-    galeriaVisivel() { return this.listaContexto.slice(0, this.limiteGaleria); },
-    galeriaRestante() { return Math.max(this.listaContexto.length - this.limiteGaleria, 0); },
-    totalComImagem() { return this.listaContexto.filter((e) => this.urlImagem(e, 100)).length; },
-    pontosMapa() {
-      return this.listaContexto
+    // ---------- gallery, map and panel ----------
+    contextList() { return this.route.name === 'project' ? this.projectSpecimens : this.filteredSpecimens; },
+    visibleGallery() { return this.contextList.slice(0, this.galleryLimit); },
+    galleryRemaining() { return Math.max(this.contextList.length - this.galleryLimit, 0); },
+    totalWithImage() { return this.contextList.filter((e) => this.imageUrl(e, 100)).length; },
+    mapPoints() {
+      return this.contextList
         .filter((e) => e.latitude !== null && e.latitude !== undefined && e.longitude !== null && e.longitude !== undefined)
         .map((e) => ({
-          id: e.id, lat: e.latitude, lng: e.longitude, cor: this.coresOrdem[e.grupo_insetos] || '#555',
-          especie: e.especie, codigo: e.codigo_etiqueta, local: e.local_coleta || '', thumb: this.urlImagem(e, 240)
+          id: e.id, lat: e.latitude, lng: e.longitude, color: this.orderColors[e.insect_order] || '#555',
+          species: e.species, code: e.catalog_number, locality: e.locality || '', thumb: this.imageUrl(e, 240)
         }));
     },
-    semCoordenadas() { return this.listaContexto.length - this.pontosMapa.length; },
-    legendaMapa() {
-      const ordens = [...new Set(this.listaContexto.map((e) => e.grupo_insetos))].sort(cmp);
-      return ordens.map((o) => ({ nome: o, cor: this.coresOrdem[o] || '#555' }));
+    withoutCoordinates() { return this.contextList.length - this.mapPoints.length; },
+    mapLegend() {
+      const orders = [...new Set(this.contextList.map((e) => e.insect_order))].sort(cmp);
+      return orders.map((o) => ({ name: o, color: this.orderColors[o] || '#555' }));
     },
-    painelEsp() {
-      if (!this.painel) return null;
-      return this.especimesPorId[this.painel.ids[this.painel.idx]] || null;
+    panelSpecimen() {
+      if (!this.panel) return null;
+      return this.specimensById[this.panel.ids[this.panel.index]] || null;
     },
-    painelProjeto() { return this.painelEsp ? this.projetosPorId[this.painelEsp.projeto_id] || null : null; }
+    panelProject() { return this.panelSpecimen ? this.projectsById[this.panelSpecimen.project_id] || null : null; }
   },
 
   watch: {
-    tituloPagina: { immediate: true, handler(t) { document.title = t; } },
-    termoBusca(v) {
-      this.idxSug = -1;
-      this.sugAberta = true;
-      if (this.rota.nome === 'busca') {
+    pageTitle: { immediate: true, handler(t) { document.title = t; } },
+    searchTerm(v) {
+      this.suggestionIndex = -1;
+      this.suggestionsOpen = true;
+      if (this.route.name === 'search') {
         history.replaceState(null, '', v.trim() ? `#/busca/${encodeURIComponent(v.trim())}` : '#/busca');
       }
     },
-    tab: { deep: true, handler() { this.sincronizarUrlTabela(); } },
-    buscaColecao() { this.limiteGaleria = POR_PAGINA_GALERIA; this.expandirSeFiltrando(); },
-    colecaoFiltros: { deep: true, handler() { this.limiteGaleria = POR_PAGINA_GALERIA; this.expandirSeFiltrando(); } }
+    table: { deep: true, handler() { this.syncTableUrl(); } },
+    collectionSearch() { this.galleryLimit = GALLERY_PAGE_SIZE; this.expandIfFiltering(); },
+    collectionFilters: { deep: true, handler() { this.galleryLimit = GALLERY_PAGE_SIZE; this.expandIfFiltering(); } }
   },
 
   created() {
-    this.aplicarRota();
+    this.applyRoute();
   },
 
   async mounted() {
     const token = localStorage.getItem('entomobase_token');
-    if (tokenValido(token)) {
+    if (tokenIsValid(token)) {
       this.token = token;
       this.userEmail = localStorage.getItem('entomobase_email');
     } else {
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     }
-    window.addEventListener('hashchange', this.aplicarRota);
-    document.addEventListener('click', this.fecharPopups);
-    document.addEventListener('keydown', this.aoTecla);
-    await this.carregarTudo();
-    this.abrirPrimeiro();
+    window.addEventListener('hashchange', this.applyRoute);
+    document.addEventListener('click', this.closePopups);
+    document.addEventListener('keydown', this.onKey);
+    await this.loadAll();
+    this.expandFirst();
   },
 
   beforeUnmount() {
-    window.removeEventListener('hashchange', this.aplicarRota);
-    document.removeEventListener('click', this.fecharPopups);
-    document.removeEventListener('keydown', this.aoTecla);
+    window.removeEventListener('hashchange', this.applyRoute);
+    document.removeEventListener('click', this.closePopups);
+    document.removeEventListener('keydown', this.onKey);
   },
 
   methods: {
-    ehUrl,
+    isUrl,
     fmt,
 
-    // ---------- tabela do projeto ----------
-    sincronizarUrlTabela() {
-      if (this.rota.nome !== 'projeto' || this.rota.vista !== 'tabela') return;
-      const t = this.tab;
+    // ---------- project table ----------
+    syncTableUrl() {
+      if (this.route.name !== 'project' || this.route.view !== 'table') return;
+      const t = this.table;
       const qs = new URLSearchParams();
-      if (this.paginaAtual > 1) qs.set('p', this.paginaAtual);
-      if (t.porPagina !== 25) qs.set('n', t.porPagina);
-      if (t.ordem !== 'codigo') qs.set('o', t.ordem);
+      if (this.currentPage > 1) qs.set('p', this.currentPage);
+      if (t.perPage !== 25) qs.set('n', t.perPage);
+      if (t.sort !== 'catalog') qs.set('o', t.sort);
       if (t.dir !== 'asc') qs.set('d', t.dir);
-      if (t.busca.trim()) qs.set('q', t.busca.trim());
+      if (t.query.trim()) qs.set('q', t.query.trim());
       const s = qs.toString();
-      const novo = `#/projetos/${this.rota.id}${s ? '?' + s : ''}`;
-      if (location.hash !== novo) history.replaceState(null, '', novo);
+      const target = `#/projetos/${this.route.id}${s ? '?' + s : ''}`;
+      if (location.hash !== target) history.replaceState(null, '', target);
     },
-    ordenarPor(chave) {
-      if (this.tab.ordem === chave) this.tab.dir = this.tab.dir === 'asc' ? 'desc' : 'asc';
-      else { this.tab.ordem = chave; this.tab.dir = 'asc'; }
-      this.tab.pagina = 1;
+    sortBy(key) {
+      if (this.table.sort === key) this.table.dir = this.table.dir === 'asc' ? 'desc' : 'asc';
+      else { this.table.sort = key; this.table.dir = 'asc'; }
+      this.table.page = 1;
     },
-    irParaPagina(n) {
-      this.tab.pagina = Math.min(Math.max(1, n), this.totalPaginas);
-      this.$nextTick(() => { const el = document.querySelector('.tabela-topo'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    goToPage(n) {
+      this.table.page = Math.min(Math.max(1, n), this.totalPages);
+      this.$nextTick(() => { const el = document.querySelector('.table-top'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
     },
-    setaOrdem(chave) { return this.tab.ordem === chave ? (this.tab.dir === 'asc' ? 'ascending' : 'descending') : 'none'; },
+    ariaSort(key) { return this.table.sort === key ? (this.table.dir === 'asc' ? 'ascending' : 'descending') : 'none'; },
 
-    // ---------- navegação ----------
-    aplicarRota() {
-      const [caminho, consulta = ''] = (location.hash || '').replace(/^#\/?/, '').split('?');
-      const [a, b, c] = caminho.split('/').filter(Boolean);
-      const qs = new URLSearchParams(consulta);
-      let rota;
+    // ---------- navigation ----------
+    // the address bar keeps Portuguese paths (#/projetos, #/colecao); they are translated to route names here
+    applyRoute() {
+      const [path, search = ''] = (location.hash || '').replace(/^#\/?/, '').split('?');
+      const [a, b, c] = path.split('/').filter(Boolean);
+      const qs = new URLSearchParams(search);
+      let route;
       if (a === 'projetos') {
-        rota = b ? { nome: 'projeto', id: Number(b), vista: ['galeria', 'mapa'].includes(c) ? c : 'tabela' } : { nome: 'projetos' };
+        const projectViews = { galeria: 'gallery', mapa: 'map' };
+        route = b ? { name: 'project', id: Number(b), view: projectViews[c] || 'table' } : { name: 'projects' };
       } else if (a === 'colecao') {
-        const visoes = { repositorios: 'repos', mapa: 'mapa' };
-        rota = { nome: 'colecao', visao: visoes[b] || 'arvore' };
-      } else if (a === 'busca') rota = { nome: 'busca' };
-      else rota = { nome: 'sobre' };
-      const anterior = this.rota;
-      const mesmaPagina = !!anterior && anterior.nome === rota.nome && anterior.id === rota.id && !!rota.nome && (rota.nome === 'projeto' || rota.nome === 'colecao');
-      this.rota = rota;
-      if (rota.nome === 'projeto') {
+        const collectionViews = { repositorios: 'repos', mapa: 'map' };
+        route = { name: 'collection', view: collectionViews[b] || 'tree' };
+      } else if (a === 'busca') route = { name: 'search' };
+      else route = { name: 'about' };
+      const previous = this.route;
+      const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
+      this.route = route;
+      if (route.name === 'project') {
         const n = Number(qs.get('n'));
-        this.tab = {
-          pagina: Math.max(1, Number(qs.get('p')) || 1),
-          porPagina: this.tamanhosPagina.includes(n) ? n : 25,
-          ordem: qs.get('o') || 'codigo',
+        this.table = {
+          page: Math.max(1, Number(qs.get('p')) || 1),
+          perPage: this.pageSizes.includes(n) ? n : 25,
+          sort: qs.get('o') || 'catalog',
           dir: qs.get('d') === 'desc' ? 'desc' : 'asc',
-          busca: qs.get('q') || ''
+          query: qs.get('q') || ''
         };
       }
-      this.fecharPopups();
-      this.limiteGaleria = POR_PAGINA_GALERIA;
-      if (rota.nome === 'busca') {
-        try { this.termoBusca = decodeURIComponent(b || ''); } catch { this.termoBusca = b || ''; }
+      this.closePopups();
+      this.galleryLimit = GALLERY_PAGE_SIZE;
+      if (route.name === 'search') {
+        try { this.searchTerm = decodeURIComponent(b || ''); } catch { this.searchTerm = b || ''; }
       } else {
-        this.termoBusca = '';
+        this.searchTerm = '';
       }
-      if (rota.nome === 'colecao') {
-        if (rota.visao === 'repos') this.colecaoFiltros.repos = [];
-        else this.colecaoFiltros.anos = [];
+      if (route.name === 'collection') {
+        if (route.view === 'repos') this.collectionFilters.repos = [];
+        else this.collectionFilters.years = [];
       }
-      // trocar de aba (tabela, galeria, mapa) mantém a posição da rolagem
-      if (!mesmaPagina) window.scrollTo(0, 0);
+      // switching views (table, gallery, map) keeps the scroll position
+      if (!samePage) window.scrollTo(0, 0);
     },
-    fecharPopups() { this.menuAberto = null; this.popover = null; this.sugAberta = false; },
-    aoTecla(ev) {
-      const modalAberto = this.confirmacao || this.formEspecime || this.formProjeto || this.importacao || this.info || this.showLogin;
-      if (this.painel && !modalAberto) {
-        if (ev.key === 'ArrowLeft') { this.navegarPainel(-1); return; }
-        if (ev.key === 'ArrowRight') { this.navegarPainel(1); return; }
+    closePopups() { this.openMenu = null; this.popover = null; this.suggestionsOpen = false; },
+    onKey(ev) {
+      const modalOpen = this.confirmation || this.specimenForm || this.projectForm || this.importJob || this.info || this.showLogin;
+      if (this.panel && !modalOpen) {
+        if (ev.key === 'ArrowLeft') { this.movePanel(-1); return; }
+        if (ev.key === 'ArrowRight') { this.movePanel(1); return; }
       }
       if (ev.key !== 'Escape') return;
-      this.fecharPopups();
-      if (this.confirmacao) this.confirmacao = null;
-      else if (this.formEspecime) this.formEspecime = null;
-      else if (this.formProjeto) this.formProjeto = null;
-      else if (this.importacao) this.importacao = null;
+      this.closePopups();
+      if (this.confirmation) this.confirmation = null;
+      else if (this.specimenForm) this.specimenForm = null;
+      else if (this.projectForm) this.projectForm = null;
+      else if (this.importJob) this.importJob = null;
       else if (this.info) this.info = null;
       else if (this.showLogin) this.showLogin = false;
-      else if (this.painel) this.painel = null;
+      else if (this.panel) this.panel = null;
     },
-    avisar(msg) {
+    notify(msg) {
       this.toast = msg;
-      clearTimeout(this.timerToast);
-      this.timerToast = setTimeout(() => { this.toast = null; }, 4500);
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.toast = null; }, 4500);
     },
 
     // ---------- API ----------
-    async mensagemErro(res) {
+    async errorMessage(res) {
       try {
         const d = (await res.json()).detail;
         if (typeof d === 'string') return d;
         if (Array.isArray(d)) return d.map((x) => `${(x.loc || []).slice(1).join('.')}: ${x.msg}`).join('; ');
-      } catch { /* resposta sem corpo JSON */ }
+      } catch { /* response without a JSON body */ }
       return `Erro ${res.status}`;
     },
-    async api(caminho, { metodo = 'GET', corpo = null } = {}) {
+    async api(path, { method = 'GET', body = null } = {}) {
       const headers = {};
-      if (corpo !== null) headers['Content-Type'] = 'application/json';
+      if (body !== null) headers['Content-Type'] = 'application/json';
       if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
       let res;
       try {
-        res = await fetch(this.apiUrl + caminho, { method: metodo, headers, body: corpo !== null ? JSON.stringify(corpo) : undefined });
+        res = await fetch(this.apiUrl + path, { method, headers, body: body !== null ? JSON.stringify(body) : undefined });
       } catch {
         throw new Error('Não foi possível conectar à API.');
       }
-      if (res.status === 401 && this.token && caminho !== '/login') {
-        this.encerrarSessao();
-        this.loginErro = 'Sua sessão expirou. Entre novamente.';
+      if (res.status === 401 && this.token && path !== '/login') {
+        this.endSession();
+        this.loginError = 'Sua sessão expirou. Entre novamente.';
         this.showLogin = true;
-        this.formProjeto = this.formEspecime = this.confirmacao = this.importacao = null;
+        this.projectForm = this.specimenForm = this.confirmation = this.importJob = null;
         throw new Error('Sessão expirada.');
       }
-      if (!res.ok) throw new Error(await this.mensagemErro(res));
+      if (!res.ok) throw new Error(await this.errorMessage(res));
       return res.status === 204 ? null : res.json();
     },
-    async carregarTudo() {
-      this.carregando = true;
-      this.erroApi = null;
+    async loadAll() {
+      this.loading = true;
+      this.apiError = null;
       try {
-        const [projetos, especimes] = await Promise.all([this.api('/projetos'), this.api('/especimes')]);
-        this.projetos = projetos;
-        this.especimes = especimes;
+        const [projects, specimens] = await Promise.all([this.api('/projects'), this.api('/specimens')]);
+        this.projects = projects;
+        this.specimens = specimens;
       } catch (e) {
-        this.erroApi = e.message;
+        this.apiError = e.message;
       }
-      this.carregando = false;
+      this.loading = false;
     },
 
-    // ---------- sessão ----------
-    abrirLogin() { this.loginErro = null; this.showLogin = true; },
-    async fazerLogin() {
-      this.loginErro = null;
-      this.enviando = true;
+    // ---------- session ----------
+    openLogin() { this.loginError = null; this.showLogin = true; },
+    async login() {
+      this.loginError = null;
+      this.submitting = true;
       try {
-        const d = await this.api('/login', { metodo: 'POST', corpo: this.credenciais });
+        const d = await this.api('/login', { method: 'POST', body: this.credentials });
         this.token = d.access_token;
         this.userEmail = d.email;
         localStorage.setItem('entomobase_token', this.token);
         localStorage.setItem('entomobase_email', this.userEmail);
         this.showLogin = false;
-        this.credenciais = { email: '', senha: '' };
-        await this.carregarTudo();
+        this.credentials = { email: '', password: '' };
+        await this.loadAll();
       } catch (e) {
-        this.loginErro = e.message;
+        this.loginError = e.message;
       }
-      this.enviando = false;
+      this.submitting = false;
     },
-    encerrarSessao() {
+    endSession() {
       this.token = null;
       this.userEmail = null;
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     },
-    async fazerLogout() {
-      this.encerrarSessao();
-      await this.carregarTudo();
+    async logout() {
+      this.endSession();
+      await this.loadAll();
     },
 
-    // ---------- helpers de exibição ----------
-    plural(n, um, varios) { return `${n.toLocaleString('pt-BR')} ${n === 1 ? um : varios}`; },
-    especimesDe(p) { return this.especimesPorProjeto[p.id] || []; },
-    contarEspecies(lista) { return new Set((lista || []).map((e) => e.especie)).size; },
-    rotuloStatus(p) { return p.finalizado ? 'Concluído' : 'Em andamento'; },
-    corCapa(p) { return PALETA_CAPAS[(p.id - 1 + PALETA_CAPAS.length) % PALETA_CAPAS.length]; },
-    estiloCapa(p) {
-      const estilo = { backgroundColor: this.corCapa(p) };
-      if (ehUrl(p.capa_url)) {
-        estilo.backgroundImage = `url("${p.capa_url.trim().replace(/"/g, '%22')}")`;
-        estilo.backgroundSize = 'cover';
-        estilo.backgroundPosition = 'center';
+    // ---------- display helpers ----------
+    plural(n, one, many) { return `${n.toLocaleString('pt-BR')} ${n === 1 ? one : many}`; },
+    specimensOf(p) { return this.specimensByProject[p.id] || []; },
+    countSpecies(list) { return new Set((list || []).map((e) => e.species)).size; },
+    statusLabel(p) { return p.finished ? 'Concluído' : 'Em andamento'; },
+    coverColor(p) { return COVER_PALETTE[(p.id - 1 + COVER_PALETTE.length) % COVER_PALETTE.length]; },
+    coverStyle(p) {
+      const style = { backgroundColor: this.coverColor(p) };
+      if (isUrl(p.cover_url)) {
+        style.backgroundImage = `url("${p.cover_url.trim().replace(/"/g, '%22')}")`;
+        style.backgroundSize = 'cover';
+        style.backgroundPosition = 'center';
       }
-      return estilo;
+      return style;
     },
-    familiaDe(e) { return e.familia || SEM_FAMILIA; },
-    formatarData(d) {
+    familyOf(e) { return e.family || NO_FAMILY; },
+    formatDate(d) {
       if (!d) return '—';
-      const [a, m, dia] = d.split('-');
-      return `${dia}/${m}/${a}`;
+      const [y, m, day] = d.split('-');
+      return `${day}/${m}/${y}`;
     },
-    valorMedida(e, coluna) {
-      const m = (e.medidas || []).find((x) => `${x.traco}|${x.unidade}` === coluna.chave);
-      return m ? fmt(m.valor) : '—';
+    measurementValue(e, column) {
+      const m = (e.measurements || []).find((x) => `${x.trait}|${x.unit}` === column.key);
+      return m ? fmt(m.value) : '—';
     },
-    resumoMedidas(e, n = 3) {
-      return (e.medidas || []).slice(0, n).map((m) => ({ traco: m.traco, texto: `${fmt(m.valor)} ${m.unidade}` }));
+    measurementSummary(e, n = 3) {
+      return (e.measurements || []).slice(0, n).map((m) => ({ trait: m.trait, text: `${fmt(m.value)} ${m.unit}` }));
     },
-    corOrdem(o) { return this.coresOrdem[o] || '#555'; },
-    reposDe(especimes) {
-      const ids = [...new Set(especimes.map((e) => e.projeto_id))];
+    orderColor(o) { return this.orderColors[o] || '#555'; },
+    reposOf(specimens) {
+      const ids = [...new Set(specimens.map((e) => e.project_id))];
       return ids
-        .map((id) => this.projetosPorId[id])
-        .filter((p) => p && ehUrl(p.dataset_externo_url))
-        .sort((a, b) => b.ano - a.ano)
-        .map((p) => ({ id: p.id, titulo: p.titulo, url: p.dataset_externo_url.trim() }));
+        .map((id) => this.projectsById[id])
+        .filter((p) => p && isUrl(p.dataset_url))
+        .sort((a, b) => b.year - a.year)
+        .map((p) => ({ id: p.id, title: p.title, url: p.dataset_url.trim() }));
     },
-    resumoRepositorio(r) {
-      const esp = this.especimesDe(r);
-      const ordens = [...new Set(esp.map((e) => e.grupo_insetos))].sort(cmp);
-      const partes = [this.plural(this.contarEspecies(esp), 'espécie', 'espécies')];
-      if (ordens.length) partes.push(ordens.join(', '));
-      partes.push(String(r.ano));
-      return partes.join(' · ');
+    repositorySummary(r) {
+      const list = this.specimensOf(r);
+      const orders = [...new Set(list.map((e) => e.insect_order))].sort(cmp);
+      const parts = [this.plural(this.countSpecies(list), 'espécie', 'espécies')];
+      if (orders.length) parts.push(orders.join(', '));
+      parts.push(String(r.year));
+      return parts.join(' · ');
     },
 
-    // ---------- imagens (Zenodo) ----------
-    registroDe(e) { return Zenodo.idDoRegistro((this.projetosPorId[e.projeto_id] || {}).dataset_externo_url); },
-    urlImagem(e, largura = 400) {
-      if (ehUrl(e.fotografia_url)) return e.fotografia_url.trim();
-      if (!e.imagem_arquivo) return null;
-      const id = this.registroDe(e);
+    // ---------- images (Zenodo) ----------
+    recordIdOf(e) { return Zenodo.recordId((this.projectsById[e.project_id] || {}).dataset_url); },
+    imageUrl(e, width = 400) {
+      if (isUrl(e.photo_url)) return e.photo_url.trim();
+      if (!e.image_file) return null;
+      const id = this.recordIdOf(e);
       if (!id) return null;
-      if (Zenodo.ehDemo(id)) return `${this.apiUrl}/demo/imagem/${encodeURIComponent(e.imagem_arquivo)}`;
-      return Zenodo.miniatura(id, e.imagem_arquivo, largura);
+      if (Zenodo.isDemo(id)) return `${this.apiUrl}/demo/image/${encodeURIComponent(e.image_file)}`;
+      return Zenodo.thumbnail(id, e.image_file, width);
     },
-    urlArquivo(e) {
-      if (!e.imagem_arquivo) return ehUrl(e.fotografia_url) ? e.fotografia_url.trim() : null;
-      const id = this.registroDe(e);
+    fileUrl(e) {
+      if (!e.image_file) return isUrl(e.photo_url) ? e.photo_url.trim() : null;
+      const id = this.recordIdOf(e);
       if (!id) return null;
-      return Zenodo.ehDemo(id) ? null : Zenodo.arquivo(id, e.imagem_arquivo);
+      return Zenodo.isDemo(id) ? null : Zenodo.file(id, e.image_file);
     },
-    urlRegistro(e) {
-      const p = this.projetosPorId[e.projeto_id];
-      return p && ehUrl(p.dataset_externo_url) ? p.dataset_externo_url.trim() : null;
+    recordUrl(e) {
+      const p = this.projectsById[e.project_id];
+      return p && isUrl(p.dataset_url) ? p.dataset_url.trim() : null;
     },
 
-    // ---------- painel de detalhes ----------
-    abrirPainel(e, lista) {
-      const ids = (lista && lista.length ? lista : [e]).map((x) => x.id);
-      this.painel = { ids, idx: Math.max(0, ids.indexOf(e.id)) };
+    // ---------- detail panel ----------
+    openPanel(e, list) {
+      const ids = (list && list.length ? list : [e]).map((x) => x.id);
+      this.panel = { ids, index: Math.max(0, ids.indexOf(e.id)) };
     },
-    abrirPainelPorId(id) {
-      const e = this.especimesPorId[id];
-      if (e) this.abrirPainel(e, this.listaContexto);
+    openPanelById(id) {
+      const e = this.specimensById[id];
+      if (e) this.openPanel(e, this.contextList);
     },
-    navegarPainel(passo) {
-      const n = this.painel.ids.length;
-      this.painel.idx = (this.painel.idx + passo + n) % n;
+    movePanel(step) {
+      const n = this.panel.ids.length;
+      this.panel.index = (this.panel.index + step + n) % n;
     },
-    verNoMapa(e) {
-      this.mapaFoco = e.id;
-      this.painel = null;
-      const alvo = this.rota.nome === 'projeto' ? `#/projetos/${this.rota.id}/mapa` : '#/colecao/mapa';
-      if (location.hash === alvo) return;
-      location.hash = alvo;
+    showOnMap(e) {
+      this.mapFocus = e.id;
+      this.panel = null;
+      const target = this.route.name === 'project' ? `#/projetos/${this.route.id}/mapa` : '#/colecao/mapa';
+      if (location.hash === target) return;
+      location.hash = target;
     },
-    destinoEspecime(e) { return e.projeto_id ? `#/projetos/${e.projeto_id}` : '#/colecao'; },
-    editarDoPainel(e) { this.painel = null; this.abrirFormEspecime(e); },
-    excluirDoPainel(e) { this.painel = null; this.pedirExcluirEspecime(e); },
+    specimenTarget(e) { return e.project_id ? `#/projetos/${e.project_id}` : '#/colecao'; },
+    editFromPanel(e) { this.panel = null; this.openSpecimenForm(e); },
+    deleteFromPanel(e) { this.panel = null; this.askDeleteSpecimen(e); },
 
-    // ---------- busca global ----------
-    moverSug(passo) {
-      const n = this.sugestoesBusca.length;
+    // ---------- global search ----------
+    moveSuggestion(step) {
+      const n = this.searchSuggestions.length;
       if (!n) return;
-      this.sugAberta = true;
-      let i = this.idxSug + passo;
+      this.suggestionsOpen = true;
+      let i = this.suggestionIndex + step;
       if (i < 0) i = n - 1;
       if (i >= n) i = 0;
-      this.idxSug = i;
+      this.suggestionIndex = i;
     },
-    escolherSugestao(s) {
-      this.sugAberta = false;
-      if (s.especie) this.abrirEspecie(s.especie);
+    chooseSuggestion(s) {
+      this.suggestionsOpen = false;
+      if (s.species) this.openSpecies(s.species);
       else location.hash = s.href;
     },
-    enviarBusca(forcar = false) {
-      if (!forcar && this.idxSug >= 0 && this.sugestoesBusca[this.idxSug]) {
-        this.escolherSugestao(this.sugestoesBusca[this.idxSug]);
+    submitSearch(force = false) {
+      if (!force && this.suggestionIndex >= 0 && this.searchSuggestions[this.suggestionIndex]) {
+        this.chooseSuggestion(this.searchSuggestions[this.suggestionIndex]);
         return;
       }
-      const t = this.termoBusca.trim();
+      const t = this.searchTerm.trim();
       if (!t) return;
-      this.sugAberta = false;
+      this.suggestionsOpen = false;
       location.hash = `#/busca/${encodeURIComponent(t)}`;
     },
-    abrirEspecie(nome) {
-      this.colecaoFiltros = { ordens: [], familias: [], repos: [], anos: [] };
-      this.buscaColecao = nome;
+    openSpecies(name) {
+      this.collectionFilters = { orders: [], families: [], repos: [], years: [] };
+      this.collectionSearch = name;
       location.hash = '#/colecao';
     },
 
-    // ---------- filtros de projetos ----------
-    alternarMenu(chave) { this.popover = null; this.menuAberto = this.menuAberto === chave ? null : chave; },
-    definirFiltro(chave, valor) { this.filtros[chave] = valor; this.menuAberto = null; },
-    rotuloFiltro(f) {
-      const v = this.filtros[f.chave];
-      if (v === null) return f.rotulo;
-      const op = this.opcoesFiltro[f.chave].find((o) => o.valor === v);
-      return `${f.rotulo}: ${op ? op.rotulo : v}`;
+    // ---------- project filters ----------
+    toggleMenu(key) { this.popover = null; this.openMenu = this.openMenu === key ? null : key; },
+    setFilter(key, value) { this.filters[key] = value; this.openMenu = null; },
+    filterLabel(f) {
+      const v = this.filters[f.key];
+      if (v === null) return f.label;
+      const option = this.filterOptions[f.key].find((o) => o.value === v);
+      return `${f.label}: ${option ? option.label : v}`;
     },
-    limparFiltrosProjeto() { this.filtros = { ano: null, grupo: null, status: null, local: null }; },
+    clearProjectFilters() { this.filters = { year: null, group: null, status: null, locality: null }; },
 
-    // ---------- árvore da coleção ----------
-    estaAberto(chave) { return !!this.abertos[chave]; },
-    alternar(chave) { this.abertos[chave] = !this.abertos[chave]; this.popover = null; },
-    alternarPopover(chave) { this.menuAberto = null; this.popover = this.popover === chave ? null : chave; },
-    expandirTudo() {
-      const abertos = {};
-      this.arvore.forEach((o) => {
-        abertos[`o:${o.nome}`] = true;
-        o.familias.forEach((f) => { abertos[`f:${o.nome}|${f.nome}`] = true; });
+    // ---------- collection tree ----------
+    isExpanded(key) { return !!this.expanded[key]; },
+    toggle(key) { this.expanded[key] = !this.expanded[key]; this.popover = null; },
+    togglePopover(key) { this.openMenu = null; this.popover = this.popover === key ? null : key; },
+    expandAll() {
+      const expanded = {};
+      this.tree.forEach((o) => {
+        expanded[`o:${o.name}`] = true;
+        o.families.forEach((f) => { expanded[`f:${o.name}|${f.name}`] = true; });
       });
-      this.abertos = abertos;
+      this.expanded = expanded;
     },
-    recolherTudo() { this.abertos = {}; },
-    abrirPrimeiro() {
-      const o = this.arvore[0];
-      if (!o || Object.keys(this.abertos).length) return;
-      this.abertos[`o:${o.nome}`] = true;
-      o.familias.forEach((f) => { this.abertos[`f:${o.nome}|${f.nome}`] = true; });
+    collapseAll() { this.expanded = {}; },
+    expandFirst() {
+      const o = this.tree[0];
+      if (!o || Object.keys(this.expanded).length) return;
+      this.expanded[`o:${o.name}`] = true;
+      o.families.forEach((f) => { this.expanded[`f:${o.name}|${f.name}`] = true; });
     },
-    expandirSeFiltrando() {
-      if (this.buscaColecao.trim() || this.filtrosColecaoAtivos) this.$nextTick(() => this.expandirTudo());
+    expandIfFiltering() {
+      if (this.collectionSearch.trim() || this.collectionFiltersActive) this.$nextTick(() => this.expandAll());
     },
-    limparFiltrosColecao() {
-      this.colecaoFiltros = { ordens: [], familias: [], repos: [], anos: [] };
-      this.buscaColecao = '';
+    clearCollectionFilters() {
+      this.collectionFilters = { orders: [], families: [], repos: [], years: [] };
+      this.collectionSearch = '';
     },
 
-    // ---------- projetos: criar, editar, excluir ----------
-    abrirFormProjeto(p = null) {
-      this.erroForm = null;
-      this.formProjeto = p
+    // ---------- projects: create, edit, delete ----------
+    openProjectForm(p = null) {
+      this.formError = null;
+      this.projectForm = p
         ? {
-            id: p.id, titulo: p.titulo, ano: p.ano, grupo_insetos: p.grupo_insetos, tracos_medidos: p.tracos_medidos || '',
-            local_coleta: p.local_coleta || '', capa_url: p.capa_url || '', dataset_externo_url: p.dataset_externo_url || '',
-            publicacao_vinculada: p.publicacao_vinculada || '', descricao: p.descricao || '', finalizado: !!p.finalizado
+            id: p.id, title: p.title, year: p.year, insect_group: p.insect_group, measured_traits: p.measured_traits || '',
+            locality: p.locality || '', cover_url: p.cover_url || '', dataset_url: p.dataset_url || '',
+            linked_publication: p.linked_publication || '', description: p.description || '', finished: !!p.finished
           }
         : {
-            id: null, titulo: '', ano: new Date().getFullYear(), grupo_insetos: '', tracos_medidos: '', local_coleta: '',
-            capa_url: '', dataset_externo_url: '', publicacao_vinculada: '', descricao: '', finalizado: false
+            id: null, title: '', year: new Date().getFullYear(), insect_group: '', measured_traits: '', locality: '',
+            cover_url: '', dataset_url: '', linked_publication: '', description: '', finished: false
           };
     },
-    async salvarProjeto() {
-      const f = this.formProjeto;
-      this.erroForm = null;
-      this.enviando = true;
-      const corpo = {
-        titulo: f.titulo.trim(), ano: Number(f.ano), grupo_insetos: f.grupo_insetos.trim(),
-        tracos_medidos: nulo(f.tracos_medidos), local_coleta: nulo(f.local_coleta), capa_url: nulo(f.capa_url),
-        dataset_externo_url: nulo(f.dataset_externo_url), publicacao_vinculada: nulo(f.publicacao_vinculada),
-        descricao: nulo(f.descricao), finalizado: !!f.finalizado
+    async saveProject() {
+      const f = this.projectForm;
+      this.formError = null;
+      this.submitting = true;
+      const body = {
+        title: f.title.trim(), year: Number(f.year), insect_group: f.insect_group.trim(),
+        measured_traits: orNull(f.measured_traits), locality: orNull(f.locality), cover_url: orNull(f.cover_url),
+        dataset_url: orNull(f.dataset_url), linked_publication: orNull(f.linked_publication),
+        description: orNull(f.description), finished: !!f.finished
       };
       try {
-        const salvo = await this.api(f.id ? `/projetos/${f.id}` : '/projetos', { metodo: f.id ? 'PUT' : 'POST', corpo });
-        this.formProjeto = null;
-        await this.carregarTudo();
-        this.avisar(f.id ? 'Projeto atualizado.' : 'Projeto criado.');
-        if (!f.id) location.hash = `#/projetos/${salvo.id}`;
+        const saved = await this.api(f.id ? `/projects/${f.id}` : '/projects', { method: f.id ? 'PUT' : 'POST', body });
+        this.projectForm = null;
+        await this.loadAll();
+        this.notify(f.id ? 'Projeto atualizado.' : 'Projeto criado.');
+        if (!f.id) location.hash = `#/projetos/${saved.id}`;
       } catch (e) {
-        this.erroForm = e.message;
+        this.formError = e.message;
       }
-      this.enviando = false;
+      this.submitting = false;
     },
-    pedirExcluirProjeto(p) {
-      this.erroForm = null;
-      const n = this.especimesDe(p).length;
-      this.confirmacao = {
-        titulo: 'Excluir projeto',
-        texto: `"${p.titulo}" será excluído${n ? ` junto com ${this.plural(n, 'espécime', 'espécimes')}` : ''}. Essa ação não pode ser desfeita.`,
-        acao: async () => {
-          await this.api(`/projetos/${p.id}`, { metodo: 'DELETE' });
+    askDeleteProject(p) {
+      this.formError = null;
+      const n = this.specimensOf(p).length;
+      this.confirmation = {
+        title: 'Excluir projeto',
+        text: `"${p.title}" será excluído${n ? ` junto com ${this.plural(n, 'espécime', 'espécimes')}` : ''}. Essa ação não pode ser desfeita.`,
+        action: async () => {
+          await this.api(`/projects/${p.id}`, { method: 'DELETE' });
           location.hash = '#/projetos';
-          await this.carregarTudo();
-          this.avisar('Projeto excluído.');
+          await this.loadAll();
+          this.notify('Projeto excluído.');
         }
       };
     },
 
-    // ---------- espécimes: criar, editar, excluir ----------
-    abrirFormEspecime(e = null, projetoId = null) {
-      this.erroForm = null;
-      this.dicaNome = null;
+    // ---------- specimens: create, edit, delete ----------
+    openSpecimenForm(e = null, projectId = null) {
+      this.formError = null;
+      this.nameHint = null;
       if (e) {
-        this.formEspecime = {
-          id: e.id, codigo_etiqueta: e.codigo_etiqueta, grupo_insetos: e.grupo_insetos, familia: e.familia || '',
-          especie: e.especie, data_coleta: e.data_coleta || '', local_coleta: e.local_coleta || '',
-          latitude: e.latitude ?? '', longitude: e.longitude ?? '', altitude_m: e.altitude_m ?? '',
-          sexo: e.sexo || '', estagio: e.estagio || '', imagem_arquivo: e.imagem_arquivo || '', fotografia_url: e.fotografia_url || '',
-          notas: e.notas || '', projeto_id: e.projeto_id ?? null,
-          determinador: e.determinador || '', data_determinacao: e.data_determinacao || '', metodo_coleta: e.metodo_coleta || '', habitat: e.habitat || '',
-          coletor: e.coletor || '', numero_campo: e.numero_campo || '', localizacao_fisica: e.localizacao_fisica || '',
-          emprestimo_situacao: e.emprestimo_situacao || '', emprestimo_para: e.emprestimo_para || '', emprestimo_data: e.emprestimo_data || '',
-          notas_internas: e.notas_internas || '',
-          medidas: (e.medidas || []).map((m) => ({ traco: m.traco, valor: m.valor, unidade: m.unidade }))
+        this.specimenForm = {
+          id: e.id, catalog_number: e.catalog_number, insect_order: e.insect_order, family: e.family || '',
+          species: e.species, collection_date: e.collection_date || '', locality: e.locality || '',
+          latitude: e.latitude ?? '', longitude: e.longitude ?? '', elevation_m: e.elevation_m ?? '',
+          sex: e.sex || '', life_stage: e.life_stage || '', image_file: e.image_file || '', photo_url: e.photo_url || '',
+          notes: e.notes || '', project_id: e.project_id ?? null,
+          identified_by: e.identified_by || '', identification_date: e.identification_date || '', sampling_method: e.sampling_method || '', habitat: e.habitat || '',
+          collector: e.collector || '', field_number: e.field_number || '', storage_location: e.storage_location || '',
+          loan_status: e.loan_status || '', loaned_to: e.loaned_to || '', loan_date: e.loan_date || '',
+          internal_notes: e.internal_notes || '',
+          measurements: (e.measurements || []).map((m) => ({ trait: m.trait, value: m.value, unit: m.unit }))
         };
       } else {
-        const projeto = this.projetosPorId[projetoId];
-        const tracos = projeto && projeto.tracos_medidos ? projeto.tracos_medidos.split(',').map((t) => t.trim()).filter(Boolean) : [];
-        this.formEspecime = {
-          id: null, codigo_etiqueta: '', grupo_insetos: '', familia: '', especie: '', data_coleta: '', local_coleta: projeto ? projeto.local_coleta || '' : '',
-          latitude: '', longitude: '', altitude_m: '', sexo: '', estagio: '', imagem_arquivo: '', fotografia_url: '',
-          notas: '', projeto_id: projetoId,
-          determinador: '', data_determinacao: '', metodo_coleta: '', habitat: '',
-          coletor: '', numero_campo: '', localizacao_fisica: '', emprestimo_situacao: '', emprestimo_para: '', emprestimo_data: '', notas_internas: '',
-          medidas: tracos.map((t) => ({ traco: t, valor: '', unidade: 'mm' }))
+        const project = this.projectsById[projectId];
+        const traits = project && project.measured_traits ? project.measured_traits.split(',').map((t) => t.trim()).filter(Boolean) : [];
+        this.specimenForm = {
+          id: null, catalog_number: '', insect_order: '', family: '', species: '', collection_date: '', locality: project ? project.locality || '' : '',
+          latitude: '', longitude: '', elevation_m: '', sex: '', life_stage: '', image_file: '', photo_url: '',
+          notes: '', project_id: projectId,
+          identified_by: '', identification_date: '', sampling_method: '', habitat: '',
+          collector: '', field_number: '', storage_location: '', loan_status: '', loaned_to: '', loan_date: '', internal_notes: '',
+          measurements: traits.map((t) => ({ trait: t, value: '', unit: 'mm' }))
         };
       }
     },
-    async conferirNome() {
-      const f = this.formEspecime;
-      const nome = (f.especie || '').trim();
-      this.dicaNome = null;
-      if (nome.split(/\s+/).length < 2) return;
+    async checkName() {
+      const f = this.specimenForm;
+      const name = (f.species || '').trim();
+      this.nameHint = null;
+      if (name.split(/\s+/).length < 2) return;
       try {
-        const [r] = await this.api('/taxonomia/validar', { metodo: 'POST', corpo: { nomes: [nome] } });
-        if (!r || f.especie.trim() !== nome) return;
-        if (r.situacao === 'ok' || r.situacao === 'indisponivel') {
-          if (r.situacao === 'ok') {
-            if (!f.familia && r.familia) f.familia = r.familia;
-            if (!f.grupo_insetos && r.ordem) f.grupo_insetos = r.ordem;
+        const [r] = await this.api('/taxonomy/validate', { method: 'POST', body: { names: [name] } });
+        if (!r || f.species.trim() !== name) return;
+        if (r.status === 'ok' || r.status === 'unavailable') {
+          if (r.status === 'ok') {
+            if (!f.family && r.family) f.family = r.family;
+            if (!f.insect_order && r.order_name) f.insect_order = r.order_name;
           }
           return;
         }
-        this.dicaNome = { nome, situacao: r.situacao, sugestao: r.sugestao };
-      } catch { /* sem validação se o GBIF ou a API não responderem */ }
+        this.nameHint = { name, status: r.status, suggestion: r.suggestion };
+      } catch { /* no validation if GBIF or the API do not answer */ }
     },
-    usarNomeSugerido() {
-      this.formEspecime.especie = this.dicaNome.sugestao;
-      this.dicaNome = null;
-      this.conferirNome();
+    useSuggestedName() {
+      this.specimenForm.species = this.nameHint.suggestion;
+      this.nameHint = null;
+      this.checkName();
     },
-    adicionarMedida() { this.formEspecime.medidas.push({ traco: '', valor: '', unidade: 'mm' }); },
-    removerMedida(i) { this.formEspecime.medidas.splice(i, 1); },
-    async salvarEspecime() {
-      const f = this.formEspecime;
-      this.erroForm = null;
-      const medidas = [];
-      for (const m of f.medidas) {
-        const valor = num(m.valor);
-        const traco = (m.traco || '').trim();
-        if (valor === null && !traco) continue;
-        if (valor === null) continue;
-        if (!traco) { this.erroForm = 'Dê um nome ao traço de cada medida preenchida.'; return; }
-        medidas.push({ traco, valor, unidade: (m.unidade || 'mm').trim() || 'mm' });
+    addMeasurement() { this.specimenForm.measurements.push({ trait: '', value: '', unit: 'mm' }); },
+    removeMeasurement(i) { this.specimenForm.measurements.splice(i, 1); },
+    async saveSpecimen() {
+      const f = this.specimenForm;
+      this.formError = null;
+      const measurements = [];
+      for (const m of f.measurements) {
+        const value = num(m.value);
+        const trait = (m.trait || '').trim();
+        if (value === null && !trait) continue;
+        if (value === null) continue;
+        if (!trait) { this.formError = 'Dê um nome ao traço de cada medida preenchida.'; return; }
+        measurements.push({ trait, value, unit: (m.unit || 'mm').trim() || 'mm' });
       }
-      const corpo = {
-        codigo_etiqueta: f.codigo_etiqueta.trim(), grupo_insetos: f.grupo_insetos.trim(), familia: nulo(f.familia),
-        especie: f.especie.trim(), data_coleta: nulo(f.data_coleta), local_coleta: nulo(f.local_coleta),
-        latitude: num(f.latitude), longitude: num(f.longitude), altitude_m: num(f.altitude_m),
-        sexo: nulo(f.sexo), estagio: nulo(f.estagio), imagem_arquivo: nulo(f.imagem_arquivo), fotografia_url: nulo(f.fotografia_url),
-        notas: nulo(f.notas), projeto_id: f.projeto_id || null, medidas,
-        determinador: nulo(f.determinador), data_determinacao: nulo(f.data_determinacao), metodo_coleta: nulo(f.metodo_coleta), habitat: nulo(f.habitat),
-        coletor: nulo(f.coletor), numero_campo: nulo(f.numero_campo), localizacao_fisica: nulo(f.localizacao_fisica),
-        emprestimo_situacao: nulo(f.emprestimo_situacao), emprestimo_para: nulo(f.emprestimo_para), emprestimo_data: nulo(f.emprestimo_data),
-        notas_internas: nulo(f.notas_internas)
+      const body = {
+        catalog_number: f.catalog_number.trim(), insect_order: f.insect_order.trim(), family: orNull(f.family),
+        species: f.species.trim(), collection_date: orNull(f.collection_date), locality: orNull(f.locality),
+        latitude: num(f.latitude), longitude: num(f.longitude), elevation_m: num(f.elevation_m),
+        sex: orNull(f.sex), life_stage: orNull(f.life_stage), image_file: orNull(f.image_file), photo_url: orNull(f.photo_url),
+        notes: orNull(f.notes), project_id: f.project_id || null, measurements,
+        identified_by: orNull(f.identified_by), identification_date: orNull(f.identification_date), sampling_method: orNull(f.sampling_method), habitat: orNull(f.habitat),
+        collector: orNull(f.collector), field_number: orNull(f.field_number), storage_location: orNull(f.storage_location),
+        loan_status: orNull(f.loan_status), loaned_to: orNull(f.loaned_to), loan_date: orNull(f.loan_date),
+        internal_notes: orNull(f.internal_notes)
       };
-      this.enviando = true;
+      this.submitting = true;
       try {
-        await this.api(f.id ? `/especimes/${f.id}` : '/especimes', { metodo: f.id ? 'PUT' : 'POST', corpo });
-        this.formEspecime = null;
-        await this.carregarTudo();
-        this.avisar(f.id ? 'Espécime atualizado.' : 'Espécime adicionado.');
+        await this.api(f.id ? `/specimens/${f.id}` : '/specimens', { method: f.id ? 'PUT' : 'POST', body });
+        this.specimenForm = null;
+        await this.loadAll();
+        this.notify(f.id ? 'Espécime atualizado.' : 'Espécime adicionado.');
       } catch (e) {
-        this.erroForm = e.message;
+        this.formError = e.message;
       }
-      this.enviando = false;
+      this.submitting = false;
     },
-    pedirExcluirEspecime(e) {
-      this.erroForm = null;
-      this.confirmacao = {
-        titulo: 'Excluir espécime',
-        texto: `O espécime ${e.codigo_etiqueta} (${e.especie}) será excluído. Essa ação não pode ser desfeita.`,
-        acao: async () => {
-          await this.api(`/especimes/${e.id}`, { metodo: 'DELETE' });
-          await this.carregarTudo();
-          this.avisar('Espécime excluído.');
+    askDeleteSpecimen(e) {
+      this.formError = null;
+      this.confirmation = {
+        title: 'Excluir espécime',
+        text: `O espécime ${e.catalog_number} (${e.species}) será excluído. Essa ação não pode ser desfeita.`,
+        action: async () => {
+          await this.api(`/specimens/${e.id}`, { method: 'DELETE' });
+          await this.loadAll();
+          this.notify('Espécime excluído.');
         }
       };
     },
-    async executarConfirmacao() {
-      this.enviando = true;
-      this.erroForm = null;
+    async runConfirmation() {
+      this.submitting = true;
+      this.formError = null;
       try {
-        await this.confirmacao.acao();
-        this.confirmacao = null;
+        await this.confirmation.action();
+        this.confirmation = null;
       } catch (e) {
-        if (this.confirmacao) this.erroForm = e.message;
+        if (this.confirmation) this.formError = e.message;
       }
-      this.enviando = false;
+      this.submitting = false;
     },
 
-    // ---------- importação de CSV ----------
-    textoErro(msg) {
+    // ---------- CSV import ----------
+    // turns the API validation messages into Portuguese for the user
+    errorText(msg) {
       return String(msg)
-        .replace(/grupo_insetos/g, 'Ordem').replace(/codigo_etiqueta/g, 'Código da etiqueta').replace(/especie/g, 'Espécie')
+        .replace(/\binsect_order\b/g, 'Ordem').replace(/\bcatalog_number\b/g, 'Código da etiqueta').replace(/\bspecies\b/g, 'Espécie')
         .replace(/Field required/g, 'campo obrigatório')
         .replace(/Input should be less than or equal to (-?[\d.]+)/g, 'deve ser no máximo $1')
         .replace(/Input should be greater than or equal to (-?[\d.]+)/g, 'deve ser no mínimo $1')
         .replace(/Input should be a valid (number|date)[^;]*/g, 'valor inválido').replace(/String should have at least 1 character/g, 'não pode ficar vazio');
     },
-    abrirImportacao(projetoId = null) {
-      const p = this.projetosPorId[projetoId];
-      this.importacao = {
-        projetoFixo: projetoId !== null, projetoId, nomeProjeto: p ? p.titulo : '',
-        nomeArquivo: '', cabecalhos: [], mapa: [], dados: [], duplicados: 'ignorar',
-        padrao: { grupo_insetos: '', familia: '', especie: '' },
-        errosCliente: [], linhasPayload: [], relatorio: null, simulando: false, erro: null, seq: 0, correcoes: {}
+    openImport(projectId = null) {
+      const p = this.projectsById[projectId];
+      this.importJob = {
+        fixedProject: projectId !== null, projectId, projectName: p ? p.title : '',
+        fileName: '', headers: [], mapping: [], data: [], duplicates: 'ignore',
+        defaults: { insect_order: '', family: '', species: '' },
+        clientErrors: [], payloadRows: [], report: null, checking: false, error: null, seq: 0, corrections: {}
       };
     },
-    async lerArquivoImportacao(ev) {
-      const arquivo = ev.target.files && ev.target.files[0];
-      if (!arquivo) return;
-      const im = this.importacao;
-      im.erro = null;
+    async readImportFile(ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const job = this.importJob;
+      job.error = null;
       try {
-        const linhas = lerCsv(await arquivo.text());
-        if (linhas.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalho e pelo menos uma linha de dados.');
-        if (linhas.length - 1 > 5000) throw new Error('O arquivo tem mais de 5.000 linhas. Divida em partes menores.');
-        im.nomeArquivo = arquivo.name;
-        im.cabecalhos = linhas[0].map((h) => h.trim());
-        im.mapa = im.cabecalhos.map((h) => interpretarCabecalho(h));
-        im.dados = linhas.slice(1);
-        await this.simularImportacao();
+        const rows = parseCsv(await file.text());
+        if (rows.length < 2) throw new Error('O arquivo precisa ter uma linha de cabeçalho e pelo menos uma linha de dados.');
+        if (rows.length - 1 > 5000) throw new Error('O arquivo tem mais de 5.000 linhas. Divida em partes menores.');
+        job.fileName = file.name;
+        job.headers = rows[0].map((h) => h.trim());
+        job.mapping = job.headers.map((h) => interpretHeader(h));
+        job.data = rows.slice(1);
+        await this.runDryRun();
       } catch (e) {
-        im.erro = e.message;
+        job.error = e.message;
       }
       ev.target.value = '';
     },
-    montarLinhasImportacao() {
-      const im = this.importacao;
-      const linhas = [];
-      const erros = [];
-      im.dados.forEach((cels, k) => {
-        const n = k + 2;
-        const o = { linha: n };
-        const falhas = [];
-        im.mapa.forEach((col, i) => {
-          const bruto = (cels[i] ?? '').trim();
-          if (bruto === '' || col.destino === 'ignorar') return;
-          if (col.destino === 'medida') {
-            const valor = numeroBr(bruto);
-            if (Number.isNaN(valor)) { falhas.push(`valor inválido em "${col.traco}": ${bruto}`); return; }
-            (o.medidas = o.medidas || []).push({ traco: col.traco, valor, unidade: col.unidade || 'mm' });
+    buildImportRows() {
+      const job = this.importJob;
+      const rows = [];
+      const errors = [];
+      job.data.forEach((cells, k) => {
+        const line = k + 2;
+        const o = { line };
+        const problems = [];
+        job.mapping.forEach((col, i) => {
+          const raw = (cells[i] ?? '').trim();
+          if (raw === '' || col.target === 'ignore') return;
+          if (col.target === 'measurement') {
+            const value = parseNumber(raw);
+            if (Number.isNaN(value)) { problems.push(`valor inválido em "${col.trait}": ${raw}`); return; }
+            (o.measurements = o.measurements || []).push({ trait: col.trait, value, unit: col.unit || 'mm' });
             return;
           }
-          const campo = col.destino.slice(6);
-          if (['latitude', 'longitude', 'altitude_m'].includes(campo)) {
-            const v = numeroBr(bruto);
-            if (Number.isNaN(v)) falhas.push(`${campo}: valor inválido (${bruto})`); else o[campo] = v;
-          } else if (['data_coleta', 'data_determinacao', 'emprestimo_data'].includes(campo)) o[campo] = dataIso(bruto);
-          else if (campo === 'projeto') {
-            const p = this.projetos.find((x) => norm(x.titulo) === norm(bruto));
-            if (p) o.projeto_id = p.id; else falhas.push(`projeto "${bruto}" não encontrado`);
-          } else if (campo === 'projeto_id') {
-            const v = numeroBr(bruto);
-            if (Number.isNaN(v)) falhas.push(`projeto_id inválido (${bruto})`); else o.projeto_id = v;
-          } else o[campo] = bruto;
+          const field = col.target.slice(6);
+          if (['latitude', 'longitude', 'elevation_m'].includes(field)) {
+            const v = parseNumber(raw);
+            if (Number.isNaN(v)) problems.push(`${field}: valor inválido (${raw})`); else o[field] = v;
+          } else if (['collection_date', 'identification_date', 'loan_date'].includes(field)) o[field] = toIsoDate(raw);
+          else if (field === 'project') {
+            const p = this.projects.find((x) => norm(x.title) === norm(raw));
+            if (p) o.project_id = p.id; else problems.push(`projeto "${raw}" não encontrado`);
+          } else if (field === 'project_id') {
+            const v = parseNumber(raw);
+            if (Number.isNaN(v)) problems.push(`projeto_id inválido (${raw})`); else o.project_id = v;
+          } else o[field] = raw;
         });
-        ['grupo_insetos', 'familia', 'especie'].forEach((c) => {
-          if (!o[c] && im.padrao[c].trim()) o[c] = im.padrao[c].trim();
+        ['insect_order', 'family', 'species'].forEach((c) => {
+          if (!o[c] && job.defaults[c].trim()) o[c] = job.defaults[c].trim();
         });
-        if (o.especie && im.correcoes[o.especie]) o.especie = im.correcoes[o.especie];
-        if (falhas.length) erros.push({ linha: n, codigo_etiqueta: o.codigo_etiqueta || '', mensagem: falhas.join('; ') });
-        else linhas.push(o);
+        if (o.species && job.corrections[o.species]) o.species = job.corrections[o.species];
+        if (problems.length) errors.push({ line, catalog_number: o.catalog_number || '', message: problems.join('; ') });
+        else rows.push(o);
       });
-      return { linhas, erros };
+      return { rows, errors };
     },
-    agendarSimulacao() {
-      clearTimeout(this.timerSimulacao);
-      this.timerSimulacao = setTimeout(() => this.simularImportacao(), 350);
+    scheduleDryRun() {
+      clearTimeout(this.dryRunTimer);
+      this.dryRunTimer = setTimeout(() => this.runDryRun(), 350);
     },
-    async simularImportacao() {
-      const im = this.importacao;
-      if (!im || !im.dados.length) return;
-      const seq = ++im.seq;
-      const { linhas, erros } = this.montarLinhasImportacao();
-      im.errosCliente = erros;
-      im.linhasPayload = linhas;
-      im.erro = null;
-      if (!linhas.length) { im.relatorio = null; return; }
-      im.simulando = true;
+    async runDryRun() {
+      const job = this.importJob;
+      if (!job || !job.data.length) return;
+      const seq = ++job.seq;
+      const { rows, errors } = this.buildImportRows();
+      job.clientErrors = errors;
+      job.payloadRows = rows;
+      job.error = null;
+      if (!rows.length) { job.report = null; return; }
+      job.checking = true;
       try {
-        const rel = await this.api('/especimes/importar?simular=true', {
-          metodo: 'POST', corpo: { projeto_id: im.projetoId || null, duplicados: im.duplicados, linhas }
+        const report = await this.api('/specimens/import?dry_run=true', {
+          method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows }
         });
-        if (seq === im.seq) im.relatorio = rel;
+        if (seq === job.seq) job.report = report;
       } catch (e) {
-        if (seq === im.seq) { im.relatorio = null; im.erro = e.message; }
+        if (seq === job.seq) { job.report = null; job.error = e.message; }
       }
-      if (seq === im.seq) im.simulando = false;
+      if (seq === job.seq) job.checking = false;
     },
-    async confirmarImportacao() {
-      const im = this.importacao;
-      im.enviando = true;
-      im.erro = null;
+    async confirmImport() {
+      const job = this.importJob;
+      job.submitting = true;
+      job.error = null;
       try {
-        const rel = await this.api('/especimes/importar', {
-          metodo: 'POST', corpo: { projeto_id: im.projetoId || null, duplicados: im.duplicados, linhas: im.linhasPayload }
+        const report = await this.api('/specimens/import', {
+          method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows: job.payloadRows }
         });
-        this.importacao = null;
-        await this.carregarTudo();
-        const partes = [];
-        if (rel.criados) partes.push(this.plural(rel.criados, 'espécime criado', 'espécimes criados'));
-        if (rel.atualizados) partes.push(this.plural(rel.atualizados, 'atualizado', 'atualizados'));
-        if (rel.ignorados) partes.push(this.plural(rel.ignorados, 'ignorado', 'ignorados'));
-        this.avisar(`Importação concluída: ${partes.join(', ') || 'nada novo'}.`);
+        this.importJob = null;
+        await this.loadAll();
+        const parts = [];
+        if (report.created) parts.push(this.plural(report.created, 'espécime criado', 'espécimes criados'));
+        if (report.updated) parts.push(this.plural(report.updated, 'atualizado', 'atualizados'));
+        if (report.skipped) parts.push(this.plural(report.skipped, 'ignorado', 'ignorados'));
+        this.notify(`Importação concluída: ${parts.join(', ') || 'nada novo'}.`);
       } catch (e) {
-        im.erro = e.message;
-        im.enviando = false;
+        job.error = e.message;
+        job.submitting = false;
       }
     },
-    aplicarSugestao(av) {
-      this.importacao.correcoes[av.nome] = av.sugestao;
-      this.simularImportacao();
+    applySuggestion(w) {
+      this.importJob.corrections[w.name] = w.suggestion;
+      this.runDryRun();
     },
-    aplicarTodasSugestoes() {
-      (this.importacao.relatorio?.avisos || []).forEach((av) => {
-        if (av.sugestao && (av.tipo === 'aproximado' || av.tipo === 'sinonimo')) this.importacao.correcoes[av.nome] = av.sugestao;
+    applyAllSuggestions() {
+      (this.importJob.report?.warnings || []).forEach((w) => {
+        if (w.suggestion && (w.kind === 'fuzzy' || w.kind === 'synonym')) this.importJob.corrections[w.name] = w.suggestion;
       });
-      this.simularImportacao();
+      this.runDryRun();
     },
-    rotuloAviso(tipo) {
-      return { aproximado: 'Nome aproximado', sinonimo: 'Sinônimo', so_genero: 'Só o gênero foi reconhecido', nao_encontrado: 'Não encontrado no GBIF' }[tipo] || tipo;
+    warningLabel(kind) {
+      return { fuzzy: 'Nome aproximado', synonym: 'Sinônimo', genus_only: 'Só o gênero foi reconhecido', not_found: 'Não encontrado no GBIF' }[kind] || kind;
     },
-    baixarModelo() {
-      const im = this.importacao;
-      const p = this.projetosPorId[im.projetoId];
-      const tracos = p && p.tracos_medidos ? p.tracos_medidos.split(',').map((t) => `${t.trim()} (mm)`) : ['Comprimento corporal (mm)'];
-      const cab = ['Codigo Etiqueta', 'Ordem', 'Familia', 'Especie', 'Data Coleta', 'Local Coleta', 'Latitude', 'Longitude', 'Altitude (m)', 'Sexo', 'Estagio', 'Imagem', 'Notas', ...tracos];
-      const exemplo = ['EX-0001', 'Coleoptera', 'Coccinellidae', 'Coccinella septempunctata', '2025-03-14', 'Parque Estadual do Rio Doce', '-19.75', '-42.60', '250', 'fêmea', 'adulto', 'EX-0001.jpg', '', ...tracos.map(() => '6.5')];
-      this.baixarTexto('﻿' + [cab, exemplo].map((l) => l.join(',')).join('\n'), 'modelo_importacao_entomobase.csv');
+    downloadTemplate() {
+      const job = this.importJob;
+      const p = this.projectsById[job.projectId];
+      const traits = p && p.measured_traits ? p.measured_traits.split(',').map((t) => `${t.trim()} (mm)`) : ['Comprimento corporal (mm)'];
+      const header = ['Codigo Etiqueta', 'Ordem', 'Familia', 'Especie', 'Data Coleta', 'Local Coleta', 'Latitude', 'Longitude', 'Altitude (m)', 'Sexo', 'Estagio', 'Imagem', 'Notas', ...traits];
+      const example = ['EX-0001', 'Coleoptera', 'Coccinellidae', 'Coccinella septempunctata', '2025-03-14', 'Parque Estadual do Rio Doce', '-19.75', '-42.60', '250', 'fêmea', 'adulto', 'EX-0001.jpg', '', ...traits.map(() => '6.5')];
+      this.downloadText('﻿' + [header, example].map((l) => l.join(',')).join('\n'), 'modelo_importacao_entomobase.csv');
     },
-    baixarTexto(texto, nome) {
-      const url = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' }));
+    downloadText(text, name) {
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = nome;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
     },
 
-    // ---------- exportação e rodapé ----------
-    async baixarDaApi(caminho, nome) {
+    // ---------- export and footer ----------
+    async downloadFromApi(path, name) {
       try {
-        const res = await fetch(this.apiUrl + caminho, { headers: this.token ? { Authorization: `Bearer ${this.token}` } : {} });
-        if (!res.ok) throw new Error(await this.mensagemErro(res));
+        const res = await fetch(this.apiUrl + path, { headers: this.token ? { Authorization: `Bearer ${this.token}` } : {} });
+        if (!res.ok) throw new Error(await this.errorMessage(res));
         const url = URL.createObjectURL(await res.blob());
         const el = document.createElement('a');
         el.href = url;
-        el.download = nome;
+        el.download = name;
         document.body.appendChild(el);
         el.click();
         el.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
-        this.avisar(e.message === 'Failed to fetch' ? 'Não foi possível conectar à API.' : e.message);
+        this.notify(e.message === 'Failed to fetch' ? 'Não foi possível conectar à API.' : e.message);
       }
     },
-    exportarCsv(projetoId = null, completo = false) {
-      const parametros = [];
-      if (projetoId) parametros.push(`projeto_id=${projetoId}`);
-      if (completo) parametros.push('completo=true');
-      const nome = (projetoId ? `projeto_${projetoId}_especimes` : 'acervo_entomobase') + (completo ? '_completo' : '') + '.csv';
-      this.baixarDaApi('/exportar/csv' + (parametros.length ? '?' + parametros.join('&') : ''), nome);
+    exportCsv(projectId = null, full = false) {
+      const params = [];
+      if (projectId) params.push(`project_id=${projectId}`);
+      if (full) params.push('full=true');
+      const name = (projectId ? `projeto_${projectId}_especimes` : 'acervo_entomobase') + (full ? '_completo' : '') + '.csv';
+      this.downloadFromApi('/export/csv' + (params.length ? '?' + params.join('&') : ''), name);
     },
-    exportarDwc(projetoId = null) {
-      this.baixarDaApi('/exportar/dwc' + (projetoId ? `?projeto_id=${projetoId}` : ''), projetoId ? `projeto_${projetoId}_darwincore.zip` : 'entomobase_darwincore.zip');
+    exportDwc(projectId = null) {
+      this.downloadFromApi('/export/dwc' + (projectId ? `?project_id=${projectId}` : ''), projectId ? `projeto_${projectId}_darwincore.zip` : 'entomobase_darwincore.zip');
     },
-    abrirInfo(qual) { this.info = qual; },
-    async copiarCitacao() {
+    openInfo(which) { this.info = which; },
+    async copyCitation() {
       try {
-        await navigator.clipboard.writeText(this.textoCitacao);
-        this.avisar('Citação copiada.');
+        await navigator.clipboard.writeText(this.citationText);
+        this.notify('Citação copiada.');
       } catch {
-        this.avisar('Não foi possível copiar. Selecione o texto e copie manualmente.');
+        this.notify('Não foi possível copiar. Selecione o texto e copie manualmente.');
       }
     }
   }
 });
 
-// ------------------------------------------------------------ componentes
-app.directive('foco', { mounted(el) { el.focus({ preventScroll: true }); } });
+// ------------------------------------------------------------ components
+app.directive('autofocus', { mounted(el) { el.focus({ preventScroll: true }); } });
 
-app.component('icone', {
-  props: ['nome'],
-  computed: { caminho() { return ICONES[this.nome] || ''; } },
-  template: '<svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="caminho"></svg>'
+app.component('icon', {
+  props: ['name'],
+  computed: { path() { return ICONS[this.name] || ''; } },
+  template: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" v-html="path"></svg>'
 });
 
-app.component('destaque', {
-  props: ['texto', 'q'],
+// marks the parts of the text that match the search, ignoring accents
+app.component('highlight', {
+  props: ['text', 'q'],
   computed: {
-    partes() {
-      const t = (this.texto ?? '').toString();
+    parts() {
+      const t = (this.text ?? '').toString();
       const n = norm(t);
       if (!this.q || n.length !== t.length) return [{ t, m: false }];
-      const partes = [];
+      const parts = [];
       let i = 0;
       let j;
       while ((j = n.indexOf(this.q, i)) !== -1) {
-        if (j > i) partes.push({ t: t.slice(i, j), m: false });
-        partes.push({ t: t.slice(j, j + this.q.length), m: true });
+        if (j > i) parts.push({ t: t.slice(i, j), m: false });
+        parts.push({ t: t.slice(j, j + this.q.length), m: true });
         i = j + this.q.length;
       }
-      if (i < t.length) partes.push({ t: t.slice(i), m: false });
-      return partes.length ? partes : [{ t, m: false }];
+      if (i < t.length) parts.push({ t: t.slice(i), m: false });
+      return parts.length ? parts : [{ t, m: false }];
     }
   },
-  template: '<span><template v-for="(p, i) in partes" :key="i"><mark v-if="p.m">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template></span>'
+  template: '<span><template v-for="(p, i) in parts" :key="i"><mark v-if="p.m">{{ p.t }}</mark><template v-else>{{ p.t }}</template></template></span>'
 });
 
-// imagem com quadro de reserva quando o arquivo não existe ou não carrega
-app.component('foto', {
-  props: ['src', 'alt', 'rotulo'],
-  data() { return { erro: false }; },
-  watch: { src() { this.erro = false; } },
-  template: '<div :class="[\'foto-quadro\', { vazia: !src || erro }]"><img v-if="src && !erro" :src="src" :alt="alt" loading="lazy" decoding="async" @error="erro = true"><span v-else class="foto-ausente">{{ rotulo || \'Sem imagem\' }}</span></div>'
+// image with a placeholder frame when the file does not exist or fails to load
+app.component('photo', {
+  props: ['src', 'alt', 'label'],
+  data() { return { failed: false }; },
+  watch: { src() { this.failed = false; } },
+  template: '<div :class="[\'photo-frame\', { empty: !src || failed }]"><img v-if="src && !failed" :src="src" :alt="alt" loading="lazy" decoding="async" @error="failed = true"><span v-else class="photo-missing">{{ label || \'Sem imagem\' }}</span></div>'
 });
 
-app.component('galeria', {
-  props: ['itens', 'restante'],
-  emits: ['abrir', 'mais'],
-  template: '#tpl-galeria'
+app.component('gallery', {
+  props: ['items', 'remaining'],
+  emits: ['open', 'more'],
+  template: '#tpl-gallery'
 });
 
-// mapa de coleta (Leaflet + agrupamento de pontos)
-app.component('mapa', {
-  props: ['pontos', 'foco'],
-  emits: ['abrir', 'focado'],
-  data() { return { indisponivel: false, mapaLeaflet: null, grupo: null, marcadores: {} }; },
-  template: '<div class="mapa-caixa"><div ref="el" class="mapa" role="application" aria-label="Mapa de coleta"></div><p v-if="indisponivel" class="mapa-erro">Não foi possível carregar o mapa (biblioteca Leaflet indisponível). Verifique a conexão com a internet.</p></div>',
+// collection map (Leaflet + point clustering)
+app.component('collection-map', {
+  props: ['points', 'focus'],
+  emits: ['open', 'focused'],
+  data() { return { unavailable: false, leafletMap: null, cluster: null, markers: {} }; },
+  template: '<div class="map-box"><div ref="el" class="map" role="application" aria-label="Mapa de coleta"></div><p v-if="unavailable" class="map-error">Não foi possível carregar o mapa (biblioteca Leaflet indisponível). Verifique a conexão com a internet.</p></div>',
   mounted() {
-    if (typeof L === 'undefined' || !L.markerClusterGroup) { this.indisponivel = true; return; }
-    const mapa = L.map(this.$refs.el, { scrollWheelZoom: false, worldCopyJump: true }).setView([-15, -47], 4);
-    // tiles da Esri: sem chave de API e sem exigir Referer (o OpenStreetMap e o CARTO bloqueiam nesses casos)
+    if (typeof L === 'undefined' || !L.markerClusterGroup) { this.unavailable = true; return; }
+    const map = L.map(this.$refs.el, { scrollWheelZoom: false, worldCopyJump: true }).setView([-15, -47], 4);
+    // Esri tiles: no API key and no Referer required (OpenStreetMap and CARTO block in these cases)
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 19, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors'
-    }).addTo(mapa);
-    mapa.on('click', () => mapa.scrollWheelZoom.enable());
-    mapa.getContainer().addEventListener('mouseleave', () => mapa.scrollWheelZoom.disable());
-    this.mapaLeaflet = markRaw(mapa);
-    this.desenhar(true);
-    this.$nextTick(() => { mapa.invalidateSize(); this.focar(); });
+    }).addTo(map);
+    map.on('click', () => map.scrollWheelZoom.enable());
+    map.getContainer().addEventListener('mouseleave', () => map.scrollWheelZoom.disable());
+    this.leafletMap = markRaw(map);
+    this.draw(true);
+    this.$nextTick(() => { map.invalidateSize(); this.applyFocus(); });
   },
-  beforeUnmount() { if (this.mapaLeaflet) this.mapaLeaflet.remove(); },
+  beforeUnmount() { if (this.leafletMap) this.leafletMap.remove(); },
   watch: {
-    pontos() { this.desenhar(true); },
-    foco() { this.focar(); }
+    points() { this.draw(true); },
+    focus() { this.applyFocus(); }
   },
   methods: {
     popup(p) {
-      const no = document.createElement('div');
-      no.className = 'pop';
+      const node = document.createElement('div');
+      node.className = 'pop';
       if (p.thumb) {
         const img = document.createElement('img');
         img.src = p.thumb;
-        img.alt = p.especie;
+        img.alt = p.species;
         img.onerror = () => img.remove();
-        no.appendChild(img);
+        node.appendChild(img);
       }
-      const nome = document.createElement('strong');
-      nome.className = 'pop-especie';
-      nome.textContent = p.especie;
-      const cod = document.createElement('span');
-      cod.className = 'pop-linha';
-      cod.textContent = p.codigo + (p.local ? ' · ' + p.local : '');
-      const botao = document.createElement('button');
-      botao.type = 'button';
-      botao.className = 'pop-botao';
-      botao.textContent = 'Ver detalhes';
-      botao.addEventListener('click', () => this.$emit('abrir', p.id));
-      no.append(nome, cod, botao);
-      return no;
+      const name = document.createElement('strong');
+      name.className = 'pop-species';
+      name.textContent = p.species;
+      const line = document.createElement('span');
+      line.className = 'pop-line';
+      line.textContent = p.code + (p.locality ? ' · ' + p.locality : '');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'pop-button';
+      button.textContent = 'Ver detalhes';
+      button.addEventListener('click', () => this.$emit('open', p.id));
+      node.append(name, line, button);
+      return node;
     },
-    desenhar(ajustar) {
-      if (!this.mapaLeaflet) return;
-      if (this.grupo) this.mapaLeaflet.removeLayer(this.grupo);
-      const grupo = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 42 });
-      const marcadores = {};
-      (this.pontos || []).forEach((p) => {
-        const icone = L.divIcon({ className: 'ponto-wrap', html: `<span class="ponto" style="background:${p.cor}"></span>`, iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
-        const m = L.marker([p.lat, p.lng], { icon: icone, title: `${p.especie} (${p.codigo})` });
+    draw(fit) {
+      if (!this.leafletMap) return;
+      if (this.cluster) this.leafletMap.removeLayer(this.cluster);
+      const cluster = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 42 });
+      const markers = {};
+      (this.points || []).forEach((p) => {
+        const icon = L.divIcon({ className: 'dot-wrap', html: `<span class="dot" style="background:${p.color}"></span>`, iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
+        const m = L.marker([p.lat, p.lng], { icon, title: `${p.species} (${p.code})` });
         m.bindPopup(() => this.popup(p), { minWidth: 190, maxWidth: 240 });
-        marcadores[p.id] = m;
-        grupo.addLayer(m);
+        markers[p.id] = m;
+        cluster.addLayer(m);
       });
-      this.mapaLeaflet.addLayer(grupo);
-      this.grupo = markRaw(grupo);
-      this.marcadores = markRaw(marcadores);
-      if (ajustar) {
-        if ((this.pontos || []).length) this.mapaLeaflet.fitBounds(grupo.getBounds().pad(0.15), { maxZoom: 13 });
-        else this.mapaLeaflet.setView([-15, -47], 4);
+      this.leafletMap.addLayer(cluster);
+      this.cluster = markRaw(cluster);
+      this.markers = markRaw(markers);
+      if (fit) {
+        if ((this.points || []).length) this.leafletMap.fitBounds(cluster.getBounds().pad(0.15), { maxZoom: 13 });
+        else this.leafletMap.setView([-15, -47], 4);
       }
-      this.focar();
+      this.applyFocus();
     },
-    focar() {
-      if (!this.mapaLeaflet || !this.foco) return;
-      const m = this.marcadores[this.foco];
+    applyFocus() {
+      if (!this.leafletMap || !this.focus) return;
+      const m = this.markers[this.focus];
       if (!m) return;
-      this.grupo.zoomToShowLayer(m, () => m.openPopup());
-      this.$emit('focado');
+      this.cluster.zoomToShowLayer(m, () => m.openPopup());
+      this.$emit('focused');
     }
   }
 });
