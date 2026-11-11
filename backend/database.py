@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Usa PostgreSQL se a variável existir, caso contrário usa SQLite local para desenvolvimento rápido
+# uses PostgreSQL when DATABASE_URL is set, otherwise a local SQLite file for quick development
 SQLALCHEMY_DATABASE_URL = os.getenv(
     "DATABASE_URL", "sqlite:///./entomobase.db"
 )
