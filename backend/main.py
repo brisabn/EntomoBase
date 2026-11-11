@@ -9,7 +9,7 @@ import jwt
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi import FastAPI, Depends, HTTPException, Header, Request
+from fastapi import FastAPI, Depends, HTTPException, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
@@ -415,21 +415,34 @@ def validate_scientific_names(
 
 
 # --- Export ---
-# the column headers are what users see in the downloaded file, so they stay in Portuguese
-BASE_COLUMNS = [
-    "Codigo Etiqueta", "Ordem", "Familia", "Especie", "Data Coleta", "Local Coleta", "Latitude", "Longitude",
-    "Altitude (m)", "Sexo", "Estagio", "Determinador", "Data Determinacao", "Metodo Coleta", "Habitat",
-    "Imagem", "Projeto", "Notas",
-]
+# the column headers are what users see in the downloaded file, so they follow the site language;
+# the importer on the site understands both
+BASE_COLUMNS = {
+    "pt": [
+        "Codigo Etiqueta", "Ordem", "Familia", "Especie", "Data Coleta", "Local Coleta", "Latitude", "Longitude",
+        "Altitude (m)", "Sexo", "Estagio", "Determinador", "Data Determinacao", "Metodo Coleta", "Habitat",
+        "Imagem", "Projeto", "Notas",
+    ],
+    "en": [
+        "Catalog Number", "Order", "Family", "Species", "Collection Date", "Locality", "Latitude", "Longitude",
+        "Elevation (m)", "Sex", "Life Stage", "Identified By", "Identification Date", "Sampling Method", "Habitat",
+        "Image", "Project", "Notes",
+    ],
+}
 # only present in the full CSV, which requires login
-INTERNAL_COLUMNS = [
-    "Coletor", "Numero Campo", "Localizacao Fisica", "Emprestimo", "Emprestado Para", "Data Emprestimo", "Notas Internas",
-]
+INTERNAL_COLUMNS = {
+    "pt": ["Coletor", "Numero Campo", "Localizacao Fisica", "Emprestimo", "Emprestado Para", "Data Emprestimo", "Notas Internas"],
+    "en": ["Collector", "Field Number", "Storage Location", "Loan Status", "Loaned To", "Loan Date", "Internal Notes"],
+}
+CSV_FILE_NAMES = {
+    "pt": ("acervo_entomobase.csv", "acervo_entomobase_completo.csv"),
+    "en": ("entomobase_collection.csv", "entomobase_collection_full.csv"),
+}
 
 
 @app.get("/export/csv")
 def export_specimens_csv(
-    project_id: Optional[int] = None, full: bool = False,
+    project_id: Optional[int] = None, full: bool = False, lang: str = Query("pt", pattern="^(pt|en)$"),
     logged_in: bool = Depends(is_logged_in), db: Session = Depends(get_db)
 ):
     if full and not logged_in:
@@ -452,7 +465,7 @@ def export_specimens_csv(
     # BOM so Excel opens the accents correctly
     output.write("﻿")
     writer = csv.writer(output)
-    header = BASE_COLUMNS + (INTERNAL_COLUMNS if full else [])
+    header = BASE_COLUMNS[lang] + (INTERNAL_COLUMNS[lang] if full else [])
     writer.writerow(header + [f"{t} ({u})" for t, u in traits])
     for s in specimens:
         values = {(m.trait, m.unit or "mm"): m.value for m in s.measurements}
@@ -469,7 +482,7 @@ def export_specimens_csv(
             ]
         writer.writerow(row + [values.get(key) for key in traits])
     output.seek(0)
-    name = "acervo_entomobase_completo.csv" if full else "acervo_entomobase.csv"
+    name = CSV_FILE_NAMES[lang][1 if full else 0]
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv; charset=utf-8",

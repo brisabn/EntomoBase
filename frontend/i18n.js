@@ -42,7 +42,24 @@ const MESSAGES = {
     'field.loan_status': 'Empréstimo', 'field.loaned_to': 'Emprestado para', 'field.loan_date': 'Data do empréstimo',
     'field.internal_notes': 'Notas internas', 'field.title': 'Título', 'field.year': 'Ano',
     'field.insect_group': 'Grupo de insetos', 'field.email': 'E-mail', 'field.password': 'Senha',
-    'field.measurement': (p) => `Medida ${p.n}`, 'field.trait': 'traço', 'field.value': 'valor', 'field.unit': 'unidade'
+    'field.measurement': (p) => `Medida ${p.n}`, 'field.trait': 'traço', 'field.value': 'valor', 'field.unit': 'unidade',
+
+    // downloaded files (names without extension) and the import template
+    'file.collection_csv': 'acervo_entomobase', 'file.project_csv': (p) => `projeto_${p.id}_especimes`,
+    'file.full_suffix': '_completo', 'file.collection_dwc': 'entomobase_darwincore',
+    'file.project_dwc': (p) => `projeto_${p.id}_darwincore`, 'file.import_template': 'modelo_importacao_entomobase',
+    'template.default_trait': 'Comprimento corporal',
+    'template.header': ['Codigo Etiqueta', 'Ordem', 'Familia', 'Especie', 'Data Coleta', 'Local Coleta', 'Latitude', 'Longitude', 'Altitude (m)', 'Sexo', 'Estagio', 'Imagem', 'Notas'],
+    'template.example': ['EX-0001', 'Coleoptera', 'Coccinellidae', 'Coccinella septempunctata', '2025-03-14', 'Parque Estadual do Rio Doce', '-19.75', '-42.60', '250', 'fêmea', 'adulto', 'EX-0001.jpg', '']
+  },
+
+  en: {
+    'file.collection_csv': 'entomobase_collection', 'file.project_csv': (p) => `project_${p.id}_specimens`,
+    'file.full_suffix': '_full', 'file.collection_dwc': 'entomobase_darwincore',
+    'file.project_dwc': (p) => `project_${p.id}_darwincore`, 'file.import_template': 'entomobase_import_template',
+    'template.default_trait': 'Body length',
+    'template.header': ['Catalog Number', 'Order', 'Family', 'Species', 'Collection Date', 'Locality', 'Latitude', 'Longitude', 'Elevation (m)', 'Sex', 'Life Stage', 'Image', 'Notes'],
+    'template.example': ['EX-0001', 'Coleoptera', 'Coccinellidae', 'Coccinella septempunctata', '2025-03-14', 'Rio Doce State Park', '-19.75', '-42.60', '250', 'female', 'adult', 'EX-0001.jpg', '']
   }
 };
 

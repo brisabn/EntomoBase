@@ -87,10 +87,10 @@ const ALIASES = {
   locality: ['local_coleta', 'local', 'localidade', 'locality'],
   latitude: ['latitude', 'lat'],
   longitude: ['longitude', 'lon', 'lng', 'long'],
-  elevation_m: ['altitude', 'altitude_m', 'alt', 'elevation_m'],
+  elevation_m: ['altitude', 'altitude_m', 'alt', 'elevation', 'elevation_m'],
   sex: ['sexo', 'sex'],
   life_stage: ['estagio', 'estadio', 'casta', 'life_stage'],
-  image_file: ['imagem', 'imagem_arquivo', 'arquivo_imagem', 'arquivo', 'foto', 'imagem_zenodo', 'image_file'],
+  image_file: ['imagem', 'imagem_arquivo', 'arquivo_imagem', 'arquivo', 'foto', 'imagem_zenodo', 'image', 'image_file'],
   photo_url: ['fotografia_url', 'url_imagem', 'foto_url', 'photo_url'],
   notes: ['notas', 'observacoes', 'obs', 'observacao', 'notes'],
   identified_by: ['determinador', 'identificado_por', 'identificador', 'identified_by'],
@@ -1233,10 +1233,10 @@ const app = createApp({
     downloadTemplate() {
       const job = this.importJob;
       const p = this.projectsById[job.projectId];
-      const traits = p && p.measured_traits ? p.measured_traits.split(',').map((t) => `${t.trim()} (mm)`) : ['Comprimento corporal (mm)'];
-      const header = ['Codigo Etiqueta', 'Ordem', 'Familia', 'Especie', 'Data Coleta', 'Local Coleta', 'Latitude', 'Longitude', 'Altitude (m)', 'Sexo', 'Estagio', 'Imagem', 'Notas', ...traits];
-      const example = ['EX-0001', 'Coleoptera', 'Coccinellidae', 'Coccinella septempunctata', '2025-03-14', 'Parque Estadual do Rio Doce', '-19.75', '-42.60', '250', 'fêmea', 'adulto', 'EX-0001.jpg', '', ...traits.map(() => '6.5')];
-      this.downloadText('﻿' + [header, example].map((l) => l.join(',')).join('\n'), 'modelo_importacao_entomobase.csv');
+      const traits = p && p.measured_traits ? p.measured_traits.split(',').map((t) => `${t.trim()} (mm)`) : [`${this.t('template.default_trait')} (mm)`];
+      const header = [...this.t('template.header'), ...traits];
+      const example = [...this.t('template.example'), ...traits.map(() => '6.5')];
+      this.downloadText('﻿' + [header, example].map((l) => l.join(',')).join('\n'), `${this.t('file.import_template')}.csv`);
     },
     downloadText(text, name) {
       const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
@@ -1267,14 +1267,16 @@ const app = createApp({
       }
     },
     exportCsv(projectId = null, full = false) {
-      const params = [];
+      const params = [`lang=${this.lang}`];
       if (projectId) params.push(`project_id=${projectId}`);
       if (full) params.push('full=true');
-      const name = (projectId ? `projeto_${projectId}_especimes` : 'acervo_entomobase') + (full ? '_completo' : '') + '.csv';
-      this.downloadFromApi('/export/csv' + (params.length ? '?' + params.join('&') : ''), name);
+      const base = projectId ? this.t('file.project_csv', { id: projectId }) : this.t('file.collection_csv');
+      const name = base + (full ? this.t('file.full_suffix') : '') + '.csv';
+      this.downloadFromApi('/export/csv?' + params.join('&'), name);
     },
     exportDwc(projectId = null) {
-      this.downloadFromApi('/export/dwc' + (projectId ? `?project_id=${projectId}` : ''), projectId ? `projeto_${projectId}_darwincore.zip` : 'entomobase_darwincore.zip');
+      const name = projectId ? this.t('file.project_dwc', { id: projectId }) : this.t('file.collection_dwc');
+      this.downloadFromApi('/export/dwc' + (projectId ? `?project_id=${projectId}` : ''), `${name}.zip`);
     },
     openInfo(which) { this.info = which; },
     async copyCitation() {
