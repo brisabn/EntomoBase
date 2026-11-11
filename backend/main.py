@@ -132,6 +132,14 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
     return {"access_token": token, "email": user.email}
 
 
+# --- Laboratories ---
+# the public list of the platform: only the laboratories that chose to be listed. A laboratory that is not
+# listed still works at its own address; it just is not advertised
+@app.get("/labs", response_model=List[schemas.LaboratoryPublic])
+def list_laboratories(db: Session = Depends(get_db)):
+    return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+
+
 # --- Project routes ---
 # who can do what is decided in authorization.py; these routes only declare the minimum role they need
 # and read data through visible_projects / visible_specimens, never straight from the tables

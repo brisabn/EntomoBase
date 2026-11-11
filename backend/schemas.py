@@ -173,6 +173,17 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
 
 
+# what anyone may know about a laboratory
+class LaboratoryPublic(BaseModel):
+    slug: str
+    name: str
+    institution: str
+    collection_code: str
+
+    class Config:
+        from_attributes = True
+
+
 class ValidateNamesRequest(BaseModel):
     names: List[str] = Field(..., max_length=300)
 
