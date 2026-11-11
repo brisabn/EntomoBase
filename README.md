@@ -44,6 +44,17 @@ python seed.py            # cria os projetos e espécimes de exemplo
 python seed.py --remove   # remove só os de exemplo
 ```
 
+## Testes
+
+```powershell
+pip install -r backend\requirements-dev.txt
+cd backend
+pytest               # roda os testes
+pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
+```
+
+Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Cobrem login e limite de tentativas, o que visitantes veem, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, migração do banco antigo, CORS e a conferência de que todo texto do site tem tradução.
+
 ## Variáveis de ambiente
 
 | Variável | Para que serve |

@@ -1,0 +1,10 @@
+[run]
+source = .
+omit =
+    tests/*
+    */__pycache__/*
+
+[report]
+show_missing = true
+skip_empty = true
+fail_under = 80
