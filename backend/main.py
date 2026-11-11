@@ -29,8 +29,10 @@ from authorization import (
 from errors import api_error
 from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
+from email_confirmation import issue_code, send_already_registered, send_confirmation
+from mailer import MailError, valid_address
 from rate_limit import AttemptLimiter
-from security import hash_password, needs_rehash, verify_password
+from security import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
 from settings import ALGORITHM, SECRET_KEY
 
 # pydantic error types the site has a message for; any other type is shown as an invalid value
@@ -134,6 +136,52 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
     exp = datetime.now(timezone.utc) + timedelta(hours=8)
     token = jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "email": user.email}
+
+
+# open sign-up, which sends an e-mail to whatever address is typed, so it is limited per IP: every request
+# counts, not only the failed ones
+SIGNUP_WINDOW_SECONDS = 60 * 60
+signup_limiter = AttemptLimiter(max_attempts=5, window_seconds=SIGNUP_WINDOW_SECONDS)
+
+
+# creates an account with no laboratory and e-mails a link to confirm the address. The answer is the same
+# whether or not the address already has an account, so the route cannot be used to find out who is registered
+@app.post("/signup", status_code=202)
+def signup(data: schemas.SignupRequest, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    ensure_login_allowed((signup_limiter, ip))
+    signup_limiter.record_failure(ip)
+
+    email = data.email.lower()
+    if not valid_address(email):
+        raise api_error(400, "invalid_email")
+    if len(data.password) < MIN_PASSWORD_LENGTH:
+        raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
+
+    # hashed before looking at the database, so the time taken does not show whether the address exists
+    password_hash = hash_password(data.password)
+    user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
+    try:
+        if user is not None and user.email_verified_at is not None:
+            send_already_registered(email)
+        else:
+            # an account whose address was never confirmed is taken over by the newest sign-up: whoever
+            # types an address first does not keep it from the person who owns it
+            if user is None:
+                user = models.User(email=email, password_hash=password_hash, name=data.name)
+                db.add(user)
+            else:
+                user.password_hash, user.name = password_hash, data.name
+            db.flush()
+            send_confirmation(email, issue_code(db, user))
+        db.commit()
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    except IntegrityError:
+        # two sign-ups for the same new address at the same moment: the other one wins and sends the e-mail
+        db.rollback()
+    return {"status": "confirmation_sent"}
 
 
 # --- Laboratories ---

@@ -51,6 +51,7 @@ def clean_state():
             conn.execute(table.delete())
     main.account_limiter._failures.clear()
     main.ip_limiter._failures.clear()
+    main.signup_limiter._failures.clear()
     yield
 
 

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Literal, Optional, List
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Annotated, Literal, Optional, List
 from datetime import date
 
 class MeasurementBase(BaseModel):
@@ -158,6 +158,13 @@ class ProjectResponse(ProjectBase):
 class UserLogin(BaseModel):
     email: str = Field(..., min_length=5)
     password: str = Field(..., min_length=3)
+
+# open sign-up: an account with no laboratory, which cannot do anything until the e-mail is confirmed.
+# The minimum length of the password is checked by the route, with its own message
+class SignupRequest(BaseModel):
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=254)]
+    password: str = Field(..., max_length=128)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
