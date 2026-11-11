@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi import FastAPI, Depends, Query, Request
+from fastapi import APIRouter, FastAPI, Depends, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
@@ -59,6 +59,9 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=lifespan)
+
+# the routes that work on one laboratory's data; login and share links do not belong to a laboratory
+lab_router = APIRouter()
 
 
 # invalid request bodies use the same format as the other errors
@@ -140,7 +143,7 @@ def project_output(project: models.Project, ctx: Context) -> schemas.ProjectResp
     return output
 
 
-@app.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
+@lab_router.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db_project = models.Project(**project.model_dump(exclude={"visibility"}), laboratory_id=ctx.laboratory.id)
     set_visibility(db_project, project.visibility)
@@ -150,7 +153,7 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     return db_project
 
 
-@app.get("/projects", response_model=List[schemas.ProjectResponse])
+@lab_router.get("/projects", response_model=List[schemas.ProjectResponse])
 def list_projects(
     year: Optional[int] = None, insect_group: Optional[str] = None,
     locality: Optional[str] = None, finished: Optional[bool] = None,
@@ -167,7 +170,7 @@ def list_projects(
     return [project_output(p, ctx) for p in projects]
 
 
-@app.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
+@lab_router.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
 def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db_project = get_visible_project(db, ctx, project_id)
     changes = data.model_dump(exclude_unset=True)
@@ -183,7 +186,7 @@ def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = D
 
 
 # deleting a project deletes its specimens too, so only a laboratory admin can do it
-@app.delete("/projects/{project_id}", status_code=204)
+@lab_router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
     db.delete(get_visible_project(db, ctx, project_id))
     db.commit()
@@ -232,7 +235,7 @@ def replace_measurements(specimen: models.Specimen, measurements):
         specimen.measurements.append(models.Measurement(**m.model_dump()))
 
 
-@app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
+@lab_router.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
 def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     # the project has to be one of this laboratory
     if specimen.project_id is not None:
@@ -249,7 +252,7 @@ def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_
     return db_specimen
 
 
-@app.get("/specimens")
+@lab_router.get("/specimens")
 def list_specimens(
     species: Optional[str] = None, project_id: Optional[int] = None,
     ctx: Context = Depends(get_context), db: Session = Depends(get_db)
@@ -261,7 +264,7 @@ def list_specimens(
     return [specimen_output(s, ctx.is_member) for s in specimens]
 
 
-@app.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
+@lab_router.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
 def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     specimen = get_visible_specimen(db, ctx, specimen_id)
 
@@ -291,7 +294,7 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
     return specimen
 
 
-@app.delete("/specimens/{specimen_id}", status_code=204)
+@lab_router.delete("/specimens/{specimen_id}", status_code=204)
 def delete_specimen(specimen_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db.delete(get_visible_specimen(db, ctx, specimen_id))
     db.commit()
@@ -301,7 +304,7 @@ def delete_specimen(specimen_id: int, db: Session = Depends(get_db), ctx: Contex
 # --- Bulk import ---
 
 
-@app.post("/specimens/import", response_model=schemas.ImportReport)
+@lab_router.post("/specimens/import", response_model=schemas.ImportReport)
 def import_specimens(
     payload: schemas.ImportRequest, dry_run: bool = False, validate_names: bool = True,
     db: Session = Depends(get_db), ctx: Context = Depends(require_member)
@@ -404,7 +407,7 @@ def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
     return warnings
 
 
-@app.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
+@lab_router.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
 def validate_scientific_names(
     payload: schemas.ValidateNamesRequest, db: Session = Depends(get_db), ctx: Context = Depends(require_member)
 ):
@@ -438,7 +441,7 @@ CSV_FILE_NAMES = {
 }
 
 
-@app.get("/export/csv")
+@lab_router.get("/export/csv")
 def export_specimens_csv(
     project_id: Optional[int] = None, full: bool = False, lang: str = Query("pt", pattern="^(pt|en)$"),
     ctx: Context = Depends(get_context), db: Session = Depends(get_db)
@@ -542,7 +545,7 @@ def meta_xml() -> str:
 
 
 # the Darwin Core export is always public: only public projects and no internal field
-@app.get("/export/dwc")
+@lab_router.get("/export/dwc")
 def export_darwin_core(project_id: Optional[int] = None, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
     lab = ctx.laboratory
     query = public_specimens(db, lab.id).options(
@@ -582,7 +585,7 @@ def export_darwin_core(project_id: Optional[int] = None, ctx: Context = Depends(
 
 
 # --- Demo images (only for the demo data; this route can be removed) ---
-@app.get("/demo/image/{file_name}")
+@lab_router.get("/demo/image/{file_name}")
 def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Depends(get_context)):
     # only public specimens have a demo image: a browser <img> cannot send the login header
     s = public_specimens(db, ctx.laboratory.id).filter(models.Specimen.image_file == file_name).first()
@@ -590,3 +593,7 @@ def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Dep
         raise api_error(404, "image_not_found")
     svg = render_svg(s.insect_order, s.family or "", s.species, s.id, s.catalog_number, s.sex or "")
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+# included last, once every route above has been declared
+app.include_router(lab_router)
