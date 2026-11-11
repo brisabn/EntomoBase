@@ -6,84 +6,33 @@ import secrets
 import urllib.parse
 import zipfile
 import jwt
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from fastapi.responses import StreamingResponse, Response
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
-from sqlalchemy import func, inspect, text, or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
 import gbif
 import models
 import schemas
-from database import SessionLocal, engine, get_db
+from database import get_db
 from demo_imagens import gerar_svg
+from inicializacao import inicializar_banco
 from limite_tentativas import LimiteTentativas
-from seguranca import gerar_hash, ja_e_hash, precisa_novo_hash, verificar_senha
+from seguranca import gerar_hash, precisa_novo_hash, verificar_senha
 
-# a migração das medidas só roda na primeira vez em que a tabela nova aparece
-_tabelas_antes = set(inspect(engine).get_table_names())
-models.Base.metadata.create_all(bind=engine)
-
-
-# adiciona colunas novas em bancos já existentes (SQLite ou PostgreSQL)
-def migrar_colunas():
-    novas = {
-        "especimes": [
-            ("familia", "VARCHAR"), ("altitude_m", "FLOAT"), ("sexo", "VARCHAR"),
-            ("estagio", "VARCHAR"), ("imagem_arquivo", "VARCHAR"),
-            ("determinador", "VARCHAR"), ("data_determinacao", "DATE"), ("metodo_coleta", "VARCHAR"),
-            ("habitat", "VARCHAR"), ("coletor", "VARCHAR"), ("numero_campo", "VARCHAR"),
-            ("localizacao_fisica", "VARCHAR"), ("emprestimo_situacao", "VARCHAR"),
-            ("emprestimo_para", "VARCHAR"), ("emprestimo_data", "DATE"), ("notas_internas", "VARCHAR"),
-        ],
-        "projetos": [("descricao", "VARCHAR")],
-    }
-    inspetor = inspect(engine)
-    with engine.begin() as conn:
-        for tabela, colunas in novas.items():
-            existentes = {c["name"] for c in inspetor.get_columns(tabela)}
-            for nome, tipo in colunas:
-                if nome not in existentes:
-                    conn.execute(text(f"ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}"))
+# o banco é preparado quando a API inicia, não quando este arquivo é importado
+@asynccontextmanager
+async def ciclo_de_vida(_app: FastAPI):
+    inicializar_banco()
+    yield
 
 
-# copia as medições antigas (pronoto e chifre) para a tabela de medidas por traço
-def migrar_medicoes():
-    if "medidas" in _tabelas_antes or "medicoes" not in _tabelas_antes:
-        return
-    with engine.begin() as conn:
-        conn.execute(text(
-            "INSERT INTO medidas (especime_id, traco, valor, unidade) "
-            "SELECT especime_id, 'Largura do pronoto', largura_pronoto_mm, 'mm' FROM medicoes "
-            "WHERE largura_pronoto_mm IS NOT NULL"
-        ))
-        conn.execute(text(
-            "INSERT INTO medidas (especime_id, traco, valor, unidade) "
-            "SELECT especime_id, 'Tamanho do chifre', tamanho_chifre_mm, 'mm' FROM medicoes "
-            "WHERE tamanho_chifre_mm IS NOT NULL"
-        ))
-
-
-# senhas guardadas em texto puro por versões antigas passam a ser guardadas só como hash
-def migrar_senhas():
-    db = SessionLocal()
-    try:
-        for usuario in db.query(models.Usuario).all():
-            if not ja_e_hash(usuario.senha):
-                usuario.senha = gerar_hash(usuario.senha)
-        db.commit()
-    finally:
-        db.close()
-
-
-migrar_colunas()
-migrar_medicoes()
-migrar_senhas()
-
-app = FastAPI(title="EntomoBase API", version="0.4.0")
+app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=ciclo_de_vida)
 
 # origens que podem chamar a API pelo navegador, vindas de CORS_ORIGINS (separadas por vírgula)
 # em modo dev, sem a variável, vale o endereço do frontend do README

@@ -2,10 +2,9 @@ import random
 import sys
 from datetime import date
 
-# importar o main cria as tabelas e aplica as migrações no banco
-import main  # noqa: F401
 import models
 from database import SessionLocal
+from inicializacao import inicializar_banco
 
 # lugares de coleta: nome, latitude, longitude, altitude em metros
 LOCAIS = {
@@ -298,6 +297,7 @@ def limpar(db):
 
 
 def main_seed():
+    inicializar_banco()
     db = SessionLocal()
     if "--limpar" in sys.argv:
         limpar(db)

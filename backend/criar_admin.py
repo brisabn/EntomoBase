@@ -8,7 +8,8 @@ import getpass
 import sys
 
 import models
-from database import SessionLocal, engine
+from database import SessionLocal
+from inicializacao import inicializar_banco
 from seguranca import TAMANHO_MINIMO_SENHA, gerar_hash
 
 
@@ -26,8 +27,8 @@ def principal() -> int:
         print("As senhas não conferem.")
         return 1
 
-    # só garante que a tabela de usuários existe; não precisa da SECRET_KEY nem da API
-    models.Base.metadata.create_all(bind=engine)
+    # prepara o banco sem subir a API, então não precisa da SECRET_KEY
+    inicializar_banco()
     db = SessionLocal()
     try:
         usuario = db.query(models.Usuario).filter(models.Usuario.email == email).first()

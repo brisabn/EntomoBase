@@ -37,7 +37,7 @@ python criar_admin.py seu-email@exemplo.br
 
 A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mesmo e-mail troca a senha.
 
-Dados fictícios para demonstração (com a API já configurada, dentro de `backend`):
+Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECRET_KEY`):
 
 ```powershell
 python seed.py            # cria os projetos e espécimes de exemplo
