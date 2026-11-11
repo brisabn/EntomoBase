@@ -70,7 +70,7 @@ def test_models_and_migrations_are_in_sync(tmp_path, initialize_at):
 def test_running_the_migrations_again_keeps_the_data(tmp_path, initialize_at):
     engine = initialize_at(str(tmp_path / "new.db"))
     with engine.begin() as connection:
-        connection.execute(text("insert into projects (title, year, insect_group) values ('Kept', 2025, 'Coleoptera')"))
+        connection.execute(text("insert into projects (laboratory_id, title, year, insect_group) values (1, 'Kept', 2025, 'Coleoptera')"))
     db_setup.initialize_database()
     db_setup.initialize_database()
     with engine.connect() as connection:
@@ -89,14 +89,17 @@ def test_going_back_to_the_start_removes_the_tables_and_forward_restores_them(tm
     assert schema_differences(engine) == [] and version(engine) == [head()]
 
 
-def test_catalog_numbers_are_unique_in_a_migrated_database(tmp_path, initialize_at):
+def test_catalog_numbers_are_unique_inside_a_laboratory_but_not_across_laboratories(tmp_path, initialize_at):
     engine = initialize_at(str(tmp_path / "new.db"))
-    insert = text("insert into specimens (catalog_number, insect_order, species) values ('X-1', 'C', 'A b')")
     with engine.begin() as connection:
-        connection.execute(insert)
+        connection.execute(text("insert into laboratories (slug, name, institution, collection_code, license) values ('b', 'B', 'B', 'B', 'x')"))
+    insert = text("insert into specimens (laboratory_id, catalog_number, insect_order, species) values (:lab, 'X-1', 'C', 'A b')")
+    with engine.begin() as connection:
+        connection.execute(insert, {"lab": 1})
+        connection.execute(insert, {"lab": 2})
     with pytest.raises(IntegrityError):
         with engine.begin() as connection:
-            connection.execute(insert)
+            connection.execute(insert, {"lab": 1})
 
 
 # ---------- a database that was not created by the migrations ----------
@@ -134,7 +137,7 @@ def test_the_command_line_creates_the_database(tmp_path):
     assert result.returncode == 0, result.stderr
     assert {t.name for t in models.Base.metadata.sorted_tables} <= table_names(path)
     current = run_alembic(path, "current")
-    assert current.returncode == 0 and "0001 (head)" in current.stderr + current.stdout
+    assert current.returncode == 0 and f"{head()} (head)" in current.stderr + current.stdout
 
 
 def test_the_command_line_check_passes_when_models_and_migrations_agree(tmp_path):

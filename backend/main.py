@@ -22,6 +22,7 @@ import models
 import schemas
 from database import get_db
 from db_setup import initialize_database
+from laboratories import default_laboratory, laboratory_id_for_project, visibility_from_status
 from demo_images import render_svg
 from rate_limit import AttemptLimiter
 from security import hash_password, needs_rehash, verify_password
@@ -178,7 +179,10 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
 # --- Project routes ---
 @app.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    db_project = models.Project(**project.model_dump())
+    db_project = models.Project(
+        **project.model_dump(), laboratory_id=default_laboratory(db).id,
+        visibility=visibility_from_status(project.finished),
+    )
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
@@ -207,8 +211,12 @@ def list_projects(
 def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
     db_project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not db_project: raise api_error(404, "project_not_found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
         setattr(db_project, key, value)
+    # until visibility is edited on its own, it follows the status
+    if "finished" in changes:
+        db_project.visibility = visibility_from_status(db_project.finished)
     db.commit()
     db.refresh(db_project)
     return db_project
@@ -247,9 +255,12 @@ def replace_measurements(specimen: models.Specimen, measurements):
 
 @app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
 def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), auth: None = Depends(require_login)):
-    if db.query(models.Specimen).filter(models.Specimen.catalog_number == specimen.catalog_number).first():
+    laboratory_id = laboratory_id_for_project(db, specimen.project_id)
+    if db.query(models.Specimen).filter(
+        models.Specimen.laboratory_id == laboratory_id, models.Specimen.catalog_number == specimen.catalog_number
+    ).first():
         raise api_error(400, "duplicate_catalog_number")
-    db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}))
+    db_specimen = models.Specimen(**specimen.model_dump(exclude={"measurements"}), laboratory_id=laboratory_id)
     replace_measurements(db_specimen, specimen.measurements or [])
     db.add(db_specimen)
     db.commit()
@@ -279,12 +290,19 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
         k: v for k, v in data.model_dump(exclude_unset=True, exclude={"measurements"}).items()
         if not (v is None and k in required)
     }
+    # a specimen always belongs to the laboratory of its project
+    laboratory_id = laboratory_id_for_project(db, fields["project_id"]) if "project_id" in fields else specimen.laboratory_id
     new_number = fields.get("catalog_number")
-    if new_number and new_number != specimen.catalog_number:
-        if db.query(models.Specimen).filter(models.Specimen.catalog_number == new_number).first():
+    if (new_number and new_number != specimen.catalog_number) or laboratory_id != specimen.laboratory_id:
+        if db.query(models.Specimen).filter(
+            models.Specimen.laboratory_id == laboratory_id,
+            models.Specimen.catalog_number == (new_number or specimen.catalog_number),
+            models.Specimen.id != specimen.id,
+        ).first():
             raise api_error(400, "duplicate_catalog_number")
     for key, value in fields.items():
         setattr(specimen, key, value)
+    specimen.laboratory_id = laboratory_id
 
     # measurements sent replace the previous ones; if none are sent, they stay as they are
     if data.measurements is not None:
@@ -315,7 +333,9 @@ def import_specimens(
         if not db.query(models.Project).filter(models.Project.id == payload.project_id).first():
             raise api_error(404, "project_not_found")
 
-    project_ids = {p.id for p in db.query(models.Project.id).all()}
+    # the laboratory of each project; a specimen belongs to the laboratory of its project
+    project_labs = {p.id: p.laboratory_id for p in db.query(models.Project.id, models.Project.laboratory_id).all()}
+    default_lab_id = default_laboratory(db).id
     errors = []
     valid = []
     seen = {}
@@ -329,28 +349,29 @@ def import_specimens(
         item.catalog_number = item.catalog_number.strip()
         if payload.project_id is not None:
             item.project_id = payload.project_id
-        elif item.project_id is not None and item.project_id not in project_ids:
+        elif item.project_id is not None and item.project_id not in project_labs:
             errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="unknown_project", field="project_id", params={"project_id": item.project_id})]))
             continue
-        if item.catalog_number in seen:
-            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="duplicate_in_file", field="catalog_number", params={"first_line": seen[item.catalog_number]})]))
+        lab_id = project_labs.get(item.project_id, default_lab_id)
+        if (lab_id, item.catalog_number) in seen:
+            errors.append(schemas.ImportRowError(line=line, catalog_number=item.catalog_number, problems=[schemas.Problem(code="duplicate_in_file", field="catalog_number", params={"first_line": seen[(lab_id, item.catalog_number)]})]))
             continue
-        seen[item.catalog_number] = line
-        valid.append((line, item))
+        seen[(lab_id, item.catalog_number)] = line
+        valid.append((line, item, lab_id))
 
     existing = {}
-    numbers = list(seen.keys())
+    numbers = sorted({number for _, number in seen})
     for i in range(0, len(numbers), 500):
         for s in db.query(models.Specimen).filter(models.Specimen.catalog_number.in_(numbers[i:i + 500])).all():
-            existing[s.catalog_number] = s
+            existing[(s.laboratory_id, s.catalog_number)] = s
 
     created = updated = skipped = 0
-    for line, item in valid:
-        current = existing.get(item.catalog_number)
+    for line, item, lab_id in valid:
+        current = existing.get((lab_id, item.catalog_number))
         if current is None:
             created += 1
             if not dry_run and not errors:
-                new = models.Specimen(**item.model_dump(exclude={"measurements"}))
+                new = models.Specimen(**item.model_dump(exclude={"measurements"}), laboratory_id=lab_id)
                 replace_measurements(new, item.measurements or [])
                 db.add(new)
         elif payload.duplicates == "update":
@@ -383,7 +404,7 @@ OK_STATUSES = {"ok"}
 # checks GBIF for the distinct names in the file; warnings never block the import
 def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
     counts = {}
-    for _, item in valid:
+    for _, item, _lab_id in valid:
         name = item.species.strip()
         counts[name] = counts.get(name, 0) + 1
     if not counts:
