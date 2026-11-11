@@ -6,6 +6,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
@@ -126,5 +127,10 @@ def validate_names(names: list[str], db: Session) -> dict[str, dict]:
         t.order_name = r["order_name"]
         t.queried_at = now
         output[name] = {k: r[k] for k in ("status", "suggestion", "family", "order_name")}
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # another request cached the same name at the same time and its rows were kept;
+        # the cache is only an optimization, so these results are still returned
+        db.rollback()
     return output
