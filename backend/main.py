@@ -230,6 +230,13 @@ def list_laboratories(db: Session = Depends(get_db)):
     return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
 
 
+# what anyone may know about the laboratory of the address, listed or not: whoever has the address can
+# already see its public data. Without a laboratory in the address it is the first one, like the other old routes
+@lab_router.get("/laboratory", response_model=schemas.LaboratoryPublic)
+def laboratory_info(ctx: Context = Depends(get_context)):
+    return ctx.laboratory
+
+
 # only a platform administrator creates laboratories. The new one starts with a single member, the admin named
 # in the request; the platform administrator has no access to the laboratory's data unless also a member
 @app.post("/labs", response_model=schemas.LaboratoryPublic, status_code=201)
