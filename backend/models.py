@@ -131,8 +131,56 @@ class User(Base):
     name = Column(String, nullable=True)
     # can create and deactivate laboratories (platform administrator)
     is_superadmin = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    # when the person proved they own the e-mail address; empty until then
+    email_verified_at = Column(DateTime, nullable=True)
 
     memberships = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
+    email_confirmations = relationship("EmailConfirmation", back_populates="user", cascade="all, delete-orphan")
+
+
+# a code e-mailed to a user to confirm the address; only the hash is stored, so a copy of the database
+# does not let anyone confirm an address that is not theirs
+class EmailConfirmation(Base):
+    __tablename__ = "email_confirmations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    code_hash = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+    user = relationship("User", back_populates="email_confirmations")
+
+
+LAB_REQUEST_STATUSES = ("pending", "approved", "rejected")
+
+
+# someone asking to open a laboratory. A request from a trusted e-mail domain is approved at once; any other
+# waits for a platform administrator. The slug is checked when the request is made, but not unique here:
+# a rejected request must not keep its slug from being used
+class LaboratoryRequest(Base):
+    __tablename__ = "laboratory_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    slug = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    institution = Column(String, nullable=False)
+    collection_code = Column(String, nullable=False)
+    license = Column(String, nullable=True)
+    # what the person tells the platform administrator about the laboratory
+    message = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="pending", server_default="pending")
+    created_at = Column(DateTime, nullable=False)
+    # who decided and when; empty while pending, and no one when it was approved because of the domain
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # the laboratory created when the request was approved
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=True)
+
+    requester = relationship("User", foreign_keys=[requester_id])
+    decided_by = relationship("User", foreign_keys=[decided_by_id])
+    laboratory = relationship("Laboratory")
 
 
 # cache of scientific name lookups on GBIF

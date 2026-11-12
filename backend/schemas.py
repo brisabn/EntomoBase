@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Literal, Optional, List
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Annotated, Literal, Optional, List
 from datetime import date
 
 class MeasurementBase(BaseModel):
@@ -159,6 +159,17 @@ class UserLogin(BaseModel):
     email: str = Field(..., min_length=5)
     password: str = Field(..., min_length=3)
 
+# open sign-up: an account with no laboratory, which cannot do anything until the e-mail is confirmed.
+# The minimum length of the password is checked by the route, with its own message
+class SignupRequest(BaseModel):
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=5, max_length=254)]
+    password: str = Field(..., max_length=128)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+# the code from the link in the confirmation e-mail
+class ConfirmRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=100)
+
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None
@@ -171,6 +182,49 @@ class ProjectUpdate(BaseModel):
     visibility: Optional[Visibility] = None
     linked_publication: Optional[str] = None
     description: Optional[str] = None
+
+
+# what anyone may know about a laboratory
+class LaboratoryPublic(BaseModel):
+    slug: str
+    name: str
+    institution: str
+    collection_code: str
+
+    class Config:
+        from_attributes = True
+
+
+# the slug is part of the address, so only lowercase letters, digits and single hyphens between them
+SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+
+
+class LaboratoryCreate(BaseModel):
+    slug: str = Field(..., min_length=2, max_length=40, pattern=SLUG_PATTERN)
+    name: str = Field(..., min_length=1)
+    institution: str = Field(..., min_length=1)
+    collection_code: str = Field(..., min_length=1)
+    license: Optional[str] = None
+    listed: bool = False
+    # an existing user who becomes the first admin; without one nobody could manage the laboratory
+    admin_email: str = Field(..., min_length=3)
+
+
+# a member of a laboratory, as the laboratory's admins see them; the id is the membership, not the user
+class MemberResponse(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    role: str
+
+
+class MemberCreate(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    role: Literal["admin", "researcher"] = "researcher"
+
+
+class MemberUpdate(BaseModel):
+    role: Literal["admin", "researcher"]
 
 
 class ValidateNamesRequest(BaseModel):

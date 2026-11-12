@@ -103,3 +103,95 @@ def test_a_researcher_keeps_the_role_when_the_password_is_changed(run, db, passw
     add_user(EMAIL, password_hash, role="researcher")
     run([EMAIL], PASSWORD, PASSWORD)
     assert db.query(models.Membership).one().role == "researcher"
+
+
+# ---------- e-mail confirmation ----------
+def test_a_new_user_has_a_confirmed_e_mail(run, db):
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().email_verified_at is not None
+    assert "marked as confirmed" in output
+
+
+def test_an_existing_unconfirmed_user_becomes_confirmed(run, db, password_hash):
+    from conftest import add_user
+    add_user(EMAIL, password_hash, confirmed=False)
+    assert db.query(models.User).one().email_verified_at is None
+    run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().email_verified_at is not None
+
+
+def test_the_date_of_an_earlier_confirmation_is_kept(run, db, password_hash):
+    from datetime import datetime
+    from conftest import add_user
+    add_user(EMAIL, password_hash)
+    db.query(models.User).one().email_verified_at = datetime(2026, 1, 2, 3, 4, 5)
+    db.commit()
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    db.expire_all()
+    assert db.query(models.User).one().email_verified_at == datetime(2026, 1, 2, 3, 4, 5)
+    assert "marked as confirmed" not in output
+
+
+def test_running_again_does_not_repeat_the_message_or_move_the_date(run, db):
+    run([EMAIL], PASSWORD, PASSWORD)
+    first = db.query(models.User).one().email_verified_at
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    db.expire_all()
+    assert db.query(models.User).one().email_verified_at == first and "marked as confirmed" not in output
+
+
+# ---------- --superadmin ----------
+def test_a_user_is_not_a_platform_administrator_by_default(run, db):
+    run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().is_superadmin is False
+
+
+def test_the_flag_makes_a_platform_administrator(run, db):
+    code, output = run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    assert code == 0 and "platform administrator" in output
+    assert db.query(models.User).one().is_superadmin is True
+
+
+def test_the_flag_can_come_before_the_email(run, db):
+    run(["--superadmin", EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().is_superadmin is True
+
+
+def test_the_flag_still_makes_the_user_an_admin_of_the_first_laboratory(run, db):
+    run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    assert db.query(models.Membership).one().role == "admin"
+
+
+def test_the_flag_can_be_added_to_an_existing_user(run, db, password_hash):
+    from conftest import add_user
+    add_user(EMAIL, password_hash, role="researcher")
+    run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    user = db.query(models.User).one()
+    assert user.is_superadmin is True and db.query(models.Membership).one().role == "researcher"
+
+
+def test_running_again_without_the_flag_keeps_the_permission(run, db):
+    run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().is_superadmin is True
+    assert "platform administrator" not in output
+
+
+def test_running_again_with_the_flag_does_not_repeat_the_message(run):
+    run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    _, output = run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    assert "platform administrator" not in output
+
+
+def test_the_new_platform_administrator_can_create_a_laboratory(run, client):
+    run([EMAIL, "--superadmin"], PASSWORD, PASSWORD)
+    token = client.post("/login", json={"email": EMAIL, "password": PASSWORD}).json()["access_token"]
+    body = {"slug": "second", "name": "Second", "institution": "S", "collection_code": "S", "admin_email": EMAIL}
+    assert client.post("/labs", json=body, headers={"Authorization": f"Bearer {token}"}).status_code == 201
+
+
+@pytest.mark.parametrize("args", [["--superadmin"], ["--superadmin", "--superadmin"], [EMAIL, "--superadmin", "extra"], ["not-an-email", "--superadmin"]])
+def test_the_usage_is_shown_for_a_wrong_use_of_the_flag(run, args, db):
+    code, output = run(args)
+    assert code == 1 and "Usage" in output and "--superadmin" in output
+    assert db.query(models.User).count() == 0

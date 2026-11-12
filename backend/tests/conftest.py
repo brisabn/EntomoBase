@@ -25,6 +25,7 @@ PASSWORD = "senhaforte1"
 EMAIL = "admin@lab.br"
 RESEARCHER_EMAIL = "researcher@lab.br"
 OUTSIDER_EMAIL = "outsider@lab.br"
+SUPERADMIN_EMAIL = "super@lab.br"
 
 
 @pytest.fixture(scope="session")
@@ -50,6 +51,7 @@ def clean_state():
             conn.execute(table.delete())
     main.account_limiter._failures.clear()
     main.ip_limiter._failures.clear()
+    main.signup_limiter._failures.clear()
     yield
 
 
@@ -75,11 +77,12 @@ def password_hash():
     return hash_password(PASSWORD)
 
 
-# creates a user; with a role, they also become a member of the first laboratory
-def add_user(email, password_hash, role=None):
+# creates a user, with a confirmed e-mail unless told otherwise; with a role, they also become a member
+# of the first laboratory
+def add_user(email, password_hash, role=None, confirmed=True):
     db = SessionLocal()
     try:
-        user = models.User(email=email, password_hash=password_hash)
+        user = models.User(email=email, password_hash=password_hash, email_verified_at=datetime(2026, 1, 1) if confirmed else None)
         db.add(user)
         db.flush()
         if role:
@@ -111,6 +114,19 @@ def admin(user):
 def researcher(password_hash):
     add_user(RESEARCHER_EMAIL, password_hash, role="researcher")
     return {"Authorization": f"Bearer {make_token(email=RESEARCHER_EMAIL)}"}
+
+
+# a platform administrator, who is not a member of any laboratory
+@pytest.fixture
+def superadmin(password_hash):
+    add_user(SUPERADMIN_EMAIL, password_hash)
+    db = SessionLocal()
+    try:
+        db.query(models.User).filter_by(email=SUPERADMIN_EMAIL).update({"is_superadmin": True})
+        db.commit()
+    finally:
+        db.close()
+    return {"Authorization": f"Bearer {make_token(email=SUPERADMIN_EMAIL)}"}
 
 
 # logged in, but not a member of any laboratory

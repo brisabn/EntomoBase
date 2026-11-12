@@ -3,10 +3,17 @@
 #
 # usage (inside backend, with the virtual environment active):
 #     python create_admin.py email@example.com
+#     python create_admin.py email@example.com --superadmin
+#
+# --superadmin also makes the user a platform administrator, who can create laboratories (POST /labs).
+# It never takes the flag away from someone who already has it
+#
+# the e-mail of the user is marked as confirmed (the person is at the server, so there is nothing to prove)
 #
 # the password is asked in the terminal and is not shown on screen
 import getpass
 import sys
+from datetime import datetime, timezone
 
 import models
 from database import SessionLocal
@@ -16,10 +23,12 @@ from security import MIN_PASSWORD_LENGTH, hash_password
 
 
 def main() -> int:
-    if len(sys.argv) != 2 or "@" not in sys.argv[1]:
-        print("Usage: python create_admin.py email@example.com")
+    arguments = [a for a in sys.argv[1:] if a != "--superadmin"]
+    make_superadmin = "--superadmin" in sys.argv[1:]
+    if len(arguments) != 1 or "@" not in arguments[0]:
+        print("Usage: python create_admin.py email@example.com [--superadmin]")
         return 1
-    email = sys.argv[1].strip().lower()
+    email = arguments[0].strip().lower()
 
     password = getpass.getpass("Password: ")
     if len(password) < MIN_PASSWORD_LENGTH:
@@ -41,6 +50,14 @@ def main() -> int:
             user = models.User(email=email, password_hash=hash_password(password))
             db.add(user)
             print(f"User {email} created.")
+        # whoever can run this script on the server needs no e-mail to prove who they are; the original
+        # date is kept when the address was already confirmed
+        if user.email_verified_at is None:
+            user.email_verified_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            print(f"The e-mail of {email} is marked as confirmed.")
+        if make_superadmin and not user.is_superadmin:
+            user.is_superadmin = True
+            print(f"{email} is now a platform administrator.")
         db.flush()
         laboratory = default_laboratory(db)
         if not db.query(models.Membership).filter_by(user_id=user.id, laboratory_id=laboratory.id).first():

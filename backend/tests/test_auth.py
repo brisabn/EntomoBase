@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -138,7 +138,7 @@ def test_a_weaker_stored_hash_is_upgraded_at_login(client, db):
     from argon2 import PasswordHasher
     from security import needs_rehash, verify_password
     weak = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1).hash(PASSWORD)
-    db.add(models.User(email=EMAIL, password_hash=weak))
+    db.add(models.User(email=EMAIL, password_hash=weak, email_verified_at=datetime(2026, 1, 1)))
     db.commit()
     assert needs_rehash(weak)
     assert login(client).status_code == 200

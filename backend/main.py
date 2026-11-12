@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi import FastAPI, Depends, Query, Request
+from fastapi import APIRouter, FastAPI, Depends, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 
@@ -23,12 +24,15 @@ from database import get_db
 from db_setup import initialize_database
 from authorization import (
     Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
-    require_member, set_visibility, visible_projects, visible_specimens,
+    require_member, require_superadmin, set_visibility, visible_projects, visible_specimens,
 )
 from errors import api_error
+from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
+from email_confirmation import hash_code, issue_code, send_already_registered, send_confirmation, utc_now
+from mailer import MailError, valid_address
 from rate_limit import AttemptLimiter
-from security import hash_password, needs_rehash, verify_password
+from security import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
 from settings import ALGORITHM, SECRET_KEY
 
 # pydantic error types the site has a message for; any other type is shown as an invalid value
@@ -59,6 +63,11 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="EntomoBase API", version="0.4.0", lifespan=lifespan)
+
+# the routes that work on one laboratory's data; login and share links do not belong to a laboratory
+lab_router = APIRouter()
+# routes that exist only with the laboratory in the address, with no old address without it
+members_router = APIRouter()
 
 
 # invalid request bodies use the same format as the other errors
@@ -120,6 +129,10 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
         ip_limiter.record_failure(ip)
         raise api_error(401, "invalid_credentials")
     account_limiter.reset(account_key)
+    # an unconfirmed account may still be taken over by whoever owns the address (see /signup), so it gets
+    # no session; the person signs up again to receive a new link
+    if user.email_verified_at is None:
+        raise api_error(403, "email_not_confirmed")
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(credentials.password)
         db.commit()
@@ -127,6 +140,170 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
     exp = datetime.now(timezone.utc) + timedelta(hours=8)
     token = jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "email": user.email}
+
+
+# open sign-up, which sends an e-mail to whatever address is typed, so it is limited per IP: every request
+# counts, not only the failed ones
+SIGNUP_WINDOW_SECONDS = 60 * 60
+signup_limiter = AttemptLimiter(max_attempts=5, window_seconds=SIGNUP_WINDOW_SECONDS)
+
+
+# creates an account with no laboratory and e-mails a link to confirm the address. The answer is the same
+# whether or not the address already has an account, so the route cannot be used to find out who is registered
+@app.post("/signup", status_code=202)
+def signup(data: schemas.SignupRequest, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    ensure_login_allowed((signup_limiter, ip))
+    signup_limiter.record_failure(ip)
+
+    email = data.email.lower()
+    if not valid_address(email):
+        raise api_error(400, "invalid_email")
+    if len(data.password) < MIN_PASSWORD_LENGTH:
+        raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
+
+    # hashed before looking at the database, so the time taken does not show whether the address exists
+    password_hash = hash_password(data.password)
+    user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
+    try:
+        if user is not None and user.email_verified_at is not None:
+            send_already_registered(email)
+        else:
+            # an account whose address was never confirmed is taken over by the newest sign-up: whoever
+            # types an address first does not keep it from the person who owns it
+            if user is None:
+                user = models.User(email=email, password_hash=password_hash, name=data.name)
+                db.add(user)
+            else:
+                user.password_hash, user.name = password_hash, data.name
+            db.flush()
+            send_confirmation(email, issue_code(db, user))
+        db.commit()
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    except IntegrityError:
+        # two sign-ups for the same new address at the same moment: the other one wins and sends the e-mail
+        db.rollback()
+    return {"status": "confirmation_sent"}
+
+
+# the link in the e-mail opens the site, which sends the code here. A code works once and only until it
+# expires; it is long and random, so guessing one is not a concern. No session is given: the person signs in
+@app.post("/confirm")
+def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
+    confirmation = db.query(models.EmailConfirmation).filter(models.EmailConfirmation.code_hash == hash_code(data.code)).first()
+    if confirmation is None or confirmation.expires_at <= utc_now():
+        raise api_error(400, "invalid_code")
+    user = confirmation.user
+    if user.email_verified_at is None:
+        user.email_verified_at = utc_now()
+    db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
+    db.commit()
+    return {"status": "confirmed", "email": user.email}
+
+
+# the account with this e-mail, which must be confirmed: an unconfirmed one may still change hands (see
+# /signup), so it is never given a role. An unconfirmed account is reported as missing, like one that is
+def confirmed_user(db: Session, email: str) -> models.User:
+    user = db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
+    if user is None or user.email_verified_at is None:
+        raise api_error(404, "user_not_found")
+    return user
+
+
+# --- Laboratories ---
+# the public list of the platform: only the laboratories that chose to be listed. A laboratory that is not
+# listed still works at its own address; it just is not advertised
+@app.get("/labs", response_model=List[schemas.LaboratoryPublic])
+def list_laboratories(db: Session = Depends(get_db)):
+    return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+
+
+# only a platform administrator creates laboratories. The new one starts with a single member, the admin named
+# in the request; the platform administrator has no access to the laboratory's data unless also a member
+@app.post("/labs", response_model=schemas.LaboratoryPublic, status_code=201)
+def create_laboratory(data: schemas.LaboratoryCreate, db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
+    admin = confirmed_user(db, data.admin_email)
+    if db.query(models.Laboratory).filter(models.Laboratory.slug == data.slug).first():
+        raise api_error(400, "duplicate_slug")
+    laboratory = models.Laboratory(
+        slug=data.slug, name=data.name.strip(), institution=data.institution.strip(), collection_code=data.collection_code.strip(),
+        license=data.license or DEFAULT_LABORATORY["license"], listed=data.listed,
+    )
+    laboratory.memberships.append(models.Membership(user_id=admin.id, role="admin"))
+    db.add(laboratory)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise api_error(400, "duplicate_slug")
+    db.refresh(laboratory)
+    return laboratory
+
+
+# --- Members ---
+# only the admins of a laboratory see who belongs to it
+@members_router.get("/members", response_model=List[schemas.MemberResponse])
+def list_members(db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    rows = db.query(models.Membership, models.User).join(models.User, models.Membership.user_id == models.User.id).filter(
+        models.Membership.laboratory_id == ctx.laboratory.id
+    ).order_by(models.User.email).all()
+    return [schemas.MemberResponse(id=m.id, email=u.email, name=u.name, role=m.role) for m, u in rows]
+
+
+# an admin brings in someone who already has an account (they sign up first, on their own)
+@members_router.post("/members", response_model=schemas.MemberResponse, status_code=201)
+def add_member(data: schemas.MemberCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    user = confirmed_user(db, data.email)
+    membership = models.Membership(user_id=user.id, laboratory_id=ctx.laboratory.id, role=data.role)
+    db.add(membership)
+    try:
+        db.commit()
+    except IntegrityError:
+        # a person belongs to a laboratory only once (unique in the database)
+        db.rollback()
+        raise api_error(400, "already_member")
+    return schemas.MemberResponse(id=membership.id, email=user.email, name=user.name, role=membership.role)
+
+
+# the membership with this id, if it belongs to the laboratory of the request; any other id is a 404
+def get_membership(db: Session, ctx: Context, member_id: int) -> models.Membership:
+    membership = db.query(models.Membership).filter(
+        models.Membership.id == member_id, models.Membership.laboratory_id == ctx.laboratory.id
+    ).first()
+    if membership is None:
+        raise api_error(404, "member_not_found")
+    return membership
+
+
+# a laboratory always keeps at least one admin, or nobody could manage it any more
+def other_admins(db: Session, membership: models.Membership) -> int:
+    return db.query(models.Membership).filter(
+        models.Membership.laboratory_id == membership.laboratory_id, models.Membership.role == "admin",
+        models.Membership.id != membership.id,
+    ).count()
+
+
+@members_router.put("/members/{member_id}", response_model=schemas.MemberResponse)
+def change_member_role(member_id: int, data: schemas.MemberUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    membership = get_membership(db, ctx, member_id)
+    if membership.role == "admin" and data.role != "admin" and other_admins(db, membership) == 0:
+        raise api_error(400, "last_admin")
+    membership.role = data.role
+    db.commit()
+    return schemas.MemberResponse(id=membership.id, email=membership.user.email, name=membership.user.name, role=membership.role)
+
+
+# removing someone only ends their access to this laboratory; the account and any other membership stay
+@members_router.delete("/members/{member_id}", status_code=204)
+def remove_member(member_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    membership = get_membership(db, ctx, member_id)
+    if membership.role == "admin" and other_admins(db, membership) == 0:
+        raise api_error(400, "last_admin")
+    db.delete(membership)
+    db.commit()
+    return None
 
 
 # --- Project routes ---
@@ -140,7 +317,7 @@ def project_output(project: models.Project, ctx: Context) -> schemas.ProjectResp
     return output
 
 
-@app.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
+@lab_router.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db_project = models.Project(**project.model_dump(exclude={"visibility"}), laboratory_id=ctx.laboratory.id)
     set_visibility(db_project, project.visibility)
@@ -150,7 +327,7 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
     return db_project
 
 
-@app.get("/projects", response_model=List[schemas.ProjectResponse])
+@lab_router.get("/projects", response_model=List[schemas.ProjectResponse])
 def list_projects(
     year: Optional[int] = None, insect_group: Optional[str] = None,
     locality: Optional[str] = None, finished: Optional[bool] = None,
@@ -167,7 +344,7 @@ def list_projects(
     return [project_output(p, ctx) for p in projects]
 
 
-@app.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
+@lab_router.put("/projects/{project_id}", response_model=schemas.ProjectResponse)
 def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db_project = get_visible_project(db, ctx, project_id)
     changes = data.model_dump(exclude_unset=True)
@@ -183,7 +360,7 @@ def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = D
 
 
 # deleting a project deletes its specimens too, so only a laboratory admin can do it
-@app.delete("/projects/{project_id}", status_code=204)
+@lab_router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
     db.delete(get_visible_project(db, ctx, project_id))
     db.commit()
@@ -232,7 +409,7 @@ def replace_measurements(specimen: models.Specimen, measurements):
         specimen.measurements.append(models.Measurement(**m.model_dump()))
 
 
-@app.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
+@lab_router.post("/specimens", response_model=schemas.SpecimenResponse, status_code=201)
 def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     # the project has to be one of this laboratory
     if specimen.project_id is not None:
@@ -249,7 +426,7 @@ def create_specimen(specimen: schemas.SpecimenCreate, db: Session = Depends(get_
     return db_specimen
 
 
-@app.get("/specimens")
+@lab_router.get("/specimens")
 def list_specimens(
     species: Optional[str] = None, project_id: Optional[int] = None,
     ctx: Context = Depends(get_context), db: Session = Depends(get_db)
@@ -261,7 +438,7 @@ def list_specimens(
     return [specimen_output(s, ctx.is_member) for s in specimens]
 
 
-@app.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
+@lab_router.put("/specimens/{specimen_id}", response_model=schemas.SpecimenResponse)
 def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     specimen = get_visible_specimen(db, ctx, specimen_id)
 
@@ -291,7 +468,7 @@ def update_specimen(specimen_id: int, data: schemas.SpecimenUpdate, db: Session 
     return specimen
 
 
-@app.delete("/specimens/{specimen_id}", status_code=204)
+@lab_router.delete("/specimens/{specimen_id}", status_code=204)
 def delete_specimen(specimen_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db.delete(get_visible_specimen(db, ctx, specimen_id))
     db.commit()
@@ -301,7 +478,7 @@ def delete_specimen(specimen_id: int, db: Session = Depends(get_db), ctx: Contex
 # --- Bulk import ---
 
 
-@app.post("/specimens/import", response_model=schemas.ImportReport)
+@lab_router.post("/specimens/import", response_model=schemas.ImportReport)
 def import_specimens(
     payload: schemas.ImportRequest, dry_run: bool = False, validate_names: bool = True,
     db: Session = Depends(get_db), ctx: Context = Depends(require_member)
@@ -404,7 +581,7 @@ def taxonomy_warnings(valid, db: Session) -> List[schemas.ImportWarning]:
     return warnings
 
 
-@app.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
+@lab_router.post("/taxonomy/validate", response_model=List[schemas.ValidatedName])
 def validate_scientific_names(
     payload: schemas.ValidateNamesRequest, db: Session = Depends(get_db), ctx: Context = Depends(require_member)
 ):
@@ -438,7 +615,7 @@ CSV_FILE_NAMES = {
 }
 
 
-@app.get("/export/csv")
+@lab_router.get("/export/csv")
 def export_specimens_csv(
     project_id: Optional[int] = None, full: bool = False, lang: str = Query("pt", pattern="^(pt|en)$"),
     ctx: Context = Depends(get_context), db: Session = Depends(get_db)
@@ -542,7 +719,7 @@ def meta_xml() -> str:
 
 
 # the Darwin Core export is always public: only public projects and no internal field
-@app.get("/export/dwc")
+@lab_router.get("/export/dwc")
 def export_darwin_core(project_id: Optional[int] = None, ctx: Context = Depends(get_context), db: Session = Depends(get_db)):
     lab = ctx.laboratory
     query = public_specimens(db, lab.id).options(
@@ -582,7 +759,7 @@ def export_darwin_core(project_id: Optional[int] = None, ctx: Context = Depends(
 
 
 # --- Demo images (only for the demo data; this route can be removed) ---
-@app.get("/demo/image/{file_name}")
+@lab_router.get("/demo/image/{file_name}")
 def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Depends(get_context)):
     # only public specimens have a demo image: a browser <img> cannot send the login header
     s = public_specimens(db, ctx.laboratory.id).filter(models.Specimen.image_file == file_name).first()
@@ -590,3 +767,9 @@ def demo_image(file_name: str, db: Session = Depends(get_db), ctx: Context = Dep
         raise api_error(404, "image_not_found")
     svg = render_svg(s.insect_order, s.family or "", s.species, s.id, s.catalog_number, s.sex or "")
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+# included last, once every route above has been declared
+app.include_router(lab_router)
+app.include_router(lab_router, prefix="/labs/{slug}")
+app.include_router(members_router, prefix="/labs/{slug}")

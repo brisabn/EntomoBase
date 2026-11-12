@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import jwt
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
 import models
@@ -67,14 +67,21 @@ def role_in(db: Session, user: Optional[models.User], laboratory: models.Laborat
     return membership.role if membership else None
 
 
-# the only place that decides which laboratory a request is about. Until the routes carry the
-# laboratory in the address (phase 3 of the plan) it is the first one; phase 3 changes only this function
-def resolve_laboratory(db: Session) -> models.Laboratory:
-    return default_laboratory(db)
+# the only place that decides which laboratory a request is about: the one in the address
+# (/labs/<slug>/...). The old addresses without a slug still work and mean the first laboratory,
+# until the site moves to the new ones
+def resolve_laboratory(db: Session, slug: Optional[str]) -> models.Laboratory:
+    if slug is None:
+        return default_laboratory(db)
+    laboratory = db.query(models.Laboratory).filter(models.Laboratory.slug == slug).first()
+    if laboratory is None:
+        raise api_error(404, "lab_not_found")
+    return laboratory
 
 
-def get_context(user: Optional[models.User] = Depends(optional_user), db: Session = Depends(get_db)) -> Context:
-    laboratory = resolve_laboratory(db)
+def get_context(request: Request, user: Optional[models.User] = Depends(optional_user), db: Session = Depends(get_db)) -> Context:
+    # read from the path, so a ?slug= in the query string of an old address cannot choose the laboratory
+    laboratory = resolve_laboratory(db, request.path_params.get("slug"))
     return Context(laboratory=laboratory, user=user, role=role_in(db, user, laboratory))
 
 
