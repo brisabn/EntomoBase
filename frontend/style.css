@@ -313,6 +313,21 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .link-btn:hover { color: #34422d; }
 .confirm-box { max-width: 38rem; margin-top: 1.2rem; display: flex; flex-direction: column; gap: 0.9rem; font-size: 1.05rem; }
 .confirm-box .form-error { margin-bottom: 0; }
+
+/* laboratory members */
+.members-lab { max-width: 22rem; }
+.members-heading { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; margin: 1.8rem 0 0.8rem; }
+.members-form { display: flex; flex-wrap: wrap; gap: 0 1rem; align-items: flex-end; }
+.members-form .field { flex: 1 1 14rem; }
+.members-form .field:nth-child(2) { flex: 0 1 12rem; }
+.members-form .btn-dark { margin-bottom: 1rem; }
+.member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--fold); }
+.member-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; padding: 0.8rem 0; border-bottom: 1px solid var(--fold); }
+.member-who { flex: 1 1 16rem; display: flex; flex-direction: column; min-width: 0; }
+.member-email { font-weight: 600; overflow-wrap: anywhere; }
+.member-you { font-weight: 400; color: var(--ink-2); }
+.member-fullname { color: var(--ink-2); font-size: 0.95rem; }
+.member-role-select { border: 1px solid var(--line); border-radius: 10px; padding: 0.45rem 0.6rem; background: var(--white); color: var(--ink); font: inherit; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
 .field > span { font-size: 0.88rem; font-weight: 600; color: var(--ink-2); }
 .field input, .field select, .field textarea {
@@ -362,6 +377,12 @@ input[type="checkbox"]:checked::after { opacity: 1; }
   .modal { padding: 1.5rem 1.3rem; }
   .avatar { width: 150px; height: 150px; font-size: 2.8rem; }
 }
+/* four tabs (with Members) still fit in one row on a narrow phone */
+@media (max-width: 420px) {
+  .tab { padding: 0.7rem 0.6rem; font-size: 0.9rem; }
+  .tabs { margin-left: 0.2rem; gap: 3px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }

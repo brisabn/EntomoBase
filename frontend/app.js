@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members' }
 };
 // the same minimum the API checks (MIN_PASSWORD_LENGTH in backend/security.py)
 const MIN_PASSWORD_LENGTH = 8;
@@ -216,6 +216,14 @@ const app = createApp({
       // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
       confirmState: null,
       minPasswordLength: MIN_PASSWORD_LENGTH,
+      // GET /me: the signed-in person and their laboratories, with the role in each
+      me: null,
+      // the members page: which laboratory, its members and the form to add someone
+      membersSlug: null,
+      members: [],
+      membersLoading: false,
+      memberForm: { email: '', role: 'researcher' },
+      memberError: null,
       submitting: false,
       openMenu: null,
       popover: null,
@@ -250,8 +258,13 @@ const app = createApp({
     collectionView() { return this.route.view || 'tree'; },
     projectView() { return this.route.view || 'table'; },
     tabs() {
-      return ['about', 'projects', 'collection'].map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
+      const ids = ['about', 'projects', 'collection'];
+      if (this.adminLabs.length) ids.push('members');
+      return ids.map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
     },
+    // the laboratories the signed-in person manages; the API checks this again on every request
+    adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
+    membersLab() { return this.adminLabs.find((l) => l.slug === this.membersSlug) || this.adminLabs[0] || null; },
     sortOptions() { return this.sortKeys.map((value) => ({ value, label: this.t(`sort.${value}`) })); },
     projectFilters() { return this.projectFilterKeys.map((key) => ({ key, label: this.t(`filter.${key}`) })); },
     aboutText() { return this.t('about.text'); },
@@ -267,7 +280,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'confirm.title' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members' };
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
@@ -624,7 +637,7 @@ const app = createApp({
     window.addEventListener('hashchange', this.applyRoute);
     document.addEventListener('click', this.closePopups);
     document.addEventListener('keydown', this.onKey);
-    await this.loadAll();
+    await Promise.all([this.loadAll(), this.loadMe()]);
     this.expandFirst();
   },
 
@@ -729,7 +742,9 @@ const app = createApp({
         route = { name: 'collection', view: ['repos', 'map'].includes(view) ? view : 'tree' };
       } else if (page === 'search') route = { name: 'search' };
       else if (page === 'confirm') route = { name: 'confirm' };
+      else if (page === 'members') route = { name: 'members' };
       else route = { name: 'about' };
+      if (route.name === 'members') this.loadMembers();
       if (route.name === 'confirm' && b) {
         // the code works only once: it is sent right away and taken out of the address bar and the history
         this.confirmEmail(b);
@@ -875,15 +890,27 @@ const app = createApp({
         localStorage.setItem('entomobase_email', this.userEmail);
         this.showLogin = false;
         this.credentials = { email: '', password: '' };
-        await this.loadAll();
+        await Promise.all([this.loadAll(), this.loadMe()]);
       } catch (e) {
         this.loginError = e.message;
       }
       this.submitting = false;
     },
+    // a failure here only hides what depends on it (like the members tab); the rest of the site works
+    async loadMe() {
+      if (!this.token) { this.me = null; return; }
+      try {
+        this.me = await this.api('/me');
+      } catch {
+        this.me = null;
+      }
+      if (this.route.name === 'members') this.loadMembers();
+    },
     endSession() {
       this.token = null;
       this.userEmail = null;
+      this.me = null;
+      this.members = [];
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     },
@@ -1206,6 +1233,80 @@ const app = createApp({
           await this.api(`/specimens/${e.id}`, { method: 'DELETE' });
           await this.loadAll();
           this.notify(this.t('notify.specimen_deleted'));
+        }
+      };
+    },
+    // ---------- laboratory members (admins only) ----------
+    // keepError: reloading after a refused change must not hide the reason it was refused
+    async loadMembers({ keepError = false } = {}) {
+      const lab = this.membersLab;
+      if (!lab) { this.members = []; return; }
+      this.membersLoading = true;
+      if (!keepError) this.memberError = null;
+      try {
+        const list = await this.api(`/labs/${encodeURIComponent(lab.slug)}/members`);
+        // an answer for a laboratory that is no longer the chosen one is dropped
+        if (this.membersLab && this.membersLab.slug === lab.slug) this.members = list;
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      this.membersLoading = false;
+    },
+    chooseMembersLab(slug) {
+      this.membersSlug = slug;
+      this.members = [];
+      this.loadMembers();
+    },
+    isMe(member) { return !!this.me && member.email === this.me.email; },
+    // after changing their own role or leaving, the person may no longer manage the laboratory
+    async afterOwnChange() {
+      const slug = this.membersLab && this.membersLab.slug;
+      await this.loadMe();
+      if (!this.adminLabs.some((l) => l.slug === slug)) {
+        this.notify(this.t('notify.left_admin'));
+        location.hash = this.link('about');
+      }
+    },
+    async addMember() {
+      this.memberError = null;
+      this.submitting = true;
+      try {
+        const added = await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members`, { method: 'POST', body: this.memberForm });
+        this.memberForm = { email: '', role: 'researcher' };
+        this.notify(this.t('notify.member_added', { email: added.email }));
+        await this.loadMembers();
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      this.submitting = false;
+    },
+    async changeRole(member, role) {
+      if (role === member.role) return;
+      this.memberError = null;
+      try {
+        await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members/${member.id}`, { method: 'PUT', body: { role } });
+        this.notify(this.t('notify.role_changed'));
+        if (this.isMe(member)) await this.afterOwnChange();
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      // reloading also puts the select back when the change was refused (the last admin, for example)
+      if (this.route.name === 'members') await this.loadMembers({ keepError: true });
+    },
+    askRemoveMember(member) {
+      this.formError = null;
+      const self = this.isMe(member);
+      const slug = this.membersLab.slug;
+      this.confirmation = {
+        title: this.t('members.remove_title'),
+        text: self ? this.t('members.remove_self_text') : this.t('members.remove_text', { email: member.email }),
+        button: this.t('members.remove'),
+        busy: this.t('members.removing'),
+        action: async () => {
+          await this.api(`/labs/${encodeURIComponent(slug)}/members/${member.id}`, { method: 'DELETE' });
+          this.notify(this.t('notify.member_removed'));
+          if (self) await this.afterOwnChange();
+          else await this.loadMembers();
         }
       };
     },

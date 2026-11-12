@@ -81,17 +81,66 @@
 
         <!-- E-MAIL CONFIRMATION (the link of the e-mail opens this page) -->
         <div class="sheet" v-else-if="route.name === 'confirm'">
-          <h1 class="page-title">{{ t('confirm.title') }}</h1>
+          <h1 class="page-title">{{ t('verify.title') }}</h1>
           <div class="confirm-box" role="status" aria-live="polite">
-            <p v-if="!confirmState">{{ t('confirm.no_code') }}</p>
-            <p v-else-if="confirmState.status === 'working'">{{ t('confirm.working') }}</p>
+            <p v-if="!confirmState">{{ t('verify.no_code') }}</p>
+            <p v-else-if="confirmState.status === 'working'">{{ t('verify.working') }}</p>
             <template v-else-if="confirmState.status === 'done'">
-              <p>{{ t('confirm.done', { email: confirmState.email }) }}</p>
+              <p>{{ t('verify.done', { email: confirmState.email }) }}</p>
               <p>{{ t('account.next_step') }}</p>
               <p v-if="!labAccess"><button type="button" class="btn-dark" @click="openLogin(confirmState.email)">{{ t('auth.login') }}</button></p>
             </template>
             <p v-else class="form-error">{{ confirmState.message }}</p>
           </div>
+        </div>
+
+        <!-- LABORATORY MEMBERS (admins only; the API refuses anyone else) -->
+        <div class="sheet" v-else-if="route.name === 'members'">
+          <h1 class="page-title">{{ t('members.title') }}</h1>
+          <p v-if="!labAccess" class="subtitle">{{ t('members.login_needed') }}</p>
+          <p v-else-if="me && !membersLab" class="subtitle">{{ t('members.not_admin') }}</p>
+          <template v-else-if="membersLab">
+            <label v-if="adminLabs.length > 1" class="field members-lab">
+              <span>{{ t('members.lab') }}</span>
+              <select :value="membersLab.slug" @change="chooseMembersLab($event.target.value)">
+                <option v-for="l in adminLabs" :key="l.slug" :value="l.slug">{{ l.name }}</option>
+              </select>
+            </label>
+            <p v-else class="subtitle">{{ membersLab.name }}</p>
+
+            <section class="members-add" :aria-label="t('members.add_title')">
+              <h2 class="members-heading">{{ t('members.add_title') }}</h2>
+              <form class="members-form" @submit.prevent="addMember">
+                <label class="field"><span>{{ t('login.email') }}</span><input v-model="memberForm.email" type="email" required maxlength="254" autocomplete="off"></label>
+                <label class="field"><span>{{ t('members.role') }}</span>
+                  <select v-model="memberForm.role">
+                    <option value="researcher">{{ t('role.researcher') }}</option>
+                    <option value="admin">{{ t('role.admin') }}</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('members.adding') : t('members.add') }}</button>
+              </form>
+              <p class="field-hint">{{ t('members.add_hint') }}</p>
+            </section>
+
+            <p v-if="memberError" class="form-error" role="alert">{{ memberError }}</p>
+
+            <h2 class="members-heading">{{ t('members.list_title', { n: members.length }) }}</h2>
+            <p v-if="membersLoading && !members.length" class="subtitle">{{ t('members.loading') }}</p>
+            <ul v-else class="member-list">
+              <li v-for="m in members" :key="m.id" class="member-row">
+                <div class="member-who">
+                  <span class="member-email">{{ m.email }}<span v-if="isMe(m)" class="member-you"> ({{ t('members.you') }})</span></span>
+                  <span v-if="m.name" class="member-fullname">{{ m.name }}</span>
+                </div>
+                <select class="member-role-select" :value="m.role" :aria-label="t('members.role_aria', { email: m.email })" @change="changeRole(m, $event.target.value)">
+                  <option value="researcher">{{ t('role.researcher') }}</option>
+                  <option value="admin">{{ t('role.admin') }}</option>
+                </select>
+                <button type="button" class="btn-light" :aria-label="t('members.remove_aria', { email: m.email })" @click="askRemoveMember(m)">{{ t('members.remove') }}</button>
+              </li>
+            </ul>
+          </template>
         </div>
 
         <!-- SEARCH -->
@@ -925,7 +974,7 @@
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
         <div class="modal-actions">
           <button type="button" class="btn-light" @click="confirmation = null">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? t('confirm.deleting') : t('common.delete') }}</button>
+          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? (confirmation.busy || t('confirm.deleting')) : (confirmation.button || t('common.delete')) }}</button>
         </div>
       </div>
     </div>
