@@ -13,6 +13,8 @@ const ROUTE_WORDS = {
   pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros' },
   en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members' }
 };
+// the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
+const LAB_WORD = 'lab';
 // the same minimum the API checks (MIN_PASSWORD_LENGTH in backend/security.py)
 const MIN_PASSWORD_LENGTH = 8;
 // table sort keys as they appear in the address bar (?o=especie / ?o=species); measurement columns keep their "m:" key
@@ -202,6 +204,7 @@ const app = createApp({
       sortKeys: ['recent', 'title', 'species'],
       loading: true,
       apiError: null,
+      apiOffline: false,
       projects: [],
       specimens: [],
       token: null,
@@ -216,6 +219,9 @@ const app = createApp({
       // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
       confirmState: null,
       minPasswordLength: MIN_PASSWORD_LENGTH,
+      // the laboratory in the address (#/lab/<slug>/...); null for the old addresses, which show the first one
+      labSlug: null,
+      started: false,
       // GET /me: the signed-in person and their laboratories, with the role in each
       me: null,
       // the members page: which laboratory, its members and the form to add someone
@@ -264,7 +270,11 @@ const app = createApp({
     },
     // the laboratories the signed-in person manages; the API checks this again on every request
     adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
-    membersLab() { return this.adminLabs.find((l) => l.slug === this.membersSlug) || this.adminLabs[0] || null; },
+    // the one chosen on the page, otherwise the laboratory in the address, otherwise the first one
+    membersLab() {
+      const find = (slug) => this.adminLabs.find((l) => l.slug === slug);
+      return find(this.membersSlug) || find(this.labSlug) || this.adminLabs[0] || null;
+    },
     sortOptions() { return this.sortKeys.map((value) => ({ value, label: this.t(`sort.${value}`) })); },
     projectFilters() { return this.projectFilterKeys.map((key) => ({ key, label: this.t(`filter.${key}`) })); },
     aboutText() { return this.t('about.text'); },
@@ -637,6 +647,8 @@ const app = createApp({
     window.addEventListener('hashchange', this.applyRoute);
     document.addEventListener('click', this.closePopups);
     document.addEventListener('keydown', this.onKey);
+    // from here on, a change of laboratory in the address loads its data (see enterLab)
+    this.started = true;
     await Promise.all([this.loadAll(), this.loadMe()]);
     this.expandFirst();
   },
@@ -663,9 +675,12 @@ const app = createApp({
 
     // ---------- addresses ----------
     // builds the address of a page in a language: link('project', { id: 3, view: 'map' }) -> #/projetos/3/mapa
-    link(name, { id, view, q } = {}, lang = this.lang) {
+    // inside a laboratory the address starts with it: #/lab/ufmg/projetos/3. lab: undefined keeps the
+    // current one, null leaves it out (the old addresses, which show the first laboratory)
+    link(name, { id, view, q, lab } = {}, lang = this.lang) {
       const w = ROUTE_WORDS[lang];
-      const prefix = lang === 'en' ? '#/en/' : '#/';
+      const slug = lab === undefined ? this.labSlug : lab;
+      const prefix = (lang === 'en' ? '#/en/' : '#/') + (slug ? `${LAB_WORD}/${encodeURIComponent(slug)}/` : '');
       if (name === 'project') return `${prefix}${w.projects}/${id}${view && view !== 'table' ? '/' + w[view] : ''}`;
       if (name === 'collection') return `${prefix}${w.collection}${view && view !== 'tree' ? '/' + w[view] : ''}`;
       if (name === 'search') return `${prefix}${w.search}${q ? '/' + encodeURIComponent(q) : ''}`;
@@ -727,9 +742,15 @@ const app = createApp({
       else if (!parts.length) {
         // first visit without an address: the saved choice, otherwise the browser language
         const preferred = savedLanguage() || ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'pt');
-        if (preferred === 'en') { location.replace(this.link('about', {}, 'en')); return; }
+        if (preferred === 'en') { location.replace(this.link('about', { lab: null }, 'en')); return; }
       }
       this.lang = lang;
+      let slug = null;
+      if (parts[0] === LAB_WORD && parts[1]) {
+        try { slug = decodeURIComponent(parts[1]); } catch { slug = parts[1]; }
+        parts = parts.slice(2);
+      }
+      this.enterLab(slug);
       const [a, b, c] = parts;
       const page = wordKey(ROUTE_WORDS, a);
       const qs = new URLSearchParams(search);
@@ -822,7 +843,10 @@ const app = createApp({
       try {
         res = await fetch(this.apiUrl + path, { method, headers, body: body !== null ? JSON.stringify(body) : undefined });
       } catch {
-        throw new Error(this.t('error.connection'));
+        // the API did not answer at all (as opposed to answering with an error)
+        const error = new Error(this.t('error.connection'));
+        error.offline = true;
+        throw error;
       }
       if (res.status === 401 && this.token && path !== '/login') {
         this.endSession();
@@ -834,15 +858,39 @@ const app = createApp({
       if (!res.ok) throw new Error(await this.errorMessage(res));
       return res.status === 204 ? null : res.json();
     },
+    // the API address of a laboratory's data: /labs/<slug>/projects, or the old /projects (the first laboratory)
+    labPath(path) {
+      return this.labSlug ? `/labs/${encodeURIComponent(this.labSlug)}${path}` : path;
+    },
+    // moving to another laboratory forgets what belonged to the previous one and loads the new one
+    enterLab(slug) {
+      if (slug === this.labSlug) return;
+      this.labSlug = slug;
+      this.projects = [];
+      this.specimens = [];
+      this.panel = null;
+      this.mapFocus = null;
+      this.expanded = {};
+      this.filters = { year: null, group: null, status: null, locality: null };
+      this.collectionFilters = { orders: [], families: [], repos: [], years: [] };
+      this.projectForm = this.specimenForm = this.importJob = this.confirmation = null;
+      if (this.started) this.loadAll().then(() => this.expandFirst());
+    },
     async loadAll() {
+      const slug = this.labSlug;
       this.loading = true;
       this.apiError = null;
+      this.apiOffline = false;
       try {
-        const [projects, specimens] = await Promise.all([this.api('/projects'), this.api('/specimens')]);
+        const [projects, specimens] = await Promise.all([this.api(this.labPath('/projects')), this.api(this.labPath('/specimens'))]);
+        // an answer about a laboratory the person has already left is dropped
+        if (slug !== this.labSlug) return;
         this.projects = projects;
         this.specimens = specimens;
       } catch (e) {
+        if (slug !== this.labSlug) return;
         this.apiError = e.message;
+        this.apiOffline = !!e.offline;
       }
       this.loading = false;
     },
@@ -972,7 +1020,7 @@ const app = createApp({
       if (!e.image_file) return null;
       const id = this.recordIdOf(e);
       if (!id) return null;
-      if (Zenodo.isDemo(id)) return `${this.apiUrl}/demo/image/${encodeURIComponent(e.image_file)}`;
+      if (Zenodo.isDemo(id)) return this.apiUrl + this.labPath(`/demo/image/${encodeURIComponent(e.image_file)}`);
       return Zenodo.thumbnail(id, e.image_file, width);
     },
     fileUrl(e) {
@@ -1106,7 +1154,7 @@ const app = createApp({
         description: orNull(f.description), finished: !!f.finished, visibility: f.visibility
       };
       try {
-        const saved = await this.api(f.id ? `/projects/${f.id}` : '/projects', { method: f.id ? 'PUT' : 'POST', body });
+        const saved = await this.api(this.labPath(f.id ? `/projects/${f.id}` : '/projects'), { method: f.id ? 'PUT' : 'POST', body });
         this.projectForm = null;
         await this.loadAll();
         this.notify(this.t(f.id ? 'notify.project_updated' : 'notify.project_created'));
@@ -1123,7 +1171,7 @@ const app = createApp({
         title: this.t('confirm.project_title'),
         text: this.t('confirm.project_text', { title: p.title, with: n ? this.count('specimen', n) : '' }),
         action: async () => {
-          await this.api(`/projects/${p.id}`, { method: 'DELETE' });
+          await this.api(this.labPath(`/projects/${p.id}`), { method: 'DELETE' });
           location.hash = this.link('projects');
           await this.loadAll();
           this.notify(this.t('notify.project_deleted'));
@@ -1170,7 +1218,7 @@ const app = createApp({
       this.nameHint = null;
       if (name.split(/\s+/).length < 2) return;
       try {
-        const [r] = await this.api('/taxonomy/validate', { method: 'POST', body: { names: [name] } });
+        const [r] = await this.api(this.labPath('/taxonomy/validate'), { method: 'POST', body: { names: [name] } });
         if (!r || f.species.trim() !== name) return;
         if (r.status === 'ok' || r.status === 'unavailable') {
           if (r.status === 'ok') {
@@ -1215,7 +1263,7 @@ const app = createApp({
       };
       this.submitting = true;
       try {
-        await this.api(f.id ? `/specimens/${f.id}` : '/specimens', { method: f.id ? 'PUT' : 'POST', body });
+        await this.api(this.labPath(f.id ? `/specimens/${f.id}` : '/specimens'), { method: f.id ? 'PUT' : 'POST', body });
         this.specimenForm = null;
         await this.loadAll();
         this.notify(this.t(f.id ? 'notify.specimen_updated' : 'notify.specimen_added'));
@@ -1230,7 +1278,7 @@ const app = createApp({
         title: this.t('confirm.specimen_title'),
         text: this.t('confirm.specimen_text', { code: e.catalog_number, species: e.species }),
         action: async () => {
-          await this.api(`/specimens/${e.id}`, { method: 'DELETE' });
+          await this.api(this.labPath(`/specimens/${e.id}`), { method: 'DELETE' });
           await this.loadAll();
           this.notify(this.t('notify.specimen_deleted'));
         }
@@ -1406,7 +1454,7 @@ const app = createApp({
       if (!rows.length) { job.report = null; return; }
       job.checking = true;
       try {
-        const report = await this.api('/specimens/import?dry_run=true', {
+        const report = await this.api(this.labPath('/specimens/import?dry_run=true'), {
           method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows }
         });
         if (seq === job.seq) job.report = report;
@@ -1420,7 +1468,7 @@ const app = createApp({
       job.submitting = true;
       job.error = null;
       try {
-        const report = await this.api('/specimens/import', {
+        const report = await this.api(this.labPath('/specimens/import'), {
           method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows: job.payloadRows }
         });
         this.importJob = null;
@@ -1488,11 +1536,11 @@ const app = createApp({
       if (full) params.push('full=true');
       const base = projectId ? this.t('file.project_csv', { id: projectId }) : this.t('file.collection_csv');
       const name = base + (full ? this.t('file.full_suffix') : '') + '.csv';
-      this.downloadFromApi('/export/csv?' + params.join('&'), name);
+      this.downloadFromApi(this.labPath('/export/csv?' + params.join('&')), name);
     },
     exportDwc(projectId = null) {
       const name = projectId ? this.t('file.project_dwc', { id: projectId }) : this.t('file.collection_dwc');
-      this.downloadFromApi('/export/dwc' + (projectId ? `?project_id=${projectId}` : ''), `${name}.zip`);
+      this.downloadFromApi(this.labPath('/export/dwc' + (projectId ? `?project_id=${projectId}` : '')), `${name}.zip`);
     },
     openInfo(which) { this.info = which; },
     async copyCitation() {

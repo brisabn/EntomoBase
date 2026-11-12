@@ -219,7 +219,7 @@
         <div class="sheet" v-else-if="route.name === 'projects' || route.name === 'project'">
 
           <div v-if="apiError" class="error-banner" role="alert">
-            <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+            <template v-if="apiOffline"><strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}</template><template v-else>{{ apiError }}</template>
             <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
           </div>
 
@@ -479,7 +479,7 @@
 
           <section class="content">
             <div v-if="apiError" class="error-banner" role="alert">
-              <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+              <template v-if="apiOffline"><strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}</template><template v-else>{{ apiError }}</template>
               <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
             </div>
 
