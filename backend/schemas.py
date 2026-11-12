@@ -218,6 +218,20 @@ class MemberResponse(BaseModel):
     role: str
 
 
+# the signed-in person and the laboratories they belong to, so the site knows what to show them
+class MyLaboratory(BaseModel):
+    slug: str
+    name: str
+    role: str
+
+
+class Me(BaseModel):
+    email: str
+    name: Optional[str] = None
+    is_superadmin: bool
+    laboratories: List[MyLaboratory]
+
+
 class MemberCreate(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
     role: Literal["admin", "researcher"] = "researcher"

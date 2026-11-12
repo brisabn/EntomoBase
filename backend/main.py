@@ -24,7 +24,7 @@ from database import get_db
 from db_setup import initialize_database
 from authorization import (
     Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
-    require_member, require_superadmin, set_visibility, visible_projects, visible_specimens,
+    require_member, require_superadmin, required_user, set_visibility, visible_projects, visible_specimens,
 )
 from errors import api_error
 from laboratories import DEFAULT_LABORATORY
@@ -201,6 +201,16 @@ def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
     db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
     db.commit()
     return {"status": "confirmed", "email": user.email}
+
+
+# who is signed in and where they work; the role in each laboratory is read now, not taken from the token
+@app.get("/me", response_model=schemas.Me)
+def me(user: models.User = Depends(required_user), db: Session = Depends(get_db)):
+    rows = db.query(models.Membership, models.Laboratory).join(models.Laboratory, models.Membership.laboratory_id == models.Laboratory.id).filter(
+        models.Membership.user_id == user.id
+    ).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    laboratories = [schemas.MyLaboratory(slug=lab.slug, name=lab.name, role=m.role) for m, lab in rows]
+    return schemas.Me(email=user.email, name=user.name, is_superadmin=user.is_superadmin, laboratories=laboratories)
 
 
 # the account with this e-mail, which must be confirmed: an unconfirmed one may still change hands (see
