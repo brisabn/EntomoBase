@@ -29,7 +29,7 @@ from authorization import (
 from errors import api_error
 from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
-from email_confirmation import issue_code, send_already_registered, send_confirmation
+from email_confirmation import hash_code, issue_code, send_already_registered, send_confirmation, utc_now
 from mailer import MailError, valid_address
 from rate_limit import AttemptLimiter
 from security import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
@@ -129,6 +129,10 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
         ip_limiter.record_failure(ip)
         raise api_error(401, "invalid_credentials")
     account_limiter.reset(account_key)
+    # an unconfirmed account may still be taken over by whoever owns the address (see /signup), so it gets
+    # no session; the person signs up again to receive a new link
+    if user.email_verified_at is None:
+        raise api_error(403, "email_not_confirmed")
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(credentials.password)
         db.commit()
@@ -182,6 +186,21 @@ def signup(data: schemas.SignupRequest, request: Request, db: Session = Depends(
         # two sign-ups for the same new address at the same moment: the other one wins and sends the e-mail
         db.rollback()
     return {"status": "confirmation_sent"}
+
+
+# the link in the e-mail opens the site, which sends the code here. A code works once and only until it
+# expires; it is long and random, so guessing one is not a concern. No session is given: the person signs in
+@app.post("/confirm")
+def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
+    confirmation = db.query(models.EmailConfirmation).filter(models.EmailConfirmation.code_hash == hash_code(data.code)).first()
+    if confirmation is None or confirmation.expires_at <= utc_now():
+        raise api_error(400, "invalid_code")
+    user = confirmation.user
+    if user.email_verified_at is None:
+        user.email_verified_at = utc_now()
+    db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
+    db.commit()
+    return {"status": "confirmed", "email": user.email}
 
 
 # --- Laboratories ---

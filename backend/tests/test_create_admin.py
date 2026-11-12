@@ -114,7 +114,7 @@ def test_a_new_user_has_a_confirmed_e_mail(run, db):
 
 def test_an_existing_unconfirmed_user_becomes_confirmed(run, db, password_hash):
     from conftest import add_user
-    add_user(EMAIL, password_hash)
+    add_user(EMAIL, password_hash, confirmed=False)
     assert db.query(models.User).one().email_verified_at is None
     run([EMAIL], PASSWORD, PASSWORD)
     assert db.query(models.User).one().email_verified_at is not None

@@ -162,9 +162,7 @@ def test_another_persons_code_is_not_touched(client, db):
 @pytest.mark.parametrize("case", ["new", "unconfirmed", "confirmed"])
 def test_the_password_is_hashed_in_every_case(client, db, monkeypatch, case):
     if case != "new":
-        add_user(NEW["email"], "x")
-    if case == "confirmed":
-        confirm_as_user(db, NEW["email"])
+        add_user(NEW["email"], "x", confirmed=case == "confirmed")
     calls = []
     real = main.hash_password
     monkeypatch.setattr(main, "hash_password", lambda password: calls.append(password) or real(password))

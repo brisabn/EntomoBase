@@ -166,6 +166,10 @@ class SignupRequest(BaseModel):
     password: str = Field(..., max_length=128)
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
 
+# the code from the link in the confirmation e-mail
+class ConfirmRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=100)
+
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None

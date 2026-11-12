@@ -77,11 +77,12 @@ def password_hash():
     return hash_password(PASSWORD)
 
 
-# creates a user; with a role, they also become a member of the first laboratory
-def add_user(email, password_hash, role=None):
+# creates a user, with a confirmed e-mail unless told otherwise; with a role, they also become a member
+# of the first laboratory
+def add_user(email, password_hash, role=None, confirmed=True):
     db = SessionLocal()
     try:
-        user = models.User(email=email, password_hash=password_hash)
+        user = models.User(email=email, password_hash=password_hash, email_verified_at=datetime(2026, 1, 1) if confirmed else None)
         db.add(user)
         db.flush()
         if role:
