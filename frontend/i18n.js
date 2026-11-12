@@ -133,6 +133,13 @@ const MESSAGES = {
     'verify.done': (p) => `Pronto! O e-mail ${p.email} foi confirmado e você já pode entrar.`,
     'verify.no_code': 'Para confirmar sua conta, abra o link que enviamos por e-mail.',
 
+    // laboratories
+    'labs.title': 'Laboratórios', 'labs.all': 'Laboratórios',
+    'labs.subtitle': 'Laboratórios que publicam seus dados no EntomoBase.',
+    'labs.loading': 'Carregando laboratórios...',
+    'labs.empty': 'Ainda não há laboratórios públicos.',
+    'labs.bar_aria': 'Laboratório',
+
     // laboratory members
     'members.title': 'Membros do laboratório',
     'members.login_needed': 'Entre para gerenciar os membros do seu laboratório.',
@@ -412,6 +419,12 @@ const MESSAGES = {
     'verify.working': 'Confirming your e-mail...',
     'verify.done': (p) => `Done! The e-mail ${p.email} is confirmed and you can sign in now.`,
     'verify.no_code': 'To confirm your account, open the link we sent you by e-mail.',
+
+    'labs.title': 'Laboratories', 'labs.all': 'Laboratories',
+    'labs.subtitle': 'Laboratories that publish their data on EntomoBase.',
+    'labs.loading': 'Loading laboratories...',
+    'labs.empty': 'There are no public laboratories yet.',
+    'labs.bar_aria': 'Laboratory',
 
     'members.title': 'Laboratory members',
     'members.login_needed': 'Sign in to manage the members of your laboratory.',

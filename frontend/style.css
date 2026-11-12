@@ -314,6 +314,16 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .confirm-box { max-width: 38rem; margin-top: 1.2rem; display: flex; flex-direction: column; gap: 0.9rem; font-size: 1.05rem; }
 .confirm-box .form-error { margin-bottom: 0; }
 
+/* the laboratory being shown, between the top bar and the tabs */
+.lab-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 1.6rem 0 0 1.4rem; font-size: 1rem; color: var(--ink-2); }
+.lab-bar a { color: var(--ink-2); text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.lab-bar a:hover, .lab-bar a[aria-current="page"] { color: var(--ink); text-decoration-color: currentColor; }
+.lab-bar .lab-bar-current { color: var(--ink); font-weight: 600; }
+.lab-bar-inst { font-size: 0.92rem; }
+.lab-bar + .tabs { margin-top: 0.9rem; }
+.lab-bar + .folder { margin-top: 1.2rem; }
+@media (max-width: 620px) { .lab-bar { margin-left: 0.5rem; } }
+
 /* laboratory members */
 .members-lab { max-width: 22rem; }
 .members-heading { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; margin: 1.8rem 0 0.8rem; }

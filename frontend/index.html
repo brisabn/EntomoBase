@@ -61,14 +61,46 @@
         </div>
       </header>
 
-      <nav class="tabs" :aria-label="t('nav.aria')">
+      <!-- where the visitor is: the list of laboratories and the one being shown -->
+      <nav class="lab-bar" :aria-label="t('labs.bar_aria')">
+        <a class="lab-bar-all" :href="link('labs', { lab: null })" :aria-current="route.name === 'labs' ? 'page' : null">{{ t('labs.all') }}</a>
+        <template v-if="route.name !== 'labs' && labInfo">
+          <span class="lab-bar-sep" aria-hidden="true">/</span>
+          <a class="lab-bar-current" :href="link('about')">{{ labInfo.name }}</a>
+          <span class="lab-bar-inst">{{ labInfo.institution }}</span>
+        </template>
+      </nav>
+
+      <nav v-if="route.name !== 'labs'" class="tabs" :aria-label="t('nav.aria')">
         <a v-for="tab in tabs" :key="tab.id" :href="tab.href" :class="['tab', { current: activeTab === tab.id }]" :aria-current="activeTab === tab.id ? 'page' : null">{{ tab.label }}</a>
       </nav>
 
       <main class="folder">
 
+        <!-- LABORATORIES (the public list) -->
+        <div class="sheet" v-if="route.name === 'labs'">
+          <h1 class="page-title">{{ t('labs.title') }}</h1>
+          <p class="subtitle">{{ t('labs.subtitle') }}</p>
+          <div v-if="labsError" class="error-banner" role="alert">
+            {{ labsError }} <button type="button" class="link" @click="loadLabs">{{ t('api.retry') }}</button>
+          </div>
+          <p v-else-if="labsLoading && !labs.length" class="empty-state">{{ t('labs.loading') }}</p>
+          <div v-else-if="labs.length" class="grid">
+            <a v-for="(l, i) in labs" :key="l.slug" class="card" :href="link('projects', { lab: l.slug })">
+              <div class="card-cover" :style="{ background: coverColor({ id: i + 1 }) }">
+                <span class="status">{{ l.collection_code }}</span>
+              </div>
+              <div class="card-body">
+                <h2 class="card-title">{{ l.name }}</h2>
+                <p class="card-meta">{{ l.institution }}</p>
+              </div>
+            </a>
+          </div>
+          <p v-else class="empty-state">{{ t('labs.empty') }}</p>
+        </div>
+
         <!-- ABOUT -->
-        <div class="sheet" v-if="route.name === 'about'">
+        <div class="sheet" v-else-if="route.name === 'about'">
           <p class="about-text">{{ aboutText }}</p>
           <div class="team">
             <div class="member" v-for="(m, i) in team" :key="i">

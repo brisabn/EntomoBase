@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories' }
 };
 // the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
 const LAB_WORD = 'lab';
@@ -222,6 +222,12 @@ const app = createApp({
       // the laboratory in the address (#/lab/<slug>/...); null for the old addresses, which show the first one
       labSlug: null,
       started: false,
+      // name and institution of the laboratory being shown (GET .../laboratory)
+      labInfo: null,
+      // the public list of laboratories (GET /labs)
+      labs: [],
+      labsLoading: false,
+      labsError: null,
       // GET /me: the signed-in person and their laboratories, with the role in each
       me: null,
       // the members page: which laboratory, its members and the form to add someone
@@ -290,7 +296,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title' };
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
@@ -764,8 +770,10 @@ const app = createApp({
       } else if (page === 'search') route = { name: 'search' };
       else if (page === 'confirm') route = { name: 'confirm' };
       else if (page === 'members') route = { name: 'members' };
+      else if (page === 'labs') route = { name: 'labs' };
       else route = { name: 'about' };
       if (route.name === 'members') this.loadMembers();
+      if (route.name === 'labs') this.loadLabs();
       if (route.name === 'confirm' && b) {
         // the code works only once: it is sent right away and taken out of the address bar and the history
         this.confirmEmail(b);
@@ -862,10 +870,21 @@ const app = createApp({
     labPath(path) {
       return this.labSlug ? `/labs/${encodeURIComponent(this.labSlug)}${path}` : path;
     },
+    async loadLabs() {
+      this.labsLoading = true;
+      this.labsError = null;
+      try {
+        this.labs = await this.api('/labs');
+      } catch (e) {
+        this.labsError = e.message;
+      }
+      this.labsLoading = false;
+    },
     // moving to another laboratory forgets what belonged to the previous one and loads the new one
     enterLab(slug) {
       if (slug === this.labSlug) return;
       this.labSlug = slug;
+      this.labInfo = null;
       this.projects = [];
       this.specimens = [];
       this.panel = null;
@@ -882,9 +901,10 @@ const app = createApp({
       this.apiError = null;
       this.apiOffline = false;
       try {
-        const [projects, specimens] = await Promise.all([this.api(this.labPath('/projects')), this.api(this.labPath('/specimens'))]);
+        const [info, projects, specimens] = await Promise.all(['/laboratory', '/projects', '/specimens'].map((path) => this.api(this.labPath(path))));
         // an answer about a laboratory the person has already left is dropped
         if (slug !== this.labSlug) return;
+        this.labInfo = info;
         this.projects = projects;
         this.specimens = specimens;
       } catch (e) {
