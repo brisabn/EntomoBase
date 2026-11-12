@@ -47,6 +47,14 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mes
 | Excluir espécimes | não | não | sim | sim |
 | Excluir projetos (apaga os espécimes dele) | não | não | não | sim |
 
+### Contas, laboratórios e membros
+
+- **Cadastro aberto** (`POST /signup`, com e-mail, senha e nome): cria uma conta sem laboratório e manda um link de confirmação por e-mail, válido por 24 horas. A resposta é a mesma exista ou não a conta, para o site não revelar quem está cadastrado. Limite: 5 cadastros por hora por IP.
+- **Confirmação** (`POST /confirm`, com o código do link): só depois dela a conta consegue entrar. Para receber outro link, basta se cadastrar de novo com o mesmo e-mail; enquanto o e-mail não for confirmado, o cadastro mais recente troca a senha, para ninguém "guardar" o e-mail de outra pessoa.
+- Quem é criado pelo `create_admin.py` já fica com o e-mail confirmado.
+- **Laboratórios** são criados pelo administrador da plataforma (`create_admin.py email --superadmin`), com `POST /labs`, indicando o primeiro administrador do laboratório.
+- **Membros**: o administrador do laboratório adiciona quem já tem conta confirmada (`POST /labs/<slug>/members`, como pesquisador ou administrador), muda o papel (`PUT`) e remove (`DELETE`). Um laboratório nunca fica sem administrador.
+
 A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.
 
 Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECRET_KEY`):
@@ -98,7 +106,7 @@ pytest               # roda os testes
 pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
 ```
 
-Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Cobrem login e limite de tentativas, o que visitantes veem, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, migração do banco antigo, CORS e a conferência de que todo texto do site tem tradução.
+Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios e membros, o que visitantes veem, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, migração do banco antigo, CORS e a conferência de que todo texto do site tem tradução.
 
 ## Variáveis de ambiente
 
@@ -108,6 +116,12 @@ Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. N
 | `ENTOMOBASE_ENV` | Com o valor `dev`, a API sobe sem `SECRET_KEY` usando uma chave temporária (os logins caem a cada reinício). Use só em desenvolvimento. |
 | `CORS_ORIGINS` | Endereços dos sites que podem usar a API pelo navegador, separados por vírgula (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, valem `http://127.0.0.1:5500` e `http://localhost:5500`. Fora do `dev`, sem ela, nenhum outro site consegue usar a API. |
 | `DATABASE_URL` | Banco de dados. Sem ela, usa SQLite local (`entomobase.db`). |
+| `SITE_URL` | Endereço público do site, usado no link de confirmação do e-mail (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, vale `http://127.0.0.1:5500`. Fora do `dev`, sem ela, o cadastro responde que o e-mail não pôde ser enviado. |
+| `MAIL_BACKEND` | Como os e-mails saem: `smtp` (envio de verdade) ou `console` (só mostra no terminal da API). Em modo `dev`, sem a variável, vale `console`. Fora do `dev`, sem ela, nenhum e-mail é enviado e o cadastro fica indisponível. |
+| `MAIL_FROM` | Remetente dos e-mails (ex.: `entomobase@meulab.br`). Obrigatória com `smtp`. |
+| `SMTP_HOST`, `SMTP_PORT` | Servidor de e-mail e porta (padrão 587; 465 com `ssl`). |
+| `SMTP_USER`, `SMTP_PASSWORD` | Login no servidor de e-mail, se ele pedir. Nunca coloque a senha no código nem em um commit. |
+| `SMTP_SECURITY` | `starttls` (padrão), `ssl` ou `none` (sem criptografia; só para um servidor local de testes). |
 
 Para gerar uma `SECRET_KEY` de produção:
 
