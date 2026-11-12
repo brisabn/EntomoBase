@@ -118,6 +118,20 @@ const MESSAGES = {
     // login
     'login.title': 'Entrar', 'login.email': 'E-mail', 'login.password': 'Senha',
     'login.submit': 'Acessar', 'login.submitting': 'Entrando...',
+    'login.no_account': 'Ainda não tem conta?', 'login.to_signup': 'Cadastre-se',
+
+    // sign-up and e-mail confirmation
+    'signup.title': 'Criar conta', 'signup.name': 'Nome',
+    'signup.password_hint': (p) => `Pelo menos ${p.minimum} caracteres.`,
+    'signup.submit': 'Criar conta', 'signup.submitting': 'Enviando...',
+    'signup.have_account': 'Já tem conta?', 'signup.to_login': 'Entrar',
+    'signup.sent_title': 'Confira seu e-mail',
+    'signup.sent_text': (p) => `Enviamos uma mensagem para ${p.email}. Abra o link dela para confirmar sua conta; ele vale por 24 horas. Se esse e-mail já tinha conta, a mensagem explica como entrar. Não chegou? Veja a caixa de spam ou cadastre-se de novo.`,
+    'account.next_step': 'Para trabalhar em um laboratório, peça ao administrador dele que adicione você com esse e-mail.',
+    'confirm.title': 'Confirmação de e-mail',
+    'confirm.working': 'Confirmando seu e-mail...',
+    'confirm.done': (p) => `Pronto! O e-mail ${p.email} foi confirmado e você já pode entrar.`,
+    'confirm.no_code': 'Para confirmar sua conta, abra o link que enviamos por e-mail.',
 
     // project form
     'projectForm.new': 'Novo projeto', 'projectForm.edit': 'Editar projeto',
@@ -363,6 +377,19 @@ const MESSAGES = {
 
     'login.title': 'Sign in', 'login.email': 'E-mail', 'login.password': 'Password',
     'login.submit': 'Sign in', 'login.submitting': 'Signing in...',
+    'login.no_account': 'No account yet?', 'login.to_signup': 'Sign up',
+
+    'signup.title': 'Create an account', 'signup.name': 'Name',
+    'signup.password_hint': (p) => `At least ${p.minimum} characters.`,
+    'signup.submit': 'Create account', 'signup.submitting': 'Sending...',
+    'signup.have_account': 'Already have an account?', 'signup.to_login': 'Sign in',
+    'signup.sent_title': 'Check your e-mail',
+    'signup.sent_text': (p) => `We sent a message to ${p.email}. Open its link to confirm your account; it is valid for 24 hours. If this e-mail already had an account, the message explains how to sign in. Nothing arrived? Check the spam folder or sign up again.`,
+    'account.next_step': 'To work in a laboratory, ask its admin to add you with this e-mail.',
+    'confirm.title': 'E-mail confirmation',
+    'confirm.working': 'Confirming your e-mail...',
+    'confirm.done': (p) => `Done! The e-mail ${p.email} is confirmed and you can sign in now.`,
+    'confirm.no_code': 'To confirm your account, open the link we sent you by e-mail.',
 
     'projectForm.new': 'New project', 'projectForm.edit': 'Edit project',
     'projectForm.title': 'Title', 'projectForm.year': 'Year', 'projectForm.group': 'Insect group',

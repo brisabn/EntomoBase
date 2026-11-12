@@ -10,9 +10,11 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm' }
 };
+// the same minimum the API checks (MIN_PASSWORD_LENGTH in backend/security.py)
+const MIN_PASSWORD_LENGTH = 8;
 // table sort keys as they appear in the address bar (?o=especie / ?o=species); measurement columns keep their "m:" key
 const SORT_WORDS = {
   pt: { catalog: 'codigo', species: 'especie', family: 'familia', locality: 'local', date: 'data' },
@@ -207,6 +209,13 @@ const app = createApp({
       showLogin: false,
       loginError: null,
       credentials: { email: '', password: '' },
+      // the sign-in window has three steps: 'login', 'signup' and 'sent' (after signing up)
+      authMode: 'login',
+      signupForm: { name: '', email: '', password: '' },
+      signupSentTo: null,
+      // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
+      confirmState: null,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
       submitting: false,
       openMenu: null,
       popover: null,
@@ -258,7 +267,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'confirm.title' };
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
@@ -719,7 +728,13 @@ const app = createApp({
         const view = wordKey(ROUTE_WORDS, b);
         route = { name: 'collection', view: ['repos', 'map'].includes(view) ? view : 'tree' };
       } else if (page === 'search') route = { name: 'search' };
+      else if (page === 'confirm') route = { name: 'confirm' };
       else route = { name: 'about' };
+      if (route.name === 'confirm' && b) {
+        // the code works only once: it is sent right away and taken out of the address bar and the history
+        this.confirmEmail(b);
+        history.replaceState(null, '', this.link('confirm', {}, lang));
+      }
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
       this.route = route;
@@ -818,7 +833,37 @@ const app = createApp({
     },
 
     // ---------- session ----------
-    openLogin() { this.loginError = null; this.showLogin = true; },
+    openLogin(email) {
+      this.loginError = null;
+      this.authMode = 'login';
+      if (typeof email === 'string') this.credentials.email = email;
+      this.showLogin = true;
+    },
+    switchAuthMode(mode) { this.loginError = null; this.authMode = mode; },
+    // the answer is the same whether or not the address already has an account, so the site cannot say which
+    async signup() {
+      this.loginError = null;
+      this.submitting = true;
+      try {
+        await this.api('/signup', { method: 'POST', body: this.signupForm });
+        this.signupSentTo = this.signupForm.email.trim();
+        this.signupForm = { name: '', email: '', password: '' };
+        this.authMode = 'sent';
+      } catch (e) {
+        this.loginError = e.message;
+      }
+      this.submitting = false;
+    },
+    async confirmEmail(code) {
+      if (this.confirmState && this.confirmState.code === code) return;
+      this.confirmState = { code, status: 'working', email: null, message: null };
+      try {
+        const d = await this.api('/confirm', { method: 'POST', body: { code } });
+        this.confirmState = { code, status: 'done', email: d.email, message: null };
+      } catch (e) {
+        this.confirmState = { code, status: 'failed', email: null, message: e.message };
+      }
+    },
     async login() {
       this.loginError = null;
       this.submitting = true;

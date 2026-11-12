@@ -307,6 +307,12 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .modal-narrow { width: min(420px, 100%); }
 .modal-title { font-family: var(--serif); font-weight: 600; font-size: 1.8rem; margin-bottom: 1.3rem; }
 .modal-text { margin-bottom: 1.2rem; }
+.field-hint { font-size: 0.85rem; color: var(--ink-2); }
+.auth-switch { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--fold); font-size: 0.95rem; color: var(--ink-2); }
+.link-btn { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.link-btn:hover { color: #34422d; }
+.confirm-box { max-width: 38rem; margin-top: 1.2rem; display: flex; flex-direction: column; gap: 0.9rem; font-size: 1.05rem; }
+.confirm-box .form-error { margin-bottom: 0; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
 .field > span { font-size: 0.88rem; font-weight: 600; color: var(--ink-2); }
 .field input, .field select, .field textarea {
