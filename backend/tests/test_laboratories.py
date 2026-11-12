@@ -152,6 +152,14 @@ def test_an_unknown_admin_creates_nothing(client, superadmin, user, db):
     assert [lab.slug for lab in db.query(models.Laboratory).all()] == ["ufmg"] and db.query(models.Membership).count() == 1
 
 
+def test_an_admin_whose_e_mail_is_not_confirmed_creates_nothing(client, superadmin, password_hash, db):
+    from conftest import add_user
+    add_user("pending@lab.br", password_hash, confirmed=False)
+    response = client.post("/labs", json=lab_body(admin_email="pending@lab.br"), headers=superadmin)
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "user_not_found"
+    assert db.query(models.Laboratory).count() == 0 and db.query(models.Membership).count() == 0
+
+
 @pytest.mark.parametrize("slug", ["", "a", "UPPER", "Mixed", "with space", "-start", "end-", "a--b", "a/b", "a_b", "ü", "x" * 41, "a.b", ".."])
 def test_a_slug_that_is_not_safe_for_an_address_is_refused(client, superadmin, user, db, slug):
     response = client.post("/labs", json=lab_body(slug=slug), headers=superadmin)

@@ -203,6 +203,15 @@ def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
     return {"status": "confirmed", "email": user.email}
 
 
+# the account with this e-mail, which must be confirmed: an unconfirmed one may still change hands (see
+# /signup), so it is never given a role. An unconfirmed account is reported as missing, like one that is
+def confirmed_user(db: Session, email: str) -> models.User:
+    user = db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
+    if user is None or user.email_verified_at is None:
+        raise api_error(404, "user_not_found")
+    return user
+
+
 # --- Laboratories ---
 # the public list of the platform: only the laboratories that chose to be listed. A laboratory that is not
 # listed still works at its own address; it just is not advertised
@@ -215,9 +224,7 @@ def list_laboratories(db: Session = Depends(get_db)):
 # in the request; the platform administrator has no access to the laboratory's data unless also a member
 @app.post("/labs", response_model=schemas.LaboratoryPublic, status_code=201)
 def create_laboratory(data: schemas.LaboratoryCreate, db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
-    admin = db.query(models.User).filter(func.lower(models.User.email) == data.admin_email.strip().lower()).first()
-    if admin is None:
-        raise api_error(404, "user_not_found")
+    admin = confirmed_user(db, data.admin_email)
     if db.query(models.Laboratory).filter(models.Laboratory.slug == data.slug).first():
         raise api_error(400, "duplicate_slug")
     laboratory = models.Laboratory(
@@ -243,6 +250,21 @@ def list_members(db: Session = Depends(get_db), ctx: Context = Depends(require_a
         models.Membership.laboratory_id == ctx.laboratory.id
     ).order_by(models.User.email).all()
     return [schemas.MemberResponse(id=m.id, email=u.email, name=u.name, role=m.role) for m, u in rows]
+
+
+# an admin brings in someone who already has an account (they sign up first, on their own)
+@members_router.post("/members", response_model=schemas.MemberResponse, status_code=201)
+def add_member(data: schemas.MemberCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    user = confirmed_user(db, data.email)
+    membership = models.Membership(user_id=user.id, laboratory_id=ctx.laboratory.id, role=data.role)
+    db.add(membership)
+    try:
+        db.commit()
+    except IntegrityError:
+        # a person belongs to a laboratory only once (unique in the database)
+        db.rollback()
+        raise api_error(400, "already_member")
+    return schemas.MemberResponse(id=membership.id, email=user.email, name=user.name, role=membership.role)
 
 
 # the membership with this id, if it belongs to the laboratory of the request; any other id is a 404

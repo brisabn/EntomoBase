@@ -347,3 +347,114 @@ def test_removing_the_same_member_twice_is_a_404_the_second_time(client, admin, 
 def test_there_is_no_address_for_removing_without_the_laboratory(client, admin, researcher, db):
     assert client.delete(f"/members/{member_id(db, RESEARCHER_EMAIL)}", headers=admin).status_code == 404
     assert db.query(models.Membership).count() == 2
+
+
+# ---------- adding a member ----------
+def add(client, headers, email, role=None, slug="ufmg"):
+    body = {"email": email} if role is None else {"email": email, "role": role}
+    return client.post(f"/labs/{slug}/members", json=body, headers=headers)
+
+
+def test_an_admin_adds_someone_with_an_account_as_a_researcher(client, admin, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    response = add(client, admin, "new@lab.br")
+    assert response.status_code == 201
+    body = response.json()
+    assert (body["email"], body["role"]) == ("new@lab.br", "researcher") and body["id"] == member_id(db, "new@lab.br")
+    assert set(body) == {"id", "email", "name", "role"}
+
+
+def test_an_admin_can_add_another_admin(client, admin, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    assert add(client, admin, "new@lab.br", "admin").json()["role"] == "admin"
+    assert role_of(db, "new@lab.br") == "admin"
+
+
+def test_the_new_member_can_work_at_once(client, admin, password_hash):
+    from helpers import project_body
+    add_user("new@lab.br", password_hash)
+    member = {"Authorization": f"Bearer {make_token(email='new@lab.br')}"}
+    assert client.post("/labs/ufmg/projects", json=project_body(), headers=member).status_code == 403
+    add(client, admin, "new@lab.br")
+    assert client.post("/labs/ufmg/projects", json=project_body(), headers=member).status_code == 201
+
+
+def test_the_e_mail_is_matched_ignoring_case_and_spaces(client, admin, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    assert add(client, admin, "  NEW@Lab.br ").status_code == 201
+
+
+def test_an_unknown_e_mail_is_a_404(client, admin, db):
+    response = add(client, admin, "nobody@lab.br")
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "user_not_found"
+    assert db.query(models.Membership).count() == 1
+
+
+def test_an_account_whose_e_mail_is_not_confirmed_looks_the_same_as_none(client, admin, password_hash, db):
+    add_user("pending@lab.br", password_hash, confirmed=False)
+    response = add(client, admin, "pending@lab.br")
+    assert response.status_code == 404 and response.json()["detail"]["code"] == "user_not_found"
+    assert db.query(models.Membership).count() == 1
+
+
+def test_someone_already_in_the_laboratory_is_not_added_twice(client, admin, researcher, db):
+    response = add(client, admin, RESEARCHER_EMAIL, "admin")
+    assert response.status_code == 400 and response.json()["detail"]["code"] == "already_member"
+    assert role_of(db, RESEARCHER_EMAIL) == "researcher"
+
+
+def test_adding_the_same_person_twice_keeps_one_membership(client, admin, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    assert add(client, admin, "new@lab.br").status_code == 201
+    response = add(client, admin, "new@lab.br", "admin")
+    assert response.status_code == 400 and response.json()["detail"]["code"] == "already_member"
+    assert db.query(models.Membership).count() == 2 and role_of(db, "new@lab.br") == "researcher"
+
+
+def test_a_member_of_another_laboratory_can_be_added_here_too(client, admin, password_hash, db):
+    other = second_lab(db)
+    add_user("elsewhere@lab.br", password_hash)
+    join(db, "elsewhere@lab.br", other, "admin")
+    assert add(client, admin, "elsewhere@lab.br").status_code == 201
+    assert role_of(db, "elsewhere@lab.br", "lab-b") == "admin" and role_of(db, "elsewhere@lab.br") == "researcher"
+
+
+@pytest.mark.parametrize("body", [{}, {"email": "new@lab.br", "role": "owner"}, {"email": "x"}, {"email": "a" * 255}])
+def test_a_bad_request_is_a_422(client, admin, password_hash, body):
+    add_user("new@lab.br", password_hash)
+    assert client.post("/labs/ufmg/members", json=body, headers=admin).status_code == 422
+
+
+def test_a_researcher_cannot_add_members(client, admin, researcher, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    assert add(client, researcher, "new@lab.br").status_code == 403
+    assert db.query(models.Membership).count() == 2
+
+
+def test_someone_outside_or_a_visitor_cannot_add_members(client, admin, outsider, db):
+    assert add(client, outsider, "outsider@lab.br").status_code == 403
+    assert add(client, {}, "outsider@lab.br").status_code == 401
+    assert db.query(models.Membership).count() == 1
+
+
+def test_a_platform_administrator_without_a_membership_cannot_add_members(client, admin, superadmin, db):
+    assert add(client, superadmin, "super@lab.br", "admin").status_code == 403
+    assert db.query(models.Membership).count() == 1
+
+
+def test_an_admin_cannot_add_people_to_a_laboratory_they_do_not_manage(client, admin, password_hash, db):
+    second_lab(db)
+    add_user("new@lab.br", password_hash)
+    assert add(client, admin, "new@lab.br", slug="lab-b").status_code == 403
+    assert db.query(models.Membership).count() == 1
+
+
+def test_adding_to_an_unknown_laboratory_is_a_404(client, admin, password_hash):
+    add_user("new@lab.br", password_hash)
+    assert add(client, admin, "new@lab.br", slug="nowhere").json()["detail"]["code"] == "lab_not_found"
+
+
+def test_there_is_no_address_for_adding_without_the_laboratory(client, admin, password_hash, db):
+    add_user("new@lab.br", password_hash)
+    assert client.post("/members", json={"email": "new@lab.br"}, headers=admin).status_code in (404, 405)
+    assert db.query(models.Membership).count() == 1
