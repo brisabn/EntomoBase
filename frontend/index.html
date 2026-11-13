@@ -330,7 +330,7 @@
                 </ul>
               </div>
               <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">{{ t('filter.clear') }}</button>
-              <button v-if="labAccess" type="button" class="btn-light push-right" @click="openProjectForm()">{{ t('projects.new') }}</button>
+              <button v-if="isMember" type="button" class="btn-light push-right" @click="openProjectForm()">{{ t('projects.new') }}</button>
             </div>
 
             <p v-if="loading" class="empty-state">{{ t('projects.loading') }}</p>
@@ -373,9 +373,9 @@
                   <h1 class="page-title">{{ currentProject.title }}</h1>
                   <p class="subtitle">{{ currentProject.insect_group }} · {{ currentProject.year }}<template v-if="currentProject.locality"> · {{ currentProject.locality }}</template></p>
                 </div>
-                <div class="actions" v-if="labAccess">
+                <div class="actions" v-if="isMember">
                   <button type="button" class="btn-light" @click="openProjectForm(currentProject)">{{ t('common.edit') }}</button>
-                  <button type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
+                  <button v-if="currentRole === 'admin'" type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
                 </div>
               </div>
 
@@ -426,10 +426,10 @@
                 <h2 class="section-title">{{ t('project.specimens') }}</h2>
                 <div class="actions">
                   <button type="button" class="btn-light" @click="exportCsv(currentProject.id)">{{ t('export.csv') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full_internal') }}</button>
+                  <button v-if="isMember" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full_internal') }}</button>
                   <button type="button" class="btn-light" @click="exportDwc(currentProject.id)" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="openImport(currentProject.id)">{{ t('import.button') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">{{ t('project.add_specimen') }}</button>
+                  <button v-if="isMember" type="button" class="btn-light" @click="openImport(currentProject.id)">{{ t('import.button') }}</button>
+                  <button v-if="isMember" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">{{ t('project.add_specimen') }}</button>
                 </div>
               </div>
 
@@ -466,7 +466,7 @@
                         <th :aria-sort="ariaSort('locality')"><button type="button" class="th-sort" @click="sortBy('locality')">{{ t('col.locality') }} <span class="sort-arrow" :data-dir="table.sort === 'locality' ? table.dir : ''"></span></button></th>
                         <th :aria-sort="ariaSort('date')"><button type="button" class="th-sort" @click="sortBy('date')">{{ t('col.date') }} <span class="sort-arrow" :data-dir="table.sort === 'date' ? table.dir : ''"></span></button></th>
                         <th v-for="c in measurementColumns" :key="c.key" class="num" :aria-sort="ariaSort('m:' + c.key)"><button type="button" class="th-sort" @click="sortBy('m:' + c.key)">{{ c.trait }} ({{ c.unit }}) <span class="sort-arrow" :data-dir="table.sort === 'm:' + c.key ? table.dir : ''"></span></button></th>
-                        <th v-if="labAccess"><span class="sr-only">{{ t('table.actions') }}</span></th>
+                        <th v-if="isMember"><span class="sr-only">{{ t('table.actions') }}</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -478,12 +478,12 @@
                         <td>{{ e.locality || '—' }}</td>
                         <td>{{ formatDate(e.collection_date) }}</td>
                         <td v-for="c in measurementColumns" :key="c.key" class="num">{{ measurementValue(e, c) }}</td>
-                        <td v-if="labAccess" class="row-actions">
+                        <td v-if="isMember" class="row-actions">
                           <button type="button" class="link" @click="openSpecimenForm(e)">{{ t('common.edit') }}</button>
                           <button type="button" class="link danger" @click="askDeleteSpecimen(e)">{{ t('common.delete') }}</button>
                         </td>
                       </tr>
-                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (labAccess ? 1 : 0)" class="muted">{{ t('table.no_match') }}</td></tr>
+                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (isMember ? 1 : 0)" class="muted">{{ t('table.no_match') }}</td></tr>
                     </tbody>
                   </table>
                 </div>
@@ -589,9 +589,9 @@
                 <a :href="link('collection', { view: 'map' })" role="tab" :aria-selected="collectionView === 'map'" :class="['seg', { active: collectionView === 'map' }]">{{ t('view.map') }}</a>
               </div>
               <div class="actions">
-                <button v-if="labAccess" type="button" class="btn-light" @click="openImport()">{{ t('import.button') }}</button>
+                <button v-if="isMember" type="button" class="btn-light" @click="openImport()">{{ t('import.button') }}</button>
                 <button type="button" class="btn-light" @click="exportCsv()">{{ t('export.csv') }}</button>
-                <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(null, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full') }}</button>
+                <button v-if="isMember" type="button" class="btn-light" @click="exportCsv(null, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full') }}</button>
                 <button type="button" class="btn-light" @click="exportDwc()" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
               </div>
             </div>
@@ -921,7 +921,7 @@
 
           <p v-if="panelSpecimen.notes" class="panel-notes">{{ panelSpecimen.notes }}</p>
 
-          <div v-if="labAccess && (panelSpecimen.collector || panelSpecimen.field_number || panelSpecimen.storage_location || panelSpecimen.loan_status || panelSpecimen.internal_notes)" class="panel-internal">
+          <div v-if="isMember && (panelSpecimen.collector || panelSpecimen.field_number || panelSpecimen.storage_location || panelSpecimen.loan_status || panelSpecimen.internal_notes)" class="panel-internal">
             <h3 class="panel-subtitle">{{ t('panel.internal') }}</h3>
             <dl class="panel-data">
               <div v-if="panelSpecimen.collector"><dt>{{ t('sf.collector') }}</dt><dd>{{ panelSpecimen.collector }}</dd></div>
@@ -940,7 +940,7 @@
 
           <div class="actions panel-actions">
             <button v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null" type="button" class="btn-light" @click="showOnMap(panelSpecimen)">{{ t('panel.show_on_map') }}</button>
-            <template v-if="labAccess">
+            <template v-if="isMember">
               <button type="button" class="btn-light" @click="editFromPanel(panelSpecimen)">{{ t('common.edit') }}</button>
               <button type="button" class="btn-danger" @click="deleteFromPanel(panelSpecimen)">{{ t('common.delete') }}</button>
             </template>
