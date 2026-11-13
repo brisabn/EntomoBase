@@ -10,9 +10,13 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared' }
 };
+// the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
+const LAB_WORD = 'lab';
+// the same minimum the API checks (MIN_PASSWORD_LENGTH in backend/security.py)
+const MIN_PASSWORD_LENGTH = 8;
 // table sort keys as they appear in the address bar (?o=especie / ?o=species); measurement columns keep their "m:" key
 const SORT_WORDS = {
   pt: { catalog: 'codigo', species: 'especie', family: 'familia', locality: 'local', date: 'data' },
@@ -200,6 +204,7 @@ const app = createApp({
       sortKeys: ['recent', 'title', 'species'],
       loading: true,
       apiError: null,
+      apiOffline: false,
       projects: [],
       specimens: [],
       token: null,
@@ -207,6 +212,38 @@ const app = createApp({
       showLogin: false,
       loginError: null,
       credentials: { email: '', password: '' },
+      // the sign-in window has three steps: 'login', 'signup' and 'sent' (after signing up)
+      authMode: 'login',
+      signupForm: { name: '', email: '', password: '' },
+      signupSentTo: null,
+      // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
+      confirmState: null,
+      minPasswordLength: MIN_PASSWORD_LENGTH,
+      // the laboratory in the address (#/lab/<slug>/...); null for the old addresses, which show the first one
+      labSlug: null,
+      started: false,
+      // name and institution of the laboratory being shown (GET .../laboratory)
+      labInfo: null,
+      // the public list of laboratories (GET /labs)
+      labs: [],
+      labsLoading: false,
+      labsError: null,
+      // the numbers of the whole platform on the home page; null while loading or when the API fails
+      overview: null,
+      // the public collection points of all listed laboratories, for the map of the home page
+      homePoints: [],
+      // a specimen chosen on the map of the home page, opened once its laboratory has loaded
+      pendingSpecimen: null,
+      // a project opened by its share link: { token, status: loading | ok | failed, project, specimens, message }
+      shared: null,
+      // GET /me: the signed-in person and their laboratories, with the role in each
+      me: null,
+      // the members page: which laboratory, its members and the form to add someone
+      membersSlug: null,
+      members: [],
+      membersLoading: false,
+      memberForm: { email: '', role: 'researcher' },
+      memberError: null,
       submitting: false,
       openMenu: null,
       popover: null,
@@ -241,7 +278,46 @@ const app = createApp({
     collectionView() { return this.route.view || 'tree'; },
     projectView() { return this.route.view || 'table'; },
     tabs() {
-      return ['about', 'projects', 'collection'].map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
+      const ids = ['about', 'projects', 'collection'];
+      if (this.adminLabs.length) ids.push('members');
+      return ids.map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
+    },
+    // the role of the signed-in person in the laboratory being shown (null when not a member); labInfo also
+    // names the first laboratory on the old addresses. Only for what the page shows: the API decides
+    currentRole() {
+      if (!this.me || !this.labInfo) return null;
+      const lab = this.me.laboratories.find((l) => l.slug === this.labInfo.slug);
+      return lab ? lab.role : null;
+    },
+    isMember() { return !!this.currentRole; },
+    // the laboratory named above the tabs: the one of the address, or the owner of a shared project
+    barLab() {
+      if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
+      if (this.route.name === 'home') return null;
+      return this.labInfo;
+    },
+    // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
+    inLab() { return !['home', 'labs', 'shared'].includes(this.route.name); },
+    // the points of the home map, coloured like the card of their laboratory
+    homeMapPoints() {
+      const action = this.t('home.map_open');
+      return this.homePoints.map((p) => ({
+        id: p.id, lat: p.latitude, lng: p.longitude, color: this.labColor(p.laboratory), species: p.species,
+        code: p.catalog_number, locality: p.locality || '', thumb: this.platformImageUrl(p, p.laboratory, 240),
+        sub: p.laboratory_name, action
+      }));
+    },
+    homeMapLegend() {
+      const names = new Map(this.homePoints.map((p) => [p.laboratory, p.laboratory_name]));
+      return [...names].map(([slug, name]) => ({ slug, name, color: this.labColor(slug) })).sort((a, b) => cmp(a.name, b.name));
+    },
+    sharedSpeciesCount() { return this.shared && this.shared.specimens ? this.countSpecies(this.shared.specimens) : 0; },
+    // the laboratories the signed-in person manages; the API checks this again on every request
+    adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
+    // the one chosen on the page, otherwise the laboratory in the address, otherwise the first one
+    membersLab() {
+      const find = (slug) => this.adminLabs.find((l) => l.slug === slug);
+      return find(this.membersSlug) || find(this.labSlug) || this.adminLabs[0] || null;
     },
     sortOptions() { return this.sortKeys.map((value) => ({ value, label: this.t(`sort.${value}`) })); },
     projectFilters() { return this.projectFilterKeys.map((key) => ({ key, label: this.t(`filter.${key}`) })); },
@@ -258,7 +334,9 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title' };
+      if (this.route.name === 'home') return `EntomoBase · ${this.t('home.title')}`;
+      if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
@@ -615,7 +693,9 @@ const app = createApp({
     window.addEventListener('hashchange', this.applyRoute);
     document.addEventListener('click', this.closePopups);
     document.addEventListener('keydown', this.onKey);
-    await this.loadAll();
+    // from here on, a change of laboratory in the address loads its data (see enterLab)
+    this.started = true;
+    await Promise.all([this.loadAll(), this.loadMe()]);
     this.expandFirst();
   },
 
@@ -641,12 +721,18 @@ const app = createApp({
 
     // ---------- addresses ----------
     // builds the address of a page in a language: link('project', { id: 3, view: 'map' }) -> #/projetos/3/mapa
-    link(name, { id, view, q } = {}, lang = this.lang) {
+    // inside a laboratory the address starts with it: #/lab/ufmg/projetos/3. lab: undefined keeps the
+    // current one, null leaves it out (the old addresses, which show the first laboratory)
+    link(name, { id, view, q, lab } = {}, lang = this.lang) {
       const w = ROUTE_WORDS[lang];
-      const prefix = lang === 'en' ? '#/en/' : '#/';
+      // the home page belongs to the platform, not to a laboratory
+      if (name === 'home') return lang === 'en' ? '#/en/' : '#/';
+      const slug = lab === undefined ? this.labSlug : lab;
+      const prefix = (lang === 'en' ? '#/en/' : '#/') + (slug ? `${LAB_WORD}/${encodeURIComponent(slug)}/` : '');
       if (name === 'project') return `${prefix}${w.projects}/${id}${view && view !== 'table' ? '/' + w[view] : ''}`;
       if (name === 'collection') return `${prefix}${w.collection}${view && view !== 'tree' ? '/' + w[view] : ''}`;
       if (name === 'search') return `${prefix}${w.search}${q ? '/' + encodeURIComponent(q) : ''}`;
+      if (name === 'shared') return `${prefix}${w.shared}/${encodeURIComponent(id)}`;
       return prefix + w[name];
     },
     // the same page as the current one, in lang (used by the language switch and the table address)
@@ -660,6 +746,7 @@ const app = createApp({
       }
       if (r.name === 'collection') return this.link('collection', { view: r.view }, lang);
       if (r.name === 'search') return this.link('search', { q: this.searchTerm.trim() }, lang);
+      if (r.name === 'shared') return this.link('shared', { id: this.shared ? this.shared.token : '', lab: null }, lang);
       return this.link(r.name, {}, lang);
     },
     switchLanguage() {
@@ -705,9 +792,15 @@ const app = createApp({
       else if (!parts.length) {
         // first visit without an address: the saved choice, otherwise the browser language
         const preferred = savedLanguage() || ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'pt');
-        if (preferred === 'en') { location.replace(this.link('about', {}, 'en')); return; }
+        if (preferred === 'en') { location.replace(this.link('home', {}, 'en')); return; }
       }
       this.lang = lang;
+      let slug = null;
+      if (parts[0] === LAB_WORD && parts[1]) {
+        try { slug = decodeURIComponent(parts[1]); } catch { slug = parts[1]; }
+        parts = parts.slice(2);
+      }
+      this.enterLab(slug);
       const [a, b, c] = parts;
       const page = wordKey(ROUTE_WORDS, a);
       const qs = new URLSearchParams(search);
@@ -719,7 +812,26 @@ const app = createApp({
         const view = wordKey(ROUTE_WORDS, b);
         route = { name: 'collection', view: ['repos', 'map'].includes(view) ? view : 'tree' };
       } else if (page === 'search') route = { name: 'search' };
+      else if (page === 'confirm') route = { name: 'confirm' };
+      else if (page === 'members') route = { name: 'members' };
+      else if (page === 'labs') route = { name: 'labs' };
+      else if (page === 'shared') route = { name: 'shared' };
+      // #/ alone is the home page; #/lab/<slug> alone and unknown words keep showing a laboratory
+      else if (!parts.length && !slug) route = { name: 'home' };
       else route = { name: 'about' };
+      if (route.name === 'members') this.loadMembers();
+      if (route.name === 'labs' || route.name === 'home') this.loadLabs();
+      if (route.name === 'home') { this.loadOverview(); this.loadHomePoints(); }
+      if (route.name === 'shared') {
+        let token = b || '';
+        try { token = decodeURIComponent(token); } catch { /* keep it as typed */ }
+        this.loadShared(token);
+      }
+      if (route.name === 'confirm' && b) {
+        // the code works only once: it is sent right away and taken out of the address bar and the history
+        this.confirmEmail(b);
+        history.replaceState(null, '', this.link('confirm', {}, lang));
+      }
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
       this.route = route;
@@ -792,7 +904,10 @@ const app = createApp({
       try {
         res = await fetch(this.apiUrl + path, { method, headers, body: body !== null ? JSON.stringify(body) : undefined });
       } catch {
-        throw new Error(this.t('error.connection'));
+        // the API did not answer at all (as opposed to answering with an error)
+        const error = new Error(this.t('error.connection'));
+        error.offline = true;
+        throw error;
       }
       if (res.status === 401 && this.token && path !== '/login') {
         this.endSession();
@@ -804,21 +919,152 @@ const app = createApp({
       if (!res.ok) throw new Error(await this.errorMessage(res));
       return res.status === 204 ? null : res.json();
     },
+    // the API address of a laboratory's data: /labs/<slug>/projects, or the old /projects (the first laboratory)
+    labPath(path) {
+      return this.labSlug ? `/labs/${encodeURIComponent(this.labSlug)}${path}` : path;
+    },
+    // the same link opened again (a language switch, say) is not asked for twice
+    async loadShared(token) {
+      if (this.shared && this.shared.token === token && this.shared.status !== 'failed') return;
+      this.shared = { token, status: 'loading', project: null, specimens: [], message: null };
+      try {
+        const path = `/shared/${encodeURIComponent(token)}`;
+        const [project, specimens] = await Promise.all([this.api(path), this.api(path + '/specimens')]);
+        if (!this.shared || this.shared.token !== token) return;
+        this.shared = { token, status: 'ok', project, specimens, message: null };
+      } catch (e) {
+        if (!this.shared || this.shared.token !== token) return;
+        this.shared = { token, status: 'failed', project: null, specimens: [], message: e.message };
+      }
+    },
+    // the numbers are a nice extra: when they fail the page goes on without them
+    async loadOverview() {
+      try { this.overview = await this.api('/overview'); } catch { this.overview = null; }
+    },
+    // the picture of a specimen of any laboratory, from the fields the platform routes send (cover and
+    // map points), built like imageUrl does inside a laboratory; null when there is none
+    platformImageUrl(c, slug, width = 600) {
+      if (!c) return null;
+      if (isUrl(c.photo_url)) return c.photo_url.trim();
+      const id = Zenodo.recordId(c.dataset_url);
+      if (!c.image_file || !id) return null;
+      if (Zenodo.isDemo(id)) return `${this.apiUrl}/labs/${encodeURIComponent(slug)}/demo/image/${encodeURIComponent(c.image_file)}`;
+      return Zenodo.thumbnail(id, c.image_file, width);
+    },
+    // each laboratory keeps its colour from its place in the list, on its card and on the map
+    labColor(slug) {
+      const i = this.labs.findIndex((l) => l.slug === slug);
+      return i < 0 ? '#555' : this.coverColor({ id: i + 1 });
+    },
+    labCoverUrl(l, width = 600) { return this.platformImageUrl(l.cover, l.slug, width); },
+    async loadHomePoints() {
+      try { this.homePoints = await this.api('/map'); } catch { this.homePoints = []; }
+    },
+    // a point of the home map opens its laboratory's map with the specimen's panel
+    openFromHomeMap(id) {
+      const point = this.homePoints.find((p) => p.id === id);
+      if (!point) return;
+      this.pendingSpecimen = id;
+      location.hash = this.link('collection', { view: 'map', lab: point.laboratory });
+    },
+    labCoverStyle(l) {
+      const style = { backgroundColor: this.labColor(l.slug) };
+      const url = this.labCoverUrl(l);
+      if (url) {
+        style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`;
+        style.backgroundSize = 'cover';
+        style.backgroundPosition = 'center';
+      }
+      return style;
+    },
+    scrollToLabs() {
+      const el = document.getElementById('home-labs');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    async loadLabs() {
+      this.labsLoading = true;
+      this.labsError = null;
+      try {
+        this.labs = await this.api('/labs');
+      } catch (e) {
+        this.labsError = e.message;
+      }
+      this.labsLoading = false;
+    },
+    // moving to another laboratory forgets what belonged to the previous one and loads the new one
+    enterLab(slug) {
+      if (slug === this.labSlug) return;
+      this.labSlug = slug;
+      this.labInfo = null;
+      this.projects = [];
+      this.specimens = [];
+      this.panel = null;
+      this.mapFocus = null;
+      this.expanded = {};
+      this.filters = { year: null, group: null, status: null, locality: null };
+      this.collectionFilters = { orders: [], families: [], repos: [], years: [] };
+      this.projectForm = this.specimenForm = this.importJob = this.confirmation = null;
+      if (this.started) this.loadAll().then(() => this.expandFirst());
+    },
     async loadAll() {
+      const slug = this.labSlug;
       this.loading = true;
       this.apiError = null;
+      this.apiOffline = false;
       try {
-        const [projects, specimens] = await Promise.all([this.api('/projects'), this.api('/specimens')]);
+        const [info, projects, specimens] = await Promise.all(['/laboratory', '/projects', '/specimens'].map((path) => this.api(this.labPath(path))));
+        // an answer about a laboratory the person has already left is dropped
+        if (slug !== this.labSlug) return;
+        this.labInfo = info;
         this.projects = projects;
         this.specimens = specimens;
+        if (this.pendingSpecimen) {
+          const id = this.pendingSpecimen;
+          this.pendingSpecimen = null;
+          this.mapFocus = id;
+          this.$nextTick(() => this.openPanelById(id));
+        }
       } catch (e) {
+        if (slug !== this.labSlug) return;
         this.apiError = e.message;
+        this.apiOffline = !!e.offline;
       }
       this.loading = false;
     },
 
     // ---------- session ----------
-    openLogin() { this.loginError = null; this.showLogin = true; },
+    openLogin(email) {
+      this.loginError = null;
+      this.authMode = 'login';
+      if (typeof email === 'string') this.credentials.email = email;
+      this.showLogin = true;
+    },
+    switchAuthMode(mode) { this.loginError = null; this.authMode = mode; },
+    openSignup() { this.openLogin(); this.authMode = 'signup'; },
+    // the answer is the same whether or not the address already has an account, so the site cannot say which
+    async signup() {
+      this.loginError = null;
+      this.submitting = true;
+      try {
+        await this.api('/signup', { method: 'POST', body: this.signupForm });
+        this.signupSentTo = this.signupForm.email.trim();
+        this.signupForm = { name: '', email: '', password: '' };
+        this.authMode = 'sent';
+      } catch (e) {
+        this.loginError = e.message;
+      }
+      this.submitting = false;
+    },
+    async confirmEmail(code) {
+      if (this.confirmState && this.confirmState.code === code) return;
+      this.confirmState = { code, status: 'working', email: null, message: null };
+      try {
+        const d = await this.api('/confirm', { method: 'POST', body: { code } });
+        this.confirmState = { code, status: 'done', email: d.email, message: null };
+      } catch (e) {
+        this.confirmState = { code, status: 'failed', email: null, message: e.message };
+      }
+    },
     async login() {
       this.loginError = null;
       this.submitting = true;
@@ -830,15 +1076,27 @@ const app = createApp({
         localStorage.setItem('entomobase_email', this.userEmail);
         this.showLogin = false;
         this.credentials = { email: '', password: '' };
-        await this.loadAll();
+        await Promise.all([this.loadAll(), this.loadMe()]);
       } catch (e) {
         this.loginError = e.message;
       }
       this.submitting = false;
     },
+    // a failure here only hides what depends on it (like the members tab); the rest of the site works
+    async loadMe() {
+      if (!this.token) { this.me = null; return; }
+      try {
+        this.me = await this.api('/me');
+      } catch {
+        this.me = null;
+      }
+      if (this.route.name === 'members') this.loadMembers();
+    },
     endSession() {
       this.token = null;
       this.userEmail = null;
+      this.me = null;
+      this.members = [];
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     },
@@ -900,7 +1158,7 @@ const app = createApp({
       if (!e.image_file) return null;
       const id = this.recordIdOf(e);
       if (!id) return null;
-      if (Zenodo.isDemo(id)) return `${this.apiUrl}/demo/image/${encodeURIComponent(e.image_file)}`;
+      if (Zenodo.isDemo(id)) return this.apiUrl + this.labPath(`/demo/image/${encodeURIComponent(e.image_file)}`);
       return Zenodo.thumbnail(id, e.image_file, width);
     },
     fileUrl(e) {
@@ -1034,7 +1292,7 @@ const app = createApp({
         description: orNull(f.description), finished: !!f.finished, visibility: f.visibility
       };
       try {
-        const saved = await this.api(f.id ? `/projects/${f.id}` : '/projects', { method: f.id ? 'PUT' : 'POST', body });
+        const saved = await this.api(this.labPath(f.id ? `/projects/${f.id}` : '/projects'), { method: f.id ? 'PUT' : 'POST', body });
         this.projectForm = null;
         await this.loadAll();
         this.notify(this.t(f.id ? 'notify.project_updated' : 'notify.project_created'));
@@ -1051,7 +1309,7 @@ const app = createApp({
         title: this.t('confirm.project_title'),
         text: this.t('confirm.project_text', { title: p.title, with: n ? this.count('specimen', n) : '' }),
         action: async () => {
-          await this.api(`/projects/${p.id}`, { method: 'DELETE' });
+          await this.api(this.labPath(`/projects/${p.id}`), { method: 'DELETE' });
           location.hash = this.link('projects');
           await this.loadAll();
           this.notify(this.t('notify.project_deleted'));
@@ -1098,7 +1356,7 @@ const app = createApp({
       this.nameHint = null;
       if (name.split(/\s+/).length < 2) return;
       try {
-        const [r] = await this.api('/taxonomy/validate', { method: 'POST', body: { names: [name] } });
+        const [r] = await this.api(this.labPath('/taxonomy/validate'), { method: 'POST', body: { names: [name] } });
         if (!r || f.species.trim() !== name) return;
         if (r.status === 'ok' || r.status === 'unavailable') {
           if (r.status === 'ok') {
@@ -1143,7 +1401,7 @@ const app = createApp({
       };
       this.submitting = true;
       try {
-        await this.api(f.id ? `/specimens/${f.id}` : '/specimens', { method: f.id ? 'PUT' : 'POST', body });
+        await this.api(this.labPath(f.id ? `/specimens/${f.id}` : '/specimens'), { method: f.id ? 'PUT' : 'POST', body });
         this.specimenForm = null;
         await this.loadAll();
         this.notify(this.t(f.id ? 'notify.specimen_updated' : 'notify.specimen_added'));
@@ -1158,9 +1416,88 @@ const app = createApp({
         title: this.t('confirm.specimen_title'),
         text: this.t('confirm.specimen_text', { code: e.catalog_number, species: e.species }),
         action: async () => {
-          await this.api(`/specimens/${e.id}`, { method: 'DELETE' });
+          await this.api(this.labPath(`/specimens/${e.id}`), { method: 'DELETE' });
           await this.loadAll();
           this.notify(this.t('notify.specimen_deleted'));
+        }
+      };
+    },
+    // ---------- laboratory members (admins only) ----------
+    // keepError: reloading after a refused change must not hide the reason it was refused
+    async loadMembers({ keepError = false } = {}) {
+      const lab = this.membersLab;
+      if (!lab) { this.members = []; return; }
+      this.membersLoading = true;
+      if (!keepError) this.memberError = null;
+      try {
+        const list = await this.api(`/labs/${encodeURIComponent(lab.slug)}/members`);
+        // an answer for a laboratory that is no longer the chosen one is dropped
+        if (this.membersLab && this.membersLab.slug === lab.slug) this.members = list;
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      this.membersLoading = false;
+    },
+    chooseMembersLab(slug) {
+      this.membersSlug = slug;
+      this.members = [];
+      this.loadMembers();
+    },
+    isMe(member) { return !!this.me && member.email === this.me.email; },
+    // after changing their own role or leaving, the person may no longer manage the laboratory
+    async afterOwnChange() {
+      const slug = this.membersLab && this.membersLab.slug;
+      await this.loadMe();
+      if (!this.adminLabs.some((l) => l.slug === slug)) {
+        this.notify(this.t('notify.left_admin'));
+        location.hash = this.link('about');
+      }
+    },
+    async addMember() {
+      this.memberError = null;
+      this.submitting = true;
+      try {
+        const added = await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members`, { method: 'POST', body: this.memberForm });
+        this.memberForm = { email: '', role: 'researcher' };
+        this.notify(this.t('notify.member_added', { email: added.email }));
+        await this.loadMembers();
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      this.submitting = false;
+    },
+    async changeRole(member, role) {
+      if (role === member.role) return;
+      this.memberError = null;
+      // shown at once, or the select would jump back to the old role while the request is on its way;
+      // a refused change is undone right after
+      const previous = member.role;
+      member.role = role;
+      try {
+        await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members/${member.id}`, { method: 'PUT', body: { role } });
+        this.notify(this.t('notify.role_changed'));
+        if (this.isMe(member)) await this.afterOwnChange();
+      } catch (e) {
+        member.role = previous;
+        this.memberError = e.message;
+      }
+      // reloading also brings any change made by another admin in the meantime
+      if (this.route.name === 'members') await this.loadMembers({ keepError: true });
+    },
+    askRemoveMember(member) {
+      this.formError = null;
+      const self = this.isMe(member);
+      const slug = this.membersLab.slug;
+      this.confirmation = {
+        title: this.t('members.remove_title'),
+        text: self ? this.t('members.remove_self_text') : this.t('members.remove_text', { email: member.email }),
+        button: this.t('members.remove'),
+        busy: this.t('members.removing'),
+        action: async () => {
+          await this.api(`/labs/${encodeURIComponent(slug)}/members/${member.id}`, { method: 'DELETE' });
+          this.notify(this.t('notify.member_removed'));
+          if (self) await this.afterOwnChange();
+          else await this.loadMembers();
         }
       };
     },
@@ -1260,7 +1597,7 @@ const app = createApp({
       if (!rows.length) { job.report = null; return; }
       job.checking = true;
       try {
-        const report = await this.api('/specimens/import?dry_run=true', {
+        const report = await this.api(this.labPath('/specimens/import?dry_run=true'), {
           method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows }
         });
         if (seq === job.seq) job.report = report;
@@ -1274,7 +1611,7 @@ const app = createApp({
       job.submitting = true;
       job.error = null;
       try {
-        const report = await this.api('/specimens/import', {
+        const report = await this.api(this.labPath('/specimens/import'), {
           method: 'POST', body: { project_id: job.projectId || null, duplicates: job.duplicates, rows: job.payloadRows }
         });
         this.importJob = null;
@@ -1342,13 +1679,25 @@ const app = createApp({
       if (full) params.push('full=true');
       const base = projectId ? this.t('file.project_csv', { id: projectId }) : this.t('file.collection_csv');
       const name = base + (full ? this.t('file.full_suffix') : '') + '.csv';
-      this.downloadFromApi('/export/csv?' + params.join('&'), name);
+      this.downloadFromApi(this.labPath('/export/csv?' + params.join('&')), name);
     },
     exportDwc(projectId = null) {
       const name = projectId ? this.t('file.project_dwc', { id: projectId }) : this.t('file.collection_dwc');
-      this.downloadFromApi('/export/dwc' + (projectId ? `?project_id=${projectId}` : ''), `${name}.zip`);
+      this.downloadFromApi(this.labPath('/export/dwc' + (projectId ? `?project_id=${projectId}` : '')), `${name}.zip`);
     },
     openInfo(which) { this.info = which; },
+    // the address of a project shared by link; it opens without signing in and outside any laboratory
+    shareUrl(p) {
+      return location.origin + location.pathname + this.link('shared', { id: p.share_token, lab: null });
+    },
+    async copyShareLink(p) {
+      try {
+        await navigator.clipboard.writeText(this.shareUrl(p));
+        this.notify(this.t('notify.share_copied'));
+      } catch {
+        this.notify(this.t('notify.copy_failed'));
+      }
+    },
     async copyCitation() {
       try {
         await navigator.clipboard.writeText(this.citationText);
@@ -1447,12 +1796,20 @@ app.component('collection-map', {
       const line = document.createElement('span');
       line.className = 'pop-line';
       line.textContent = p.code + (p.locality ? ' · ' + p.locality : '');
+      node.append(name, line);
+      // the map of the home page also names the laboratory and opens the specimen there
+      if (p.sub) {
+        const sub = document.createElement('span');
+        sub.className = 'pop-line pop-sub';
+        sub.textContent = p.sub;
+        node.appendChild(sub);
+      }
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'pop-button';
-      button.textContent = this.$root.t('map.details');
+      button.textContent = p.action || this.$root.t('map.details');
       button.addEventListener('click', () => this.$emit('open', p.id));
-      node.append(name, line, button);
+      node.appendChild(button);
       return node;
     },
     draw(fit) {

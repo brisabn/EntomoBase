@@ -195,6 +195,53 @@ class LaboratoryPublic(BaseModel):
         from_attributes = True
 
 
+# a public specimen whose picture illustrates a laboratory; the site builds the image address from these
+# fields, as it does for any specimen
+class LaboratoryCover(BaseModel):
+    specimen_id: int
+    photo_url: Optional[str] = None
+    image_file: Optional[str] = None
+    dataset_url: Optional[str] = None
+
+
+# a laboratory in the public list, with the numbers of what visitors can see in it
+class LaboratorySummary(LaboratoryPublic):
+    projects: int
+    specimens: int
+    species: int
+    cover: Optional[LaboratoryCover] = None
+
+
+# a public specimen on the map of the home page, with the laboratory it belongs to
+class MapPoint(BaseModel):
+    id: int
+    catalog_number: str
+    species: str
+    insect_order: str
+    locality: Optional[str] = None
+    latitude: float
+    longitude: float
+    photo_url: Optional[str] = None
+    image_file: Optional[str] = None
+    dataset_url: Optional[str] = None
+    laboratory: str
+    laboratory_name: str
+
+
+# the numbers of the whole platform, for the home page
+class PlatformTotals(BaseModel):
+    laboratories: int
+    projects: int
+    specimens: int
+    species: int
+
+
+# a project opened by its share link also says whose it is, so whoever received the link knows where the
+# data comes from (and whom to cite)
+class SharedProjectResponse(ProjectResponse):
+    laboratory: LaboratoryPublic
+
+
 # the slug is part of the address, so only lowercase letters, digits and single hyphens between them
 SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
@@ -216,6 +263,20 @@ class MemberResponse(BaseModel):
     email: str
     name: Optional[str] = None
     role: str
+
+
+# the signed-in person and the laboratories they belong to, so the site knows what to show them
+class MyLaboratory(BaseModel):
+    slug: str
+    name: str
+    role: str
+
+
+class Me(BaseModel):
+    email: str
+    name: Optional[str] = None
+    is_superadmin: bool
+    laboratories: List[MyLaboratory]
 
 
 class MemberCreate(BaseModel):

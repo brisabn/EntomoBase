@@ -2,6 +2,7 @@ import os
 import re
 import smtplib
 import ssl
+import sys
 from email.message import EmailMessage
 from typing import List
 
@@ -80,6 +81,14 @@ def send_with_smtp(message: EmailMessage) -> None:
         raise MailError(f"could not send the e-mail ({type(error).__name__})")
 
 
+# a terminal that is not UTF-8 (the Windows default) cannot show every character; those become "?" instead
+# of failing the request that sent the e-mail
+def print_safely(text: str) -> None:
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    sys.stdout.write(text.encode(encoding, errors="replace").decode(encoding))
+    sys.stdout.flush()
+
+
 def send_email(to: str, subject: str, body: str) -> None:
     name = backend_name()
     if name not in ("smtp", "console", "memory"):
@@ -90,6 +99,6 @@ def send_email(to: str, subject: str, body: str) -> None:
     if name == "memory":
         outbox.append(message)
     elif name == "console":
-        print(f"\n--- e-mail (console backend) ---\nTo: {to}\nSubject: {subject}\n\n{body}\n--- end ---\n")
+        print_safely(f"\n--- e-mail (console backend) ---\nTo: {to}\nSubject: {subject}\n\n{body}\n--- end ---\n")
     else:
         send_with_smtp(message)

@@ -21,7 +21,7 @@
     <div class="page">
 
       <header class="topbar">
-        <a class="logo" :href="link('about')" :aria-label="t('site.home_aria')">
+        <a class="logo" :href="link('home')" :aria-label="t('site.home_aria')">
           <svg class="logo-icon" viewBox="0 0 48 48" aria-hidden="true">
             <ellipse cx="24" cy="9.5" rx="4.6" ry="4.4" fill="currentColor"/>
             <ellipse cx="24" cy="22" rx="4.2" ry="5.8" fill="currentColor"/>
@@ -35,7 +35,8 @@
           <span>EntomoBase</span>
         </a>
         <div class="topbar-actions">
-          <div class="search-wrap" @click.stop>
+          <!-- the search looks inside the laboratory being shown, so it is left out elsewhere -->
+          <div v-if="inLab" class="search-wrap" @click.stop>
             <label class="search">
               <span class="search-label">{{ t('search.label') }}</span>
               <input v-model="searchTerm" type="text" :placeholder="t('search.placeholder')" autocomplete="off" role="combobox" :aria-label="t('search.aria')" :aria-expanded="showSuggestions"
@@ -61,14 +62,153 @@
         </div>
       </header>
 
-      <nav class="tabs" :aria-label="t('nav.aria')">
+      <!-- where the visitor is: the list of laboratories and the one being shown -->
+      <nav class="lab-bar" :aria-label="t('labs.bar_aria')">
+        <a class="lab-bar-all" :href="link('labs', { lab: null })" :aria-current="route.name === 'labs' ? 'page' : null">{{ t('labs.all') }}</a>
+        <template v-if="route.name !== 'labs' && barLab">
+          <span class="lab-bar-sep" aria-hidden="true">/</span>
+          <a class="lab-bar-current" :href="route.name === 'shared' ? link('about', { lab: barLab.slug }) : link('about')">{{ barLab.name }}</a>
+          <span class="lab-bar-inst">{{ barLab.institution }}</span>
+        </template>
+      </nav>
+
+      <nav v-if="inLab" class="tabs" :aria-label="t('nav.aria')">
         <a v-for="tab in tabs" :key="tab.id" :href="tab.href" :class="['tab', { current: activeTab === tab.id }]" :aria-current="activeTab === tab.id ? 'page' : null">{{ tab.label }}</a>
       </nav>
 
       <main class="folder">
 
+        <!-- A PROJECT OPENED BY ITS SHARE LINK (no sign-in; the API leaves the internal fields out) -->
+        <div class="sheet" v-if="route.name === 'shared'">
+          <p v-if="!shared || shared.status === 'loading'" class="empty-state">{{ t('project.loading') }}</p>
+          <div v-else-if="shared.status === 'failed'" class="empty-state">
+            <p>{{ shared.message }}</p>
+            <p>{{ t('shared.gone') }}</p>
+            <a class="link" :href="link('labs', { lab: null })">{{ t('labs.all') }}</a>
+          </div>
+          <template v-else>
+            <p class="shared-note" role="note">{{ t('shared.note', { lab: shared.project.laboratory.name }) }}</p>
+            <div class="detail-cover" :style="coverStyle(shared.project)">
+              <span class="status">{{ statusLabel(shared.project) }}</span>
+            </div>
+            <h1 class="page-title">{{ shared.project.title }}</h1>
+            <p class="subtitle">{{ shared.project.insect_group }} · {{ shared.project.year }}<template v-if="shared.project.locality"> · {{ shared.project.locality }}</template></p>
+            <p class="description" v-if="shared.project.description">{{ shared.project.description }}</p>
+            <dl class="facts">
+              <div class="fact"><dt>{{ t('fact.species') }}</dt><dd>{{ n(sharedSpeciesCount) }}</dd></div>
+              <div class="fact"><dt>{{ t('fact.specimens') }}</dt><dd>{{ n(shared.specimens.length) }}</dd></div>
+              <div class="fact" v-if="shared.project.linked_publication">
+                <dt>{{ t('fact.publication') }}</dt>
+                <dd>
+                  <a v-if="isUrl(shared.project.linked_publication)" class="link-ext" :href="shared.project.linked_publication" target="_blank" rel="noopener">{{ t('fact.open_publication') }} <icon name="external"></icon></a>
+                  <template v-else>{{ shared.project.linked_publication }}</template>
+                </dd>
+              </div>
+              <div class="fact" v-if="isUrl(shared.project.dataset_url)">
+                <dt>{{ t('fact.repository') }}</dt>
+                <dd><a class="link-ext" :href="shared.project.dataset_url" target="_blank" rel="noopener">Zenodo <icon name="external"></icon></a></dd>
+              </div>
+            </dl>
+            <h2 class="members-heading">{{ t('shared.specimens', { n: shared.specimens.length }) }}</h2>
+            <div v-if="shared.specimens.length" class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>{{ t('col.catalog') }}</th><th>{{ t('col.species') }}</th><th>{{ t('col.family') }}</th><th>{{ t('col.locality') }}</th><th>{{ t('col.date') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="e in shared.specimens" :key="e.id">
+                    <td class="mono">{{ e.catalog_number }}</td>
+                    <td><em>{{ e.species }}</em></td>
+                    <td>{{ e.family || '—' }}</td>
+                    <td>{{ e.locality || '—' }}</td>
+                    <td>{{ formatDate(e.collection_date) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-else class="empty-state">{{ t('shared.no_specimens') }}</p>
+          </template>
+        </div>
+
+        <!-- HOME PAGE AND LABORATORIES: the home page is the public list with an introduction around it -->
+        <div class="sheet" v-else-if="route.name === 'labs' || route.name === 'home'">
+          <template v-if="route.name === 'home'">
+            <section class="home-hero">
+              <h1 class="page-title home-title">{{ t('home.title') }}</h1>
+              <p class="home-lead">{{ t('home.lead') }}</p>
+              <div class="actions home-cta">
+                <button type="button" class="btn-dark" @click="scrollToLabs">{{ t('home.explore') }}</button>
+                <button v-if="!labAccess" type="button" class="btn-light" @click="openSignup()">{{ t('signup.title') }}</button>
+              </div>
+            </section>
+            <!-- the numbers count only what visitors can see; they are left out while loading or when the API fails -->
+            <dl v-if="overview" class="home-stats">
+              <div v-for="k in ['laboratories', 'specimens', 'species', 'projects']" :key="k" class="home-stat">
+                <dt>{{ t(`home.stat_${k}`, { count: overview[k] }) }}</dt>
+                <dd>{{ n(overview[k]) }}</dd>
+              </div>
+            </dl>
+            <template v-if="me && me.laboratories.length">
+              <h2 class="members-heading">{{ t('home.your_labs') }}</h2>
+              <ul class="home-mine">
+                <li v-for="l in me.laboratories" :key="l.slug">
+                  <a class="link" :href="link('projects', { lab: l.slug })">{{ l.name }}</a>
+                  <span class="muted">{{ t(`role.${l.role}`) }}</span>
+                </li>
+              </ul>
+            </template>
+            <h2 id="home-labs" class="members-heading">{{ t('labs.title') }}</h2>
+          </template>
+          <template v-else>
+            <h1 class="page-title">{{ t('labs.title') }}</h1>
+          </template>
+          <p class="subtitle">{{ t('labs.subtitle') }}</p>
+          <div v-if="labsError" class="error-banner" role="alert">
+            {{ labsError }} <button type="button" class="link" @click="loadLabs">{{ t('api.retry') }}</button>
+          </div>
+          <p v-else-if="labsLoading && !labs.length" class="empty-state">{{ t('labs.loading') }}</p>
+          <div v-else-if="labs.length" class="grid">
+            <a v-for="l in labs" :key="l.slug" class="card" :href="link('projects', { lab: l.slug })">
+              <div class="card-cover" :style="labCoverStyle(l)">
+                <span class="status">{{ l.collection_code }}</span>
+              </div>
+              <div class="card-body">
+                <h2 class="card-title">{{ l.name }}</h2>
+                <p class="card-meta">{{ l.institution }}</p>
+                <p class="card-meta lab-numbers">{{ count('specimen', l.specimens) }} · {{ count('species', l.species) }} · {{ count('project', l.projects) }}</p>
+              </div>
+            </a>
+          </div>
+          <p v-else class="empty-state">{{ t('labs.empty') }}</p>
+          <template v-if="route.name === 'home'">
+            <!-- left out until there is at least one public point -->
+            <template v-if="homePoints.length">
+              <h2 class="members-heading">{{ t('home.map_title') }}</h2>
+              <p class="subtitle home-map-subtitle">{{ t('home.map_subtitle') }}</p>
+              <div class="map-area home-map">
+                <collection-map :points="homeMapPoints" :focus="null" @open="openFromHomeMap"></collection-map>
+                <div class="map-footer">
+                  <ul class="legend"><li v-for="l in homeMapLegend" :key="l.slug"><span class="legend-dot" :style="{ background: l.color }"></span>{{ l.name }}</li></ul>
+                  <span class="muted small">{{ count('point', homePoints.length) }}</span>
+                </div>
+              </div>
+            </template>
+            <h2 class="members-heading">{{ t('home.how_title') }}</h2>
+            <ol class="home-steps">
+              <li v-for="k in ['account', 'join', 'record', 'publish']" :key="k">
+                <h3 class="home-step-title">{{ t(`home.step_${k}_title`) }}</h3>
+                <p>{{ t(`home.step_${k}_text`) }}</p>
+              </li>
+            </ol>
+            <p v-if="!labAccess" class="home-join">
+              <button type="button" class="btn-dark" @click="openSignup()">{{ t('signup.title') }}</button>
+              <button type="button" class="link-btn" @click="openLogin()">{{ t('home.have_account') }}</button>
+            </p>
+          </template>
+        </div>
+
         <!-- ABOUT -->
-        <div class="sheet" v-if="route.name === 'about'">
+        <div class="sheet" v-else-if="route.name === 'about'">
           <p class="about-text">{{ aboutText }}</p>
           <div class="team">
             <div class="member" v-for="(m, i) in team" :key="i">
@@ -77,6 +217,70 @@
               <p class="member-role">{{ m.role }}</p>
             </div>
           </div>
+        </div>
+
+        <!-- E-MAIL CONFIRMATION (the link of the e-mail opens this page) -->
+        <div class="sheet" v-else-if="route.name === 'confirm'">
+          <h1 class="page-title">{{ t('verify.title') }}</h1>
+          <div class="confirm-box" role="status" aria-live="polite">
+            <p v-if="!confirmState">{{ t('verify.no_code') }}</p>
+            <p v-else-if="confirmState.status === 'working'">{{ t('verify.working') }}</p>
+            <template v-else-if="confirmState.status === 'done'">
+              <p>{{ t('verify.done', { email: confirmState.email }) }}</p>
+              <p>{{ t('account.next_step') }}</p>
+              <p v-if="!labAccess"><button type="button" class="btn-dark" @click="openLogin(confirmState.email)">{{ t('auth.login') }}</button></p>
+            </template>
+            <p v-else class="form-error">{{ confirmState.message }}</p>
+          </div>
+        </div>
+
+        <!-- LABORATORY MEMBERS (admins only; the API refuses anyone else) -->
+        <div class="sheet" v-else-if="route.name === 'members'">
+          <h1 class="page-title">{{ t('members.title') }}</h1>
+          <p v-if="!labAccess" class="subtitle">{{ t('members.login_needed') }}</p>
+          <p v-else-if="me && !membersLab" class="subtitle">{{ t('members.not_admin') }}</p>
+          <template v-else-if="membersLab">
+            <label v-if="adminLabs.length > 1" class="field members-lab">
+              <span>{{ t('members.lab') }}</span>
+              <select :value="membersLab.slug" @change="chooseMembersLab($event.target.value)">
+                <option v-for="l in adminLabs" :key="l.slug" :value="l.slug">{{ l.name }}</option>
+              </select>
+            </label>
+            <p v-else class="subtitle">{{ membersLab.name }}</p>
+
+            <section class="members-add" :aria-label="t('members.add_title')">
+              <h2 class="members-heading">{{ t('members.add_title') }}</h2>
+              <form class="members-form" @submit.prevent="addMember">
+                <label class="field"><span>{{ t('login.email') }}</span><input v-model="memberForm.email" type="email" required maxlength="254" autocomplete="off"></label>
+                <label class="field"><span>{{ t('members.role') }}</span>
+                  <select v-model="memberForm.role">
+                    <option value="researcher">{{ t('role.researcher') }}</option>
+                    <option value="admin">{{ t('role.admin') }}</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('members.adding') : t('members.add') }}</button>
+              </form>
+              <p class="field-hint">{{ t('members.add_hint') }}</p>
+            </section>
+
+            <p v-if="memberError" class="form-error" role="alert">{{ memberError }}</p>
+
+            <h2 class="members-heading">{{ t('members.list_title', { n: members.length }) }}</h2>
+            <p v-if="membersLoading && !members.length" class="subtitle">{{ t('members.loading') }}</p>
+            <ul v-else class="member-list">
+              <li v-for="m in members" :key="m.id" class="member-row">
+                <div class="member-who">
+                  <span class="member-email">{{ m.email }}<span v-if="isMe(m)" class="member-you"> ({{ t('members.you') }})</span></span>
+                  <span v-if="m.name" class="member-fullname">{{ m.name }}</span>
+                </div>
+                <select class="member-role-select" :value="m.role" :aria-label="t('members.role_aria', { email: m.email })" @change="changeRole(m, $event.target.value)">
+                  <option value="researcher">{{ t('role.researcher') }}</option>
+                  <option value="admin">{{ t('role.admin') }}</option>
+                </select>
+                <button type="button" class="btn-light" :aria-label="t('members.remove_aria', { email: m.email })" @click="askRemoveMember(m)">{{ t('members.remove') }}</button>
+              </li>
+            </ul>
+          </template>
         </div>
 
         <!-- SEARCH -->
@@ -155,7 +359,7 @@
         <div class="sheet" v-else-if="route.name === 'projects' || route.name === 'project'">
 
           <div v-if="apiError" class="error-banner" role="alert">
-            <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+            <template v-if="apiOffline"><strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}</template><template v-else>{{ apiError }}</template>
             <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
           </div>
 
@@ -182,7 +386,7 @@
                 </ul>
               </div>
               <button v-if="projectFiltersActive" type="button" class="link" @click="clearProjectFilters">{{ t('filter.clear') }}</button>
-              <button v-if="labAccess" type="button" class="btn-light push-right" @click="openProjectForm()">{{ t('projects.new') }}</button>
+              <button v-if="isMember" type="button" class="btn-light push-right" @click="openProjectForm()">{{ t('projects.new') }}</button>
             </div>
 
             <p v-if="loading" class="empty-state">{{ t('projects.loading') }}</p>
@@ -190,6 +394,7 @@
               <a v-for="p in filteredProjects" :key="p.id" class="card" :href="link('project', { id: p.id })">
                 <div class="card-cover" :style="{ background: coverColor(p) }">
                   <span class="status">{{ statusLabel(p) }}</span>
+                  <span v-if="isMember" :class="['status', 'vis-badge', 'vis-' + p.visibility]">{{ t(`badge.${p.visibility}`) }}</span>
                 </div>
                 <div class="card-body">
                   <h2 class="card-title">{{ p.title }}</h2>
@@ -216,6 +421,7 @@
             <template v-else-if="currentProject">
               <div class="detail-cover" :style="coverStyle(currentProject)">
                 <span class="status">{{ statusLabel(currentProject) }}</span>
+                <span v-if="isMember" :class="['status', 'vis-badge', 'vis-' + currentProject.visibility]">{{ t(`badge.${currentProject.visibility}`) }}</span>
               </div>
 
               <div class="detail-header">
@@ -223,9 +429,17 @@
                   <h1 class="page-title">{{ currentProject.title }}</h1>
                   <p class="subtitle">{{ currentProject.insect_group }} · {{ currentProject.year }}<template v-if="currentProject.locality"> · {{ currentProject.locality }}</template></p>
                 </div>
-                <div class="actions" v-if="labAccess">
+                <div class="actions" v-if="isMember">
                   <button type="button" class="btn-light" @click="openProjectForm(currentProject)">{{ t('common.edit') }}</button>
-                  <button type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
+                  <button v-if="currentRole === 'admin'" type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
+                </div>
+              </div>
+
+              <div v-if="isMember && currentProject.visibility === 'unlisted' && currentProject.share_token" class="share-box">
+                <p><strong>{{ t('share.title') }}</strong> {{ t('share.text') }}</p>
+                <div class="share-row">
+                  <input type="text" readonly :value="shareUrl(currentProject)" :aria-label="t('share.title')" @focus="$event.target.select()">
+                  <button type="button" class="btn-dark" @click="copyShareLink(currentProject)">{{ t('share.copy') }}</button>
                 </div>
               </div>
 
@@ -268,10 +482,10 @@
                 <h2 class="section-title">{{ t('project.specimens') }}</h2>
                 <div class="actions">
                   <button type="button" class="btn-light" @click="exportCsv(currentProject.id)">{{ t('export.csv') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full_internal') }}</button>
+                  <button v-if="isMember" type="button" class="btn-light" @click="exportCsv(currentProject.id, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full_internal') }}</button>
                   <button type="button" class="btn-light" @click="exportDwc(currentProject.id)" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-light" @click="openImport(currentProject.id)">{{ t('import.button') }}</button>
-                  <button v-if="labAccess" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">{{ t('project.add_specimen') }}</button>
+                  <button v-if="isMember" type="button" class="btn-light" @click="openImport(currentProject.id)">{{ t('import.button') }}</button>
+                  <button v-if="isMember" type="button" class="btn-dark btn-small" @click="openSpecimenForm(null, currentProject.id)">{{ t('project.add_specimen') }}</button>
                 </div>
               </div>
 
@@ -308,7 +522,7 @@
                         <th :aria-sort="ariaSort('locality')"><button type="button" class="th-sort" @click="sortBy('locality')">{{ t('col.locality') }} <span class="sort-arrow" :data-dir="table.sort === 'locality' ? table.dir : ''"></span></button></th>
                         <th :aria-sort="ariaSort('date')"><button type="button" class="th-sort" @click="sortBy('date')">{{ t('col.date') }} <span class="sort-arrow" :data-dir="table.sort === 'date' ? table.dir : ''"></span></button></th>
                         <th v-for="c in measurementColumns" :key="c.key" class="num" :aria-sort="ariaSort('m:' + c.key)"><button type="button" class="th-sort" @click="sortBy('m:' + c.key)">{{ c.trait }} ({{ c.unit }}) <span class="sort-arrow" :data-dir="table.sort === 'm:' + c.key ? table.dir : ''"></span></button></th>
-                        <th v-if="labAccess"><span class="sr-only">{{ t('table.actions') }}</span></th>
+                        <th v-if="isMember"><span class="sr-only">{{ t('table.actions') }}</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -320,12 +534,12 @@
                         <td>{{ e.locality || '—' }}</td>
                         <td>{{ formatDate(e.collection_date) }}</td>
                         <td v-for="c in measurementColumns" :key="c.key" class="num">{{ measurementValue(e, c) }}</td>
-                        <td v-if="labAccess" class="row-actions">
+                        <td v-if="isMember" class="row-actions">
                           <button type="button" class="link" @click="openSpecimenForm(e)">{{ t('common.edit') }}</button>
                           <button type="button" class="link danger" @click="askDeleteSpecimen(e)">{{ t('common.delete') }}</button>
                         </td>
                       </tr>
-                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (labAccess ? 1 : 0)" class="muted">{{ t('table.no_match') }}</td></tr>
+                      <tr v-if="!tablePage.length"><td :colspan="6 + measurementColumns.length + (isMember ? 1 : 0)" class="muted">{{ t('table.no_match') }}</td></tr>
                     </tbody>
                   </table>
                 </div>
@@ -415,7 +629,7 @@
 
           <section class="content">
             <div v-if="apiError" class="error-banner" role="alert">
-              <strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}
+              <template v-if="apiOffline"><strong>{{ t('api.offline') }}</strong> {{ apiError }} {{ t('api.check', { url: apiUrl }) }}</template><template v-else>{{ apiError }}</template>
               <button type="button" class="link" @click="loadAll">{{ t('api.retry') }}</button>
             </div>
 
@@ -431,9 +645,9 @@
                 <a :href="link('collection', { view: 'map' })" role="tab" :aria-selected="collectionView === 'map'" :class="['seg', { active: collectionView === 'map' }]">{{ t('view.map') }}</a>
               </div>
               <div class="actions">
-                <button v-if="labAccess" type="button" class="btn-light" @click="openImport()">{{ t('import.button') }}</button>
+                <button v-if="isMember" type="button" class="btn-light" @click="openImport()">{{ t('import.button') }}</button>
                 <button type="button" class="btn-light" @click="exportCsv()">{{ t('export.csv') }}</button>
-                <button v-if="labAccess" type="button" class="btn-light" @click="exportCsv(null, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full') }}</button>
+                <button v-if="isMember" type="button" class="btn-light" @click="exportCsv(null, true)" :title="t('export.csv_full_hint')">{{ t('export.csv_full') }}</button>
                 <button type="button" class="btn-light" @click="exportDwc()" :title="t('export.dwc_hint')">{{ t('export.dwc') }}</button>
               </div>
             </div>
@@ -546,16 +760,47 @@
     <!-- LOGIN -->
     <div v-if="showLogin" class="modal-backdrop" @click.self="showLogin = false">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t-login">
-        <h2 id="t-login" class="modal-title">{{ t('login.title') }}</h2>
-        <form @submit.prevent="login">
-          <label class="field"><span>{{ t('login.email') }}</span><input v-autofocus v-model="credentials.email" type="email" required autocomplete="username"></label>
-          <label class="field"><span>{{ t('login.password') }}</span><input v-model="credentials.password" type="password" required autocomplete="current-password"></label>
-          <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
+        <template v-if="authMode === 'login'">
+          <h2 id="t-login" class="modal-title">{{ t('login.title') }}</h2>
+          <form @submit.prevent="login">
+            <label class="field"><span>{{ t('login.email') }}</span><input v-autofocus v-model="credentials.email" type="email" required autocomplete="username"></label>
+            <label class="field"><span>{{ t('login.password') }}</span><input v-model="credentials.password" type="password" required autocomplete="current-password"></label>
+            <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
+            <div class="modal-actions">
+              <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
+              <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('login.submitting') : t('login.submit') }}</button>
+            </div>
+          </form>
+          <p class="auth-switch">{{ t('login.no_account') }} <button type="button" class="link-btn" @click="switchAuthMode('signup')">{{ t('login.to_signup') }}</button></p>
+        </template>
+
+        <template v-else-if="authMode === 'signup'">
+          <h2 id="t-login" class="modal-title">{{ t('signup.title') }}</h2>
+          <form @submit.prevent="signup">
+            <label class="field"><span>{{ t('signup.name') }}</span><input v-autofocus v-model="signupForm.name" type="text" required maxlength="120" autocomplete="name"></label>
+            <label class="field"><span>{{ t('login.email') }}</span><input v-model="signupForm.email" type="email" required maxlength="254" autocomplete="email"></label>
+            <label class="field">
+              <span>{{ t('login.password') }}</span>
+              <input v-model="signupForm.password" type="password" required :minlength="minPasswordLength" maxlength="128" autocomplete="new-password" aria-describedby="signup-password-hint">
+              <small id="signup-password-hint" class="field-hint">{{ t('signup.password_hint', { minimum: minPasswordLength }) }}</small>
+            </label>
+            <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
+            <div class="modal-actions">
+              <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
+              <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('signup.submitting') : t('signup.submit') }}</button>
+            </div>
+          </form>
+          <p class="auth-switch">{{ t('signup.have_account') }} <button type="button" class="link-btn" @click="switchAuthMode('login')">{{ t('signup.to_login') }}</button></p>
+        </template>
+
+        <template v-else>
+          <h2 id="t-login" class="modal-title">{{ t('signup.sent_title') }}</h2>
+          <p class="modal-text" role="status">{{ t('signup.sent_text', { email: signupSentTo }) }}</p>
+          <p class="modal-text">{{ t('account.next_step') }}</p>
           <div class="modal-actions">
-            <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
-            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('login.submitting') : t('login.submit') }}</button>
+            <button type="button" class="btn-dark" @click="showLogin = false">{{ t('common.close') }}</button>
           </div>
-        </form>
+        </template>
       </div>
     </div>
 
@@ -582,9 +827,10 @@
             <span>{{ t('projectForm.visibility') }}</span>
             <select v-model="projectForm.visibility">
               <option value="private">{{ t('visibility.private') }}</option>
-              <option v-if="projectForm.visibility === 'unlisted'" value="unlisted">{{ t('visibility.unlisted') }}</option>
+              <option value="unlisted">{{ t('visibility.unlisted') }}</option>
               <option value="public">{{ t('visibility.public') }}</option>
             </select>
+            <small class="field-hint">{{ t(`visibility.hint_${projectForm.visibility}`) }}</small>
           </label>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">
@@ -731,7 +977,7 @@
 
           <p v-if="panelSpecimen.notes" class="panel-notes">{{ panelSpecimen.notes }}</p>
 
-          <div v-if="labAccess && (panelSpecimen.collector || panelSpecimen.field_number || panelSpecimen.storage_location || panelSpecimen.loan_status || panelSpecimen.internal_notes)" class="panel-internal">
+          <div v-if="isMember && (panelSpecimen.collector || panelSpecimen.field_number || panelSpecimen.storage_location || panelSpecimen.loan_status || panelSpecimen.internal_notes)" class="panel-internal">
             <h3 class="panel-subtitle">{{ t('panel.internal') }}</h3>
             <dl class="panel-data">
               <div v-if="panelSpecimen.collector"><dt>{{ t('sf.collector') }}</dt><dd>{{ panelSpecimen.collector }}</dd></div>
@@ -750,7 +996,7 @@
 
           <div class="actions panel-actions">
             <button v-if="panelSpecimen.latitude !== null && panelSpecimen.longitude !== null" type="button" class="btn-light" @click="showOnMap(panelSpecimen)">{{ t('panel.show_on_map') }}</button>
-            <template v-if="labAccess">
+            <template v-if="isMember">
               <button type="button" class="btn-light" @click="editFromPanel(panelSpecimen)">{{ t('common.edit') }}</button>
               <button type="button" class="btn-danger" @click="deleteFromPanel(panelSpecimen)">{{ t('common.delete') }}</button>
             </template>
@@ -879,7 +1125,7 @@
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
         <div class="modal-actions">
           <button type="button" class="btn-light" @click="confirmation = null">{{ t('common.cancel') }}</button>
-          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? t('confirm.deleting') : t('common.delete') }}</button>
+          <button type="button" class="btn-danger-solid" :disabled="submitting" @click="runConfirmation">{{ submitting ? (confirmation.busy || t('confirm.deleting')) : (confirmation.button || t('common.delete')) }}</button>
         </div>
       </div>
     </div>

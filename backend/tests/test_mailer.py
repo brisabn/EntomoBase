@@ -78,6 +78,17 @@ def test_development_mode_defaults_to_the_console(monkeypatch, capsys):
     assert "To: a@example.org" in out and "Subject: Confirm" in out and "http://x.test/abc" in out
 
 
+def test_a_terminal_that_is_not_utf8_shows_question_marks_instead_of_failing(monkeypatch):
+    import io
+    import sys
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+    configure(monkeypatch, ENTOMOBASE_ENV="dev")
+    send_email("a@example.org", "Confirmação", "Olá, 日本 http://x.test/abc")
+    out = raw.getvalue().decode("cp1252")
+    assert "Confirmação" in out and "Olá, ?? http://x.test/abc" in out
+
+
 def test_the_backend_name_ignores_case_and_spaces(monkeypatch):
     configure(monkeypatch, MAIL_BACKEND="  MEMORY ")
     send_email("a@example.org", "Hi", "text")

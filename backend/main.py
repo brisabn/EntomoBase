@@ -19,12 +19,14 @@ from typing import List, Optional
 
 import gbif
 import models
+import platform_map
+import public_numbers
 import schemas
 from database import get_db
 from db_setup import initialize_database
 from authorization import (
     Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
-    require_member, require_superadmin, set_visibility, visible_projects, visible_specimens,
+    require_member, require_superadmin, required_user, set_visibility, visible_projects, visible_specimens,
 )
 from errors import api_error
 from laboratories import DEFAULT_LABORATORY
@@ -203,6 +205,16 @@ def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
     return {"status": "confirmed", "email": user.email}
 
 
+# who is signed in and where they work; the role in each laboratory is read now, not taken from the token
+@app.get("/me", response_model=schemas.Me)
+def me(user: models.User = Depends(required_user), db: Session = Depends(get_db)):
+    rows = db.query(models.Membership, models.Laboratory).join(models.Laboratory, models.Membership.laboratory_id == models.Laboratory.id).filter(
+        models.Membership.user_id == user.id
+    ).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    laboratories = [schemas.MyLaboratory(slug=lab.slug, name=lab.name, role=m.role) for m, lab in rows]
+    return schemas.Me(email=user.email, name=user.name, is_superadmin=user.is_superadmin, laboratories=laboratories)
+
+
 # the account with this e-mail, which must be confirmed: an unconfirmed one may still change hands (see
 # /signup), so it is never given a role. An unconfirmed account is reported as missing, like one that is
 def confirmed_user(db: Session, email: str) -> models.User:
@@ -215,9 +227,34 @@ def confirmed_user(db: Session, email: str) -> models.User:
 # --- Laboratories ---
 # the public list of the platform: only the laboratories that chose to be listed. A laboratory that is not
 # listed still works at its own address; it just is not advertised
-@app.get("/labs", response_model=List[schemas.LaboratoryPublic])
+@app.get("/labs", response_model=List[schemas.LaboratorySummary])
 def list_laboratories(db: Session = Depends(get_db)):
-    return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    labs = db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    numbers = public_numbers.numbers_by_laboratory(db, [lab.id for lab in labs])
+    return [
+        schemas.LaboratorySummary(
+            **schemas.LaboratoryPublic.model_validate(lab).model_dump(), **numbers[lab.id],
+            cover=public_numbers.laboratory_cover(db, lab.id),
+        )
+        for lab in labs
+    ]
+
+
+@app.get("/overview", response_model=schemas.PlatformTotals)
+def platform_overview(db: Session = Depends(get_db)):
+    return public_numbers.platform_totals(db)
+
+
+@app.get("/map", response_model=List[schemas.MapPoint])
+def platform_map_points(db: Session = Depends(get_db)):
+    return platform_map.map_points(db)
+
+
+# what anyone may know about the laboratory of the address, listed or not: whoever has the address can
+# already see its public data. Without a laboratory in the address it is the first one, like the other old routes
+@lab_router.get("/laboratory", response_model=schemas.LaboratoryPublic)
+def laboratory_info(ctx: Context = Depends(get_context)):
+    return ctx.laboratory
 
 
 # only a platform administrator creates laboratories. The new one starts with a single member, the admin named
@@ -379,9 +416,9 @@ def get_shared_project(db: Session, token: str) -> models.Project:
     return project
 
 
-@app.get("/shared/{token}", response_model=schemas.ProjectResponse)
+@app.get("/shared/{token}", response_model=schemas.SharedProjectResponse)
 def shared_project(token: str, db: Session = Depends(get_db)):
-    project = schemas.ProjectResponse.model_validate(get_shared_project(db, token))
+    project = schemas.SharedProjectResponse.model_validate(get_shared_project(db, token))
     project.share_token = None
     return project
 
