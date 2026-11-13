@@ -1,5 +1,6 @@
-# creates a user or changes the password of an existing one; the user becomes an admin of the first
-# laboratory if they are not a member of it yet (a user without a laboratory cannot do anything)
+# creates a user or changes the password of an existing one. A new user becomes an admin of the first
+# laboratory (a user without a laboratory cannot do anything). An existing user keeps the laboratories and
+# roles they have: changing a forgotten password must not promote anyone
 #
 # usage (inside backend, with the virtual environment active):
 #     python create_admin.py email@example.com
@@ -43,6 +44,7 @@ def main() -> int:
     db = SessionLocal()
     try:
         user = db.query(models.User).filter(models.User.email == email).first()
+        created = user is None
         if user:
             user.password_hash = hash_password(password)
             print(f"Password for {email} updated.")
@@ -59,10 +61,12 @@ def main() -> int:
             user.is_superadmin = True
             print(f"{email} is now a platform administrator.")
         db.flush()
-        laboratory = default_laboratory(db)
-        if not db.query(models.Membership).filter_by(user_id=user.id, laboratory_id=laboratory.id).first():
+        if created:
+            laboratory = default_laboratory(db)
             db.add(models.Membership(user_id=user.id, laboratory_id=laboratory.id, role="admin"))
             print(f"{email} is now an admin of the laboratory '{laboratory.slug}'.")
+        # the links already sent to set a password must not work after it was set here
+        db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
         db.commit()
     finally:
         db.close()

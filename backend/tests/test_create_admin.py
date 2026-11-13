@@ -90,12 +90,38 @@ def test_running_again_does_not_duplicate_the_membership(run, db):
     assert "admin of the laboratory" not in output
 
 
-def test_an_existing_user_without_a_membership_gets_one(run, db, password_hash):
+# changing the password of someone who forgot it must not put them into the first laboratory
+def test_an_existing_user_without_a_membership_stays_without_one(run, db, password_hash):
     from conftest import add_user
     add_user(EMAIL, password_hash)
+    _, output = run([EMAIL], PASSWORD, PASSWORD)
     assert db.query(models.Membership).count() == 0
+    assert "admin of the laboratory" not in output and "Password for" in output
+
+
+def test_a_member_of_another_laboratory_is_not_made_an_admin_of_the_first(run, db, password_hash):
+    from conftest import add_user
+    add_user(EMAIL, password_hash)
+    db.add(models.Laboratory(slug="lab-b", name="B", institution="B", collection_code="B", license="x"))
+    db.flush()
+    user = db.query(models.User).filter_by(email=EMAIL).one()
+    lab_b = db.query(models.Laboratory).filter_by(slug="lab-b").one()
+    db.add(models.Membership(user_id=user.id, laboratory_id=lab_b.id, role="researcher"))
+    db.commit()
     run([EMAIL], PASSWORD, PASSWORD)
-    assert db.query(models.Membership).one().role == "admin"
+    db.expire_all()
+    assert [(m.laboratory.slug, m.role) for m in db.query(models.Membership).all()] == [("lab-b", "researcher")]
+
+
+def test_setting_the_password_here_ends_the_links_sent_before(run, db, password_hash):
+    from datetime import datetime, timedelta
+    from conftest import add_user
+    add_user(EMAIL, password_hash)
+    user = db.query(models.User).filter_by(email=EMAIL).one()
+    db.add(models.EmailConfirmation(user_id=user.id, code_hash="h", created_at=datetime(2026, 1, 1), expires_at=datetime(2099, 1, 1)))
+    db.commit()
+    run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.EmailConfirmation).count() == 0
 
 
 def test_a_researcher_keeps_the_role_when_the_password_is_changed(run, db, password_hash):
