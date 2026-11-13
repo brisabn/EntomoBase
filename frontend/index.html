@@ -133,14 +133,21 @@
         <!-- HOME PAGE AND LABORATORIES: the home page is the public list with an introduction around it -->
         <div class="sheet" v-else-if="route.name === 'labs' || route.name === 'home'">
           <template v-if="route.name === 'home'">
-            <h1 class="page-title">{{ t('home.title') }}</h1>
-            <p class="home-lead">{{ t('home.lead') }}</p>
-            <ul class="home-points">
-              <li v-for="k in ['specimens', 'open', 'private']" :key="k">
-                <h2 class="home-point-title">{{ t(`home.${k}_title`) }}</h2>
-                <p>{{ t(`home.${k}_text`) }}</p>
-              </li>
-            </ul>
+            <section class="home-hero">
+              <h1 class="page-title home-title">{{ t('home.title') }}</h1>
+              <p class="home-lead">{{ t('home.lead') }}</p>
+              <div class="actions home-cta">
+                <button type="button" class="btn-dark" @click="scrollToLabs">{{ t('home.explore') }}</button>
+                <button v-if="!labAccess" type="button" class="btn-light" @click="openSignup()">{{ t('signup.title') }}</button>
+              </div>
+            </section>
+            <!-- the numbers count only what visitors can see; they are left out while loading or when the API fails -->
+            <dl v-if="overview" class="home-stats">
+              <div v-for="k in ['laboratories', 'specimens', 'species', 'projects']" :key="k" class="home-stat">
+                <dt>{{ t(`home.stat_${k}`, { count: overview[k] }) }}</dt>
+                <dd>{{ n(overview[k]) }}</dd>
+              </div>
+            </dl>
             <template v-if="me && me.laboratories.length">
               <h2 class="members-heading">{{ t('home.your_labs') }}</h2>
               <ul class="home-mine">
@@ -150,7 +157,7 @@
                 </li>
               </ul>
             </template>
-            <h2 class="members-heading">{{ t('labs.title') }}</h2>
+            <h2 id="home-labs" class="members-heading">{{ t('labs.title') }}</h2>
           </template>
           <template v-else>
             <h1 class="page-title">{{ t('labs.title') }}</h1>
@@ -162,24 +169,30 @@
           <p v-else-if="labsLoading && !labs.length" class="empty-state">{{ t('labs.loading') }}</p>
           <div v-else-if="labs.length" class="grid">
             <a v-for="(l, i) in labs" :key="l.slug" class="card" :href="link('projects', { lab: l.slug })">
-              <div class="card-cover" :style="{ background: coverColor({ id: i + 1 }) }">
+              <div class="card-cover" :style="labCoverStyle(l, i)">
                 <span class="status">{{ l.collection_code }}</span>
               </div>
               <div class="card-body">
                 <h2 class="card-title">{{ l.name }}</h2>
                 <p class="card-meta">{{ l.institution }}</p>
+                <p class="card-meta lab-numbers">{{ count('specimen', l.specimens) }} · {{ count('species', l.species) }} · {{ count('project', l.projects) }}</p>
               </div>
             </a>
           </div>
           <p v-else class="empty-state">{{ t('labs.empty') }}</p>
-          <div v-if="route.name === 'home' && !labAccess" class="home-join">
-            <h2 class="home-point-title">{{ t('home.join_title') }}</h2>
-            <p>{{ t('home.join_text') }}</p>
-            <div class="actions">
+          <template v-if="route.name === 'home'">
+            <h2 class="members-heading">{{ t('home.how_title') }}</h2>
+            <ol class="home-steps">
+              <li v-for="k in ['account', 'join', 'record', 'publish']" :key="k">
+                <h3 class="home-step-title">{{ t(`home.step_${k}_title`) }}</h3>
+                <p>{{ t(`home.step_${k}_text`) }}</p>
+              </li>
+            </ol>
+            <p v-if="!labAccess" class="home-join">
               <button type="button" class="btn-dark" @click="openSignup()">{{ t('signup.title') }}</button>
-              <button type="button" class="btn-light" @click="openLogin()">{{ t('auth.login') }}</button>
-            </div>
-          </div>
+              <button type="button" class="link-btn" @click="openLogin()">{{ t('home.have_account') }}</button>
+            </p>
+          </template>
         </div>
 
         <!-- ABOUT -->

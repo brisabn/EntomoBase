@@ -228,6 +228,8 @@ const app = createApp({
       labs: [],
       labsLoading: false,
       labsError: null,
+      // the numbers of the whole platform on the home page; null while loading or when the API fails
+      overview: null,
       // a project opened by its share link: { token, status: loading | ok | failed, project, specimens, message }
       shared: null,
       // GET /me: the signed-in person and their laboratories, with the role in each
@@ -802,6 +804,7 @@ const app = createApp({
       else route = { name: 'about' };
       if (route.name === 'members') this.loadMembers();
       if (route.name === 'labs' || route.name === 'home') this.loadLabs();
+      if (route.name === 'home') this.loadOverview();
       if (route.name === 'shared') {
         let token = b || '';
         try { token = decodeURIComponent(token); } catch { /* keep it as typed */ }
@@ -916,6 +919,34 @@ const app = createApp({
         if (!this.shared || this.shared.token !== token) return;
         this.shared = { token, status: 'failed', project: null, specimens: [], message: e.message };
       }
+    },
+    // the numbers are a nice extra: when they fail the page goes on without them
+    async loadOverview() {
+      try { this.overview = await this.api('/overview'); } catch { this.overview = null; }
+    },
+    // the picture of a laboratory's card, built like any specimen's (see imageUrl), or null
+    labCoverUrl(l, width = 600) {
+      const c = l.cover;
+      if (!c) return null;
+      if (isUrl(c.photo_url)) return c.photo_url.trim();
+      const id = Zenodo.recordId(c.dataset_url);
+      if (!c.image_file || !id) return null;
+      if (Zenodo.isDemo(id)) return `${this.apiUrl}/labs/${encodeURIComponent(l.slug)}/demo/image/${encodeURIComponent(c.image_file)}`;
+      return Zenodo.thumbnail(id, c.image_file, width);
+    },
+    labCoverStyle(l, i) {
+      const style = { backgroundColor: this.coverColor({ id: i + 1 }) };
+      const url = this.labCoverUrl(l);
+      if (url) {
+        style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`;
+        style.backgroundSize = 'cover';
+        style.backgroundPosition = 'center';
+      }
+      return style;
+    },
+    scrollToLabs() {
+      const el = document.getElementById('home-labs');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     async loadLabs() {
       this.labsLoading = true;

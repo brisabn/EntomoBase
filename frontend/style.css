@@ -589,12 +589,26 @@ input[type="file"]::file-selector-button { height: 2rem; border: 1.5px solid var
 .shared-note { background: #fff8dc; border: 1px solid #e6cf7a; border-radius: 14px; padding: 0.8rem 1.1rem; margin-bottom: 1.4rem; }
 
 /* home page */
-.home-lead { max-width: 52rem; font-size: 1.3rem; line-height: 1.5; margin: 0.6rem 0 2rem; }
-.home-points { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
-.home-points li { background: var(--white); border-radius: 18px; padding: 1.2rem 1.4rem; }
-.home-points p, .home-join p { color: var(--ink-2); line-height: 1.45; }
-.home-point-title { font-family: var(--serif); font-weight: 600; font-size: 1.2rem; margin-bottom: 0.4rem; }
+.home-hero { padding: 0.6rem 0 0.4rem; }
+.home-title { font-size: clamp(2.3rem, 6vw, 3.8rem); line-height: 1.05; max-width: 16ch; }
+.home-lead { max-width: 46rem; font-size: 1.3rem; line-height: 1.5; color: var(--ink-2); margin: 1rem 0 1.6rem; }
+.home-cta { flex-wrap: wrap; }
+/* the numbers: a band between two lines, the figure above its label */
+.home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: 1.2rem 1.5rem;
+  margin: 2.6rem 0 0.6rem; padding: 1.6rem 0; border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
+@media (max-width: 600px) { .home-stats { grid-template-columns: repeat(2, 1fr); } }
+.home-stat { display: flex; flex-direction: column-reverse; }
+.home-stat dd { font-family: var(--serif); font-weight: 600; font-size: clamp(2rem, 4vw, 2.7rem); line-height: 1.1; margin: 0; }
+.home-stat dt { color: var(--ink-2); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 .home-mine { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .home-mine li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
-.home-join { margin-top: 2.2rem; padding: 1.4rem 1.6rem; border: 1px dashed var(--line); border-radius: 18px; }
-.home-join .actions { margin-top: 0.9rem; flex-wrap: wrap; }
+.lab-numbers { margin-top: 0.7rem; font-size: 0.95rem; }
+/* how it works: numbered steps */
+.home-steps { list-style: none; padding: 0; margin: 0; counter-reset: step; display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: 1rem; }
+.home-steps li { counter-increment: step; background: var(--white); border-radius: 18px; padding: 1.2rem 1.4rem 1.3rem; }
+.home-steps li::before { content: counter(step); display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--folder); font-family: var(--serif); font-weight: 600; margin-bottom: 0.7rem; }
+.home-step-title { font-family: var(--serif); font-weight: 600; font-size: 1.15rem; margin-bottom: 0.35rem; }
+.home-steps p { color: var(--ink-2); line-height: 1.45; }
+.home-join { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.4rem; margin-top: 1.8rem; }
