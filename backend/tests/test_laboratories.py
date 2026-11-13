@@ -34,7 +34,8 @@ def test_the_list_is_ordered_by_name(client, db):
 def test_the_list_only_has_public_fields(client, db):
     add_lab(db, "visible", "Visible lab", institution="UFMG")
     lab = client.get("/labs").json()[0]
-    assert lab == {"slug": "visible", "name": "Visible lab", "institution": "UFMG", "collection_code": "COL"}
+    assert lab == {"slug": "visible", "name": "Visible lab", "institution": "UFMG", "collection_code": "COL",
+                   "projects": 0, "specimens": 0, "species": 0, "cover": None}
 
 
 def test_the_list_needs_no_login_and_ignores_a_bad_token(client, db):

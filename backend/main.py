@@ -19,6 +19,7 @@ from typing import List, Optional
 
 import gbif
 import models
+import public_numbers
 import schemas
 from database import get_db
 from db_setup import initialize_database
@@ -225,9 +226,22 @@ def confirmed_user(db: Session, email: str) -> models.User:
 # --- Laboratories ---
 # the public list of the platform: only the laboratories that chose to be listed. A laboratory that is not
 # listed still works at its own address; it just is not advertised
-@app.get("/labs", response_model=List[schemas.LaboratoryPublic])
+@app.get("/labs", response_model=List[schemas.LaboratorySummary])
 def list_laboratories(db: Session = Depends(get_db)):
-    return db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    labs = db.query(models.Laboratory).filter(models.Laboratory.listed == True).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    numbers = public_numbers.numbers_by_laboratory(db, [lab.id for lab in labs])
+    return [
+        schemas.LaboratorySummary(
+            **schemas.LaboratoryPublic.model_validate(lab).model_dump(), **numbers[lab.id],
+            cover=public_numbers.laboratory_cover(db, lab.id),
+        )
+        for lab in labs
+    ]
+
+
+@app.get("/overview", response_model=schemas.PlatformTotals)
+def platform_overview(db: Session = Depends(get_db)):
+    return public_numbers.platform_totals(db)
 
 
 # what anyone may know about the laboratory of the address, listed or not: whoever has the address can

@@ -195,6 +195,31 @@ class LaboratoryPublic(BaseModel):
         from_attributes = True
 
 
+# a public specimen whose picture illustrates a laboratory; the site builds the image address from these
+# fields, as it does for any specimen
+class LaboratoryCover(BaseModel):
+    specimen_id: int
+    photo_url: Optional[str] = None
+    image_file: Optional[str] = None
+    dataset_url: Optional[str] = None
+
+
+# a laboratory in the public list, with the numbers of what visitors can see in it
+class LaboratorySummary(LaboratoryPublic):
+    projects: int
+    specimens: int
+    species: int
+    cover: Optional[LaboratoryCover] = None
+
+
+# the numbers of the whole platform, for the home page
+class PlatformTotals(BaseModel):
+    laboratories: int
+    projects: int
+    specimens: int
+    species: int
+
+
 # a project opened by its share link also says whose it is, so whoever received the link knows where the
 # data comes from (and whom to cite)
 class SharedProjectResponse(ProjectResponse):
