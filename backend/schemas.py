@@ -195,6 +195,12 @@ class LaboratoryPublic(BaseModel):
         from_attributes = True
 
 
+# a project opened by its share link also says whose it is, so whoever received the link knows where the
+# data comes from (and whom to cite)
+class SharedProjectResponse(ProjectResponse):
+    laboratory: LaboratoryPublic
+
+
 # the slug is part of the address, so only lowercase letters, digits and single hyphens between them
 SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 

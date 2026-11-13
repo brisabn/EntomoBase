@@ -396,9 +396,9 @@ def get_shared_project(db: Session, token: str) -> models.Project:
     return project
 
 
-@app.get("/shared/{token}", response_model=schemas.ProjectResponse)
+@app.get("/shared/{token}", response_model=schemas.SharedProjectResponse)
 def shared_project(token: str, db: Session = Depends(get_db)):
-    project = schemas.ProjectResponse.model_validate(get_shared_project(db, token))
+    project = schemas.SharedProjectResponse.model_validate(get_shared_project(db, token))
     project.share_token = None
     return project
 

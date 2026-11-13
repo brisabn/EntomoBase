@@ -126,6 +126,28 @@ def test_an_unlisted_project_opens_with_its_share_token(client, admin, world):
     assert body["share_token"] is None
 
 
+def test_a_shared_project_says_which_laboratory_it_belongs_to(client, admin, world):
+    body = client.get(f"/shared/{share_token(client, admin, world['unlisted'])}").json()
+    assert body["laboratory"] == {"slug": "ufmg", "name": "EntomoBase UFMG", "institution": "UFMG", "collection_code": "EntomoBase"}
+
+
+def test_a_shared_project_of_another_laboratory_names_that_one(client, world, db, password_hash):
+    import models
+    from conftest import add_user, make_token
+    lab = models.Laboratory(slug="lab-b", name="Lab B", institution="B", collection_code="LB", license="x")
+    db.add(lab)
+    db.commit()
+    add_user("b@lab.br", password_hash)
+    user = db.query(models.User).filter_by(email="b@lab.br").one()
+    db.add(models.Membership(user_id=user.id, laboratory_id=lab.id, role="admin"))
+    db.commit()
+    headers = {"Authorization": f"Bearer {make_token(email='b@lab.br')}"}
+    created = client.post("/labs/lab-b/projects", json={"title": "B shared", "year": 2025, "insect_group": "Diptera", "visibility": "unlisted"}, headers=headers).json()
+    body = client.get(f"/shared/{created['share_token']}").json()
+    assert (body["title"], body["laboratory"]["slug"], body["laboratory"]["name"]) == ("B shared", "lab-b", "Lab B")
+    assert set(body["laboratory"]) == {"slug", "name", "institution", "collection_code"}
+
+
 def test_the_shared_specimens_have_no_internal_fields(client, admin, world):
     token = share_token(client, admin, world["unlisted"])
     response = client.get(f"/shared/{token}/specimens")
