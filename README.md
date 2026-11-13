@@ -60,9 +60,11 @@ A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o 
 Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECRET_KEY`):
 
 ```powershell
-python seed.py            # cria os projetos e espécimes de exemplo
+python seed.py            # cria os laboratórios, contas, projetos e espécimes de exemplo
 python seed.py --remove   # remove só os de exemplo
 ```
+
+O seed cria três laboratórios (`ufmg`, `borboletas` e `formigas`, este fora da lista pública), 12 projetos nos três modos de visibilidade e 1.050 espécimes, com alguns códigos de etiqueta repetidos entre laboratórios. Cria também uma conta para cada tipo de pessoa (administrador da plataforma, administradores, pesquisadores, alguém em dois laboratórios e alguém sem laboratório), todas no domínio `entomobase.test` e já confirmadas. **As senhas aparecem uma única vez, no terminal**; rodar de novo não muda as contas que já existem. O `--remove` apaga os projetos, as contas e os laboratórios de exemplo; o primeiro laboratório fica, e também um laboratório de exemplo que tenha dados criados por outra pessoa.
 
 ## Esquemas
 

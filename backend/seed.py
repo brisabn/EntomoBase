@@ -1,11 +1,13 @@
 import random
+import secrets
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 
 import models
 from database import SessionLocal
 from db_setup import initialize_database
-from laboratories import default_laboratory
+from laboratories import DEFAULT_LABORATORY, default_laboratory
+from security import hash_password
 
 # demo data for the site; the text values (places, traits, sex, life stage) stay in Portuguese
 # because they are shown to the site's users
@@ -194,7 +196,68 @@ PROJECTS = [
         "zenodo": None, "publication": None,
         "species": pick(BEES_AND_WASPS, "Apis mellifera", "Tetragonisca angustula", "Melipona quadrifasciata", "Trigona spinipes", "Euglossa cordata", "Xylocopa frontalis"),
         "n": 70,
+        # shared with reviewers before publishing: open only by its link
+        "visibility": "unlisted",
     },
+    # the other demo laboratories. Some codes repeat those of the first laboratory (RDO-0001, BRI-0001...),
+    # which is allowed between laboratories and lets the isolation be tried by hand
+    {
+        "lab": "borboletas", "prefix": "RDO", "title": "Borboletas do Parque Estadual do Rio Doce", "year": 2025, "group": "Lepidoptera",
+        "finished": True, "locality": "Parque Estadual do Rio Doce", "sites": ["rio_doce"],
+        "traits": "Envergadura alar, Comprimento da asa anterior",
+        "description": "Borboletas amostradas nas mesmas trilhas do levantamento de besouros, para comparar a fauna das duas ordens.",
+        "zenodo": "0000201", "publication": None,
+        "species": pick(LEPIDOPTERA, "Morpho helenor", "Heliconius erato", "Dryas iulia", "Battus polydamas", "Phoebis sennae", "Junonia evarete", "Eurema albula"),
+        "n": 60,
+    },
+    {
+        "lab": "borboletas", "prefix": "SBR", "title": "Papilionídeos da Serra do Brigadeiro", "year": 2025, "group": "Lepidoptera",
+        "finished": True, "locality": "Parque Estadual da Serra do Brigadeiro", "sites": ["brigadeiro"],
+        "traits": "Envergadura alar, Comprimento da asa anterior",
+        "description": "Dados enviados aos revisores de um artigo antes da publicação.",
+        "zenodo": "0000202", "publication": "Manuscrito em revisão",
+        "species": pick(LEPIDOPTERA, "Battus polydamas", "Heraclides thoas", "Parides agavus"),
+        "n": 40, "visibility": "unlisted",
+    },
+    {
+        "lab": "borboletas", "prefix": "PAM", "title": "Borboletas do campus Pampulha", "year": 2026, "group": "Lepidoptera",
+        "finished": False, "locality": "Campus Pampulha, UFMG", "sites": ["pampulha"],
+        "traits": "Envergadura alar",
+        "description": "Coleta em andamento com alunos de graduação.",
+        "zenodo": None, "publication": None,
+        "species": pick(LEPIDOPTERA, "Ascia monuste", "Pyrisitia nise", "Agraulis vanillae", "Danaus plexippus"),
+        "n": 30,
+    },
+    {
+        "lab": "formigas", "prefix": "BRI", "title": "Formigas de áreas verdes de Belo Horizonte", "year": 2024, "group": "Formicidae",
+        "finished": True, "locality": "Belo Horizonte", "sites": ["mangabeiras", "pampulha"],
+        "traits": "Largura da cápsula cefálica, Comprimento de Weber",
+        "description": "Iscas de sardinha e mel em praças e parques, para comparar a fauna de formigas urbanas.",
+        "zenodo": "0000301", "publication": None,
+        "species": pick(ANTS, "Atta sexdens", "Camponotus rufipes", "Pheidole megacephala", "Solenopsis invicta", "Paratrechina longicornis"),
+        "n": 50,
+    },
+]
+
+# the demo laboratories besides the first one; "formigas" is left out of the public list, so it opens only
+# by its address
+DEMO_LABORATORIES = [
+    {"slug": "borboletas", "name": "Laboratório de Lepidoptera (demonstração)", "institution": "Universidade Fictícia",
+     "collection_code": "LEPF", "listed": True},
+    {"slug": "formigas", "name": "Grupo de Mirmecologia (demonstração)", "institution": "Instituto Fictício de Biologia",
+     "collection_code": "MIRF", "listed": False},
+]
+
+# one demo account for each kind of person; the e-mails use the .test domain, which never exists
+FIRST = DEFAULT_LABORATORY["slug"]
+DEMO_USERS = [
+    {"email": "super@entomobase.test", "name": "Administração da plataforma", "superadmin": True, "roles": {}},
+    {"email": "admin.ufmg@entomobase.test", "name": "Ana (administradora)", "roles": {FIRST: "admin"}},
+    {"email": "pesquisa.ufmg@entomobase.test", "name": "Bruno (pesquisador)", "roles": {FIRST: "researcher"}},
+    {"email": "admin.borboletas@entomobase.test", "name": "Carla (dois laboratórios)", "roles": {"borboletas": "admin", FIRST: "researcher"}},
+    {"email": "pesquisa.borboletas@entomobase.test", "name": "Davi (pesquisador)", "roles": {"borboletas": "researcher"}},
+    {"email": "admin.formigas@entomobase.test", "name": "Eva (administradora)", "roles": {"formigas": "admin"}},
+    {"email": "sem.laboratorio@entomobase.test", "name": "Fábio (sem laboratório)", "roles": {}},
 ]
 
 
@@ -222,13 +285,64 @@ def measurements_for(rng, species, traits, sex):
     return result
 
 
+# finished projects are public and the others private, unless the project says otherwise
+def visibility_of(cfg):
+    return cfg.get("visibility") or ("public" if cfg["finished"] else "private")
+
+
+def laboratory_of(db, cfg):
+    if "lab" not in cfg:
+        return default_laboratory(db)
+    return db.query(models.Laboratory).filter(models.Laboratory.slug == cfg["lab"]).one()
+
+
+def create_laboratories(db):
+    default_laboratory(db)
+    for data in DEMO_LABORATORIES:
+        if db.query(models.Laboratory).filter(models.Laboratory.slug == data["slug"]).first():
+            print(f"already exists: laboratory {data['slug']}")
+            continue
+        db.add(models.Laboratory(**data, license=DEFAULT_LABORATORY["license"]))
+    db.flush()
+
+
+# the accounts are created confirmed, with a random password shown only now; an account that already
+# exists keeps its password and roles
+def create_users(db):
+    created = []
+    for data in DEMO_USERS:
+        if db.query(models.User).filter(models.User.email == data["email"]).first():
+            print(f"already exists: {data['email']} (password unchanged)")
+            continue
+        password = secrets.token_urlsafe(9)
+        user = models.User(email=data["email"], name=data["name"], password_hash=hash_password(password),
+                           is_superadmin=data.get("superadmin", False), email_verified_at=datetime.now(timezone.utc).replace(tzinfo=None))
+        for slug, role in data["roles"].items():
+            lab = db.query(models.Laboratory).filter(models.Laboratory.slug == slug).one()
+            user.memberships.append(models.Membership(laboratory_id=lab.id, role=role))
+        db.add(user)
+        created.append((data, password))
+    db.flush()
+    if created:
+        print("\nDemo accounts (the passwords are shown only now):")
+        for data, password in created:
+            roles = ", ".join(f"{role} of {slug}" for slug, role in data["roles"].items())
+            kind = "platform administrator" if data.get("superadmin") else roles or "no laboratory"
+            print(f"  {data['email']:<38} {password:<14} {kind}")
+        print()
+
+
 def create_project(db, cfg, rng):
     if db.query(models.Project).filter(models.Project.title == cfg["title"]).first():
         print(f"already exists: {cfg['title']}")
         return 0
-    laboratory = default_laboratory(db)
+    laboratory = laboratory_of(db, cfg)
+    visibility = visibility_of(cfg)
     project = models.Project(
-        laboratory_id=laboratory.id, visibility="public" if cfg["finished"] else "private",
+        laboratory_id=laboratory.id, visibility=visibility,
+        # the same kind of link the API makes (authorization.new_share_token), which the seed does not import
+        # so that it runs without SECRET_KEY
+        share_token=secrets.token_urlsafe(24) if visibility == "unlisted" else None,
         title=cfg["title"], year=cfg["year"], insect_group=cfg["group"], measured_traits=cfg["traits"], locality=cfg["locality"],
         dataset_url=f"https://zenodo.org/records/{cfg['zenodo']}" if cfg["zenodo"] else None,
         finished=cfg["finished"], linked_publication=cfg["publication"], description=cfg["description"],
@@ -293,14 +407,33 @@ def fill_missing_families(db):
             specimen.family = known[specimen.species]
 
 
+# removes what the seed created: its projects, its accounts and its extra laboratories. The first laboratory
+# stays, and so does a demo laboratory that has data of its own
 def remove_demo_data(db):
     titles = {p["title"] for p in PROJECTS}
     n = 0
     for p in db.query(models.Project).filter(models.Project.title.in_(titles)).all():
         db.delete(p)
         n += 1
-    db.commit()
+    db.flush()
     print(f"{n} demo projects removed (with their specimens)")
+    users = db.query(models.User).filter(models.User.email.in_([u["email"] for u in DEMO_USERS])).all()
+    for user in users:
+        db.delete(user)
+    print(f"{len(users)} demo accounts removed")
+    db.flush()
+    for data in DEMO_LABORATORIES:
+        lab = db.query(models.Laboratory).filter(models.Laboratory.slug == data["slug"]).first()
+        if lab is None:
+            continue
+        in_use = db.query(models.Project).filter(models.Project.laboratory_id == lab.id).count() \
+            + db.query(models.Specimen).filter(models.Specimen.laboratory_id == lab.id).count()
+        if in_use:
+            print(f"kept: laboratory {lab.slug}, which has data that the seed did not create")
+            continue
+        db.delete(lab)
+        print(f"removed: laboratory {lab.slug}")
+    db.commit()
 
 
 def main():
@@ -310,6 +443,8 @@ def main():
         remove_demo_data(db)
         db.close()
         return
+    create_laboratories(db)
+    create_users(db)
     rng = random.Random(2026)
     total = 0
     for cfg in PROJECTS:
