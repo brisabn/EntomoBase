@@ -1,6 +1,7 @@
 # Scenario 2: accounts. Someone creates an account, cannot sign in before confirming the e-mail,
 # opens the link of the e-mail and then signs in. And an admin invites someone without an account, who
-# opens the link of the invitation, creates the account there and is already in the laboratory.
+# opens the link of the invitation, creates the account there and is already in the laboratory. And someone who
+# forgot the password gets a link by e-mail, chooses a new one, and later changes it on the account page.
 import re
 
 from playwright.sync_api import expect
@@ -121,3 +122,60 @@ def test_an_invited_person_creates_the_account_joins_the_laboratory_and_can_leav
     admin.reload()
     expect(admin.get_by_role("heading", name=re.compile(r"Membros \("))).to_be_visible()
     expect(admin.locator(".member-list").first).not_to_contain_text(INVITED)
+
+
+FORGETFUL = "pesquisa.borboletas@entomobase.test"
+
+
+def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_page(new_page, servers):
+    page = new_page()
+    page.goto(servers.site + "/")
+    page.get_by_role("button", name="Entrar", exact=True).first.click()
+    page.get_by_role("button", name="Esqueci minha senha").click()
+    page.get_by_label("E-mail").fill(FORGETFUL)
+    page.get_by_role("button", name="Enviar link").click()
+    expect(page.get_by_role("heading", name="Confira seu e-mail")).to_be_visible()
+    expect(page.locator(".modal")).to_contain_text(FORGETFUL)
+    page.get_by_role("button", name="Fechar").click()
+    links = servers.links_in_emails("new-password")
+    assert len(links) == 1
+
+    # the link opens the page of the new password, and its code leaves the address bar
+    page.goto(links[0])
+    expect(page).to_have_url(re.compile(r"#/nova-senha$"))
+    page.get_by_label("Nova senha").fill("senha-nova-por-email")
+    page.get_by_role("button", name="Salvar nova senha").click()
+    expect(page.locator(".confirm-box")).to_contain_text("foi trocada")
+
+    # the old password no longer works; the new one does
+    page.locator(".confirm-box").get_by_role("button", name="Entrar").click()
+    expect(page.get_by_label("E-mail")).to_have_value(FORGETFUL)
+    page.get_by_label("Senha").fill(servers.passwords[FORGETFUL])
+    page.get_by_role("button", name="Acessar").click()
+    expect(page.locator(".modal .form-error")).to_contain_text("E-mail ou senha incorretos")
+    page.get_by_label("Senha").fill("senha-nova-por-email")
+    page.get_by_role("button", name="Acessar").click()
+    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+
+    # the link works once
+    other = new_page()
+    other.goto(links[0])
+    other.get_by_label("Nova senha").fill("mais-uma-senha-nova")
+    other.get_by_role("button", name="Salvar nova senha").click()
+    expect(other.locator(".confirm-box .form-error")).to_contain_text("já foi usado")
+
+    # on the account page, through the e-mail at the top: the laboratory, and changing the password
+    page.locator("a.user").click()
+    expect(page.get_by_role("heading", name="Minha conta")).to_be_visible()
+    expect(page.locator(".member-list")).to_contain_text("Laboratório de Lepidoptera (demonstração)")
+    page.get_by_label("Senha atual").fill("nao-e-a-senha")
+    page.get_by_label("Nova senha").fill("senha-trocada-na-conta")
+    page.get_by_role("button", name="Trocar a senha").click()
+    expect(page.locator(".form-error")).to_contain_text("A senha atual está incorreta")
+    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    page.get_by_label("Senha atual").fill("senha-nova-por-email")
+    page.get_by_role("button", name="Trocar a senha").click()
+    expect(page.get_by_text("Senha trocada.")).to_be_visible()
+    page.get_by_role("button", name="Sair").click()
+    sign_in(page, FORGETFUL, "senha-trocada-na-conta")
+    expect(page.get_by_role("button", name="Sair")).to_be_visible()

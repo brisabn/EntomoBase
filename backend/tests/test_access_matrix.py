@@ -15,6 +15,7 @@ import mailer
 import models
 from conftest import SessionLocal, make_token
 from email_confirmation import hash_code
+from security import hash_password
 from laboratories import default_laboratory
 
 FIRST = "ufmg"
@@ -22,6 +23,9 @@ OTHER = "lab-b"
 NOWHERE = 999_999
 # the code of the invitation to the first laboratory, sent to an address with no account
 INVITE_CODE = "invite-code-of-a-0123456789"
+# every account of the world has this password, hashed once (argon2 is slow on purpose)
+WORLD_PASSWORD = "world-password"
+WORLD_HASH = hash_password(WORLD_PASSWORD)
 
 # the people who may knock on the door of the first laboratory
 PEOPLE = ["visitor", "no_lab", "admin_elsewhere", "superadmin", "researcher", "admin"]
@@ -80,7 +84,7 @@ def build_world() -> World:
             # a second admin here, so the admin may leave (the last one cannot; test_members covers that)
             ("second_admin", {first.id: "admin"}, False),
         ]:
-            user = models.User(email=f"{name}@lab.br", password_hash="x", name=name, is_superadmin=superadmin,
+            user = models.User(email=f"{name}@lab.br", password_hash=WORLD_HASH, name=name, is_superadmin=superadmin,
                                email_verified_at=datetime(2026, 1, 1))
             db.add(user)
             db.flush()
@@ -189,6 +193,8 @@ CASES = [
     Case("GET", "/overview", "public", 200, lambda i: ("/overview", None), in_lab=False),
     Case("GET", "/map", "public", 200, lambda i: ("/map", None), in_lab=False),
     Case("GET", "/me", "account", 200, lambda i: ("/me", None), in_lab=False),
+    Case("PUT", "/me/password", "account", 200,
+         lambda i: ("/me/password", {"current_password": WORLD_PASSWORD, "new_password": "a-new-password"}), in_lab=False),
     Case("POST", "/labs", "superadmin", 201, lambda i: ("/labs", {"slug": "lab-new", "name": "N", "institution": "I", "collection_code": "N", "admin_email": "no_lab@lab.br"}), in_lab=False),
     Case("GET", "/shared/{token}", "public", 200, lambda i: ("/shared/token-of-a-0123456789", None), in_lab=False),
     Case("GET", "/shared/{token}/specimens", "public", 200, lambda i: ("/shared/token-of-a-0123456789/specimens", None), in_lab=False),
@@ -200,8 +206,8 @@ CASES = [
 ]
 
 # the routes anyone may call without an account by design; their own rules (wrong password, rate limits,
-# confirmation codes) are tested in test_auth, test_signup and test_confirm
-OPEN_BY_DESIGN = {("POST", "/login"), ("POST", "/signup"), ("POST", "/confirm")}
+# confirmation codes) are tested in test_auth, test_signup, test_confirm and test_passwords
+OPEN_BY_DESIGN = {("POST", "/login"), ("POST", "/signup"), ("POST", "/confirm"), ("POST", "/forgot-password"), ("POST", "/reset-password")}
 
 # the old addresses without a laboratory mean the first one; the members routes never had them
 MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/membership", "/invitations", "/invitations/{invitation_id}"}

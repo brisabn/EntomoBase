@@ -33,7 +33,10 @@ from errors import api_error
 from invitations import issue_invitation, send_invitation, usable_invitation
 from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
-from email_confirmation import hash_code, issue_code, send_already_registered, send_confirmation, utc_now
+from email_confirmation import (
+    RESET_VALID_HOURS, hash_code, issue_code, send_already_registered, send_confirmation, send_no_account,
+    send_password_reset, utc_now,
+)
 from mailer import MailError, valid_address
 from rate_limit import AttemptLimiter
 from security import MIN_PASSWORD_LENGTH, hash_password, needs_rehash, verify_password
@@ -210,6 +213,79 @@ def confirm_email(data: schemas.ConfirmRequest, db: Session = Depends(get_db)):
     db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
     db.commit()
     return {"status": "confirmed", "email": user.email}
+
+
+# --- Passwords ---
+# asking for a new password sends an e-mail to whatever address is typed, so every request counts, per IP and
+# per address (nobody fills someone else's mailbox with links)
+RESET_WINDOW_SECONDS = 60 * 60
+reset_ip_limiter = AttemptLimiter(max_attempts=5, window_seconds=RESET_WINDOW_SECONDS)
+reset_email_limiter = AttemptLimiter(max_attempts=3, window_seconds=RESET_WINDOW_SECONDS)
+
+
+# the answer is the same whether or not the address has an account, and so is what happens: an e-mail goes out
+# either way (with the link, or saying there is no account), so not even a failing mail server tells them apart
+@app.post("/forgot-password", status_code=202)
+def forgot_password(data: schemas.ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    email = data.email.lower()
+    if not valid_address(email):
+        raise api_error(400, "invalid_email")
+    ensure_login_allowed((reset_ip_limiter, ip), (reset_email_limiter, email))
+    reset_ip_limiter.record_failure(ip)
+    reset_email_limiter.record_failure(email)
+    user = user_with_email(db, email)
+    try:
+        if user is None:
+            send_no_account(email)
+        else:
+            send_password_reset(email, issue_code(db, user, hours=RESET_VALID_HOURS))
+        db.commit()
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    return {"status": "reset_sent"}
+
+
+# the link of that e-mail opens the site, which sends the code with the new password. Choosing it also confirms
+# the address (the link reached that mailbox), and every other link of the account stops working
+@app.post("/reset-password")
+def reset_password(data: schemas.ResetPasswordRequest, db: Session = Depends(get_db)):
+    confirmation = db.query(models.EmailConfirmation).filter(models.EmailConfirmation.code_hash == hash_code(data.code)).first()
+    if confirmation is None or confirmation.expires_at <= utc_now():
+        raise api_error(400, "invalid_reset_code")
+    if len(data.password) < MIN_PASSWORD_LENGTH:
+        raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
+    user = confirmation.user
+    user.password_hash = hash_password(data.password)
+    if user.email_verified_at is None:
+        user.email_verified_at = utc_now()
+    db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
+    db.commit()
+    return {"status": "password_changed", "email": user.email}
+
+
+# a signed-in person changes their own password, giving the current one. A wrong one counts like a wrong
+# password at the login (the session could be on a borrowed computer), and is a 400, not a 401: the site
+# signs the person out on a 401
+@app.put("/me/password")
+def change_password(data: schemas.PasswordChange, request: Request, user: models.User = Depends(required_user),
+                    db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    account_key = (ip, user.email.lower())
+    ensure_login_allowed((account_limiter, account_key), (ip_limiter, ip))
+    if not verify_password(data.current_password, user.password_hash):
+        account_limiter.record_failure(account_key)
+        ip_limiter.record_failure(ip)
+        raise api_error(400, "wrong_password")
+    account_limiter.reset(account_key)
+    if len(data.new_password) < MIN_PASSWORD_LENGTH:
+        raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
+    user.password_hash = hash_password(data.new_password)
+    # a link to choose a password, sent before, must not undo this one
+    db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
+    db.commit()
+    return {"status": "password_changed"}
 
 
 # who is signed in and where they work; the role in each laboratory is read now, not taken from the token

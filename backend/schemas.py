@@ -170,6 +170,18 @@ class SignupRequest(BaseModel):
 class ConfirmRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=100)
 
+class ForgotPasswordRequest(BaseModel):
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=254)]
+
+# the code from the link in the e-mail and the new password; the minimum length is checked by the route
+class ResetPasswordRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., max_length=128)
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(..., max_length=128)
+    new_password: str = Field(..., max_length=128)
+
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
     year: Optional[int] = None

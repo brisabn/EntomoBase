@@ -56,7 +56,7 @@
               <p v-else class="sug-empty">{{ t('search.nothing', { q: searchTerm.trim() }) }}</p>
             </div>
           </div>
-          <span v-if="labAccess" class="user">{{ userEmail }}</span>
+          <a v-if="labAccess" class="user" :href="link('account', { lab: null })" :title="t('account.title')"><span class="user-email">{{ userEmail }}</span><span class="user-short">{{ t('account.title') }}</span></a>
           <button class="btn-light lang-switch" type="button" :aria-label="t('lang.toggle_aria')" @click="switchLanguage">{{ t('lang.toggle') }}</button>
           <button class="btn-dark" type="button" @click="labAccess ? logout() : openLogin()">{{ labAccess ? t('auth.logout') : t('auth.login') }}</button>
         </div>
@@ -304,6 +304,63 @@
                 </li>
               </ul>
             </template>
+          </template>
+        </div>
+
+        <!-- NEW PASSWORD (the link of the "forgot my password" e-mail opens this page) -->
+        <div class="sheet" v-else-if="route.name === 'reset'">
+          <h1 class="page-title">{{ t('reset.title') }}</h1>
+          <div class="confirm-box" aria-live="polite">
+            <p v-if="!resetState">{{ t('reset.no_code') }}</p>
+            <template v-else-if="resetState.status === 'done'">
+              <p role="status">{{ t('reset.done', { email: resetState.email }) }}</p>
+              <p v-if="!labAccess"><button type="button" class="btn-dark" @click="openLogin(resetState.email)">{{ t('auth.login') }}</button></p>
+            </template>
+            <form v-else class="invite-form" @submit.prevent="resetPassword">
+              <label class="field">
+                <span>{{ t('reset.password') }}</span>
+                <input v-autofocus v-model="resetForm.password" type="password" required :minlength="minPasswordLength" maxlength="128" autocomplete="new-password" aria-describedby="reset-password-hint">
+                <small id="reset-password-hint" class="field-hint">{{ t('signup.password_hint', { minimum: minPasswordLength }) }}</small>
+              </label>
+              <p v-if="resetState.error" class="form-error" role="alert">{{ resetState.error }}</p>
+              <p v-if="resetState.error" class="auth-forgot"><button type="button" class="link-btn" @click="openForgot">{{ t('reset.ask_again') }}</button></p>
+              <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('reset.submitting') : t('reset.submit') }}</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- MY ACCOUNT -->
+        <div class="sheet" v-else-if="route.name === 'account'">
+          <h1 class="page-title">{{ t('account.title') }}</h1>
+          <p v-if="!labAccess" class="subtitle">{{ t('account.login_needed') }}</p>
+          <template v-else>
+            <dl class="account-facts">
+              <dt>{{ t('login.email') }}</dt><dd>{{ userEmail }}</dd>
+              <template v-if="me && me.name"><dt>{{ t('signup.name') }}</dt><dd>{{ me.name }}</dd></template>
+            </dl>
+
+            <h2 class="members-heading">{{ t('account.labs') }}</h2>
+            <p v-if="me && !me.laboratories.length" class="subtitle">{{ t('account.no_labs') }}</p>
+            <ul v-else-if="me" class="member-list">
+              <li v-for="l in me.laboratories" :key="l.slug" class="member-row">
+                <div class="member-who">
+                  <a class="member-email" :href="link('about', { lab: l.slug })">{{ l.name }}</a>
+                  <span class="member-fullname">{{ t(`role.${l.role}`) }}</span>
+                </div>
+              </li>
+            </ul>
+
+            <h2 class="members-heading">{{ t('account.password_title') }}</h2>
+            <form class="invite-form" @submit.prevent="changePassword">
+              <label class="field"><span>{{ t('account.current') }}</span><input v-model="passwordForm.current" type="password" required maxlength="128" autocomplete="current-password"></label>
+              <label class="field">
+                <span>{{ t('reset.password') }}</span>
+                <input v-model="passwordForm.next" type="password" required :minlength="minPasswordLength" maxlength="128" autocomplete="new-password" aria-describedby="account-password-hint">
+                <small id="account-password-hint" class="field-hint">{{ t('signup.password_hint', { minimum: minPasswordLength }) }}</small>
+              </label>
+              <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
+              <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('account.saving') : t('account.save') }}</button>
+            </form>
           </template>
         </div>
 
@@ -837,6 +894,7 @@
           <form @submit.prevent="login">
             <label class="field"><span>{{ t('login.email') }}</span><input v-autofocus v-model="credentials.email" type="email" required autocomplete="username"></label>
             <label class="field"><span>{{ t('login.password') }}</span><input v-model="credentials.password" type="password" required autocomplete="current-password"></label>
+            <p class="auth-forgot"><button type="button" class="link-btn" @click="switchAuthMode('forgot')">{{ t('login.forgot') }}</button></p>
             <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
             <div class="modal-actions">
               <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
@@ -863,6 +921,28 @@
             </div>
           </form>
           <p class="auth-switch">{{ t('signup.have_account') }} <button type="button" class="link-btn" @click="switchAuthMode('login')">{{ t('signup.to_login') }}</button></p>
+        </template>
+
+        <template v-else-if="authMode === 'forgot'">
+          <h2 id="t-login" class="modal-title">{{ t('forgot.title') }}</h2>
+          <p class="modal-text">{{ t('forgot.text') }}</p>
+          <form @submit.prevent="sendForgot">
+            <label class="field"><span>{{ t('login.email') }}</span><input v-autofocus v-model="credentials.email" type="email" required maxlength="254" autocomplete="username"></label>
+            <p v-if="loginError" class="form-error" role="alert">{{ loginError }}</p>
+            <div class="modal-actions">
+              <button type="button" class="btn-light" @click="showLogin = false">{{ t('common.cancel') }}</button>
+              <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('forgot.submitting') : t('forgot.submit') }}</button>
+            </div>
+          </form>
+          <p class="auth-switch"><button type="button" class="link-btn" @click="switchAuthMode('login')">{{ t('forgot.back') }}</button></p>
+        </template>
+
+        <template v-else-if="authMode === 'forgot_sent'">
+          <h2 id="t-login" class="modal-title">{{ t('signup.sent_title') }}</h2>
+          <p class="modal-text" role="status">{{ t('forgot.sent_text', { email: forgotSentTo }) }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn-dark" @click="showLogin = false">{{ t('common.close') }}</button>
+          </div>
         </template>
 
         <template v-else>

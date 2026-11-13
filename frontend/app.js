@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado', invite: 'convite' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared', invite: 'invite' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado', invite: 'convite', reset: 'nova-senha', account: 'conta' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared', invite: 'invite', reset: 'new-password', account: 'account' }
 };
 // the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
 const LAB_WORD = 'lab';
@@ -212,8 +212,16 @@ const app = createApp({
       showLogin: false,
       loginError: null,
       credentials: { email: '', password: '' },
-      // the sign-in window has three steps: 'login', 'signup' and 'sent' (after signing up)
+      // the sign-in window has these steps: 'login', 'signup', 'sent' (after signing up), 'forgot' (asking for
+      // a link to choose a new password) and 'forgot_sent'
       authMode: 'login',
+      forgotSentTo: null,
+      // the page of the link to choose a new password: { code, status: ready | done, error, email }
+      resetState: null,
+      resetForm: { password: '' },
+      // the account page: changing one's own password
+      passwordForm: { current: '', next: '' },
+      passwordError: null,
       signupForm: { name: '', email: '', password: '' },
       signupSentTo: null,
       // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
@@ -298,11 +306,12 @@ const app = createApp({
     barLab() {
       if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
       if (this.route.name === 'invite') return this.invite && this.invite.data ? this.invite.data.laboratory : null;
-      if (this.route.name === 'home') return null;
+      // the pages of the whole platform name no laboratory
+      if (['home', 'account', 'reset'].includes(this.route.name)) return null;
       return this.labInfo;
     },
     // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
-    inLab() { return !['home', 'labs', 'shared', 'invite'].includes(this.route.name); },
+    inLab() { return !['home', 'labs', 'shared', 'invite', 'reset', 'account'].includes(this.route.name); },
     // whether the signed-in account is the one the invitation was sent to
     inviteIsForMe() {
       return !!this.userEmail && !!this.invite && !!this.invite.data && this.invite.data.email === this.userEmail.toLowerCase();
@@ -343,7 +352,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title', invite: 'invite.title' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title', invite: 'invite.title', reset: 'reset.title', account: 'account.title' };
       if (this.route.name === 'home') return `EntomoBase · ${this.t('home.title')}`;
       if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
@@ -826,6 +835,8 @@ const app = createApp({
       else if (page === 'labs') route = { name: 'labs' };
       else if (page === 'shared') route = { name: 'shared' };
       else if (page === 'invite') route = { name: 'invite' };
+      else if (page === 'reset') route = { name: 'reset' };
+      else if (page === 'account') route = { name: 'account' };
       // #/ alone is the home page; #/lab/<slug> alone and unknown words keep showing a laboratory
       else if (!parts.length && !slug) route = { name: 'home' };
       else route = { name: 'about' };
@@ -847,6 +858,15 @@ const app = createApp({
         this.openInvitation(b);
         history.replaceState(null, '', this.link('invite', { lab: null }, lang));
       }
+      if (route.name === 'reset' && b) {
+        // the code is sent only with the new password; until then it stays in memory, out of the address
+        if (!this.resetState || this.resetState.code !== b) {
+          this.resetState = { code: b, status: 'ready', error: null, email: null };
+          this.resetForm = { password: '' };
+        }
+        history.replaceState(null, '', this.link('reset', { lab: null }, lang));
+      }
+      if (route.name === 'account') { this.passwordError = null; this.loadMe(); }
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
       this.route = route;
@@ -1056,6 +1076,46 @@ const app = createApp({
     },
     switchAuthMode(mode) { this.loginError = null; this.authMode = mode; },
     openSignup() { this.openLogin(); this.authMode = 'signup'; },
+    openForgot() { this.openLogin(); this.authMode = 'forgot'; },
+    // the answer is the same whether or not the address has an account: an e-mail goes out either way
+    async sendForgot() {
+      this.loginError = null;
+      this.submitting = true;
+      try {
+        const email = this.credentials.email.trim();
+        await this.api('/forgot-password', { method: 'POST', body: { email } });
+        this.forgotSentTo = email;
+        this.authMode = 'forgot_sent';
+      } catch (e) {
+        this.loginError = e.message;
+      }
+      this.submitting = false;
+    },
+    async resetPassword() {
+      const state = this.resetState;
+      this.resetState = { ...state, error: null };
+      this.submitting = true;
+      try {
+        const d = await this.api('/reset-password', { method: 'POST', body: { code: state.code, password: this.resetForm.password } });
+        this.resetForm = { password: '' };
+        this.resetState = { ...state, status: 'done', error: null, email: d.email };
+      } catch (e) {
+        this.resetState = { ...state, error: e.message };
+      }
+      this.submitting = false;
+    },
+    async changePassword() {
+      this.passwordError = null;
+      this.submitting = true;
+      try {
+        await this.api('/me/password', { method: 'PUT', body: { current_password: this.passwordForm.current, new_password: this.passwordForm.next } });
+        this.passwordForm = { current: '', next: '' };
+        this.notify(this.t('notify.password_changed'));
+      } catch (e) {
+        this.passwordError = e.message;
+      }
+      this.submitting = false;
+    },
     // the answer is the same whether or not the address already has an account, so the site cannot say which
     async signup() {
       this.loginError = null;
