@@ -212,6 +212,22 @@ class LaboratorySummary(LaboratoryPublic):
     cover: Optional[LaboratoryCover] = None
 
 
+# a public specimen on the map of the home page, with the laboratory it belongs to
+class MapPoint(BaseModel):
+    id: int
+    catalog_number: str
+    species: str
+    insect_order: str
+    locality: Optional[str] = None
+    latitude: float
+    longitude: float
+    photo_url: Optional[str] = None
+    image_file: Optional[str] = None
+    dataset_url: Optional[str] = None
+    laboratory: str
+    laboratory_name: str
+
+
 # the numbers of the whole platform, for the home page
 class PlatformTotals(BaseModel):
     laboratories: int

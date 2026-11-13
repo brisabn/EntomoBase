@@ -19,6 +19,7 @@ from typing import List, Optional
 
 import gbif
 import models
+import platform_map
 import public_numbers
 import schemas
 from database import get_db
@@ -242,6 +243,11 @@ def list_laboratories(db: Session = Depends(get_db)):
 @app.get("/overview", response_model=schemas.PlatformTotals)
 def platform_overview(db: Session = Depends(get_db)):
     return public_numbers.platform_totals(db)
+
+
+@app.get("/map", response_model=List[schemas.MapPoint])
+def platform_map_points(db: Session = Depends(get_db)):
+    return platform_map.map_points(db)
 
 
 # what anyone may know about the laboratory of the address, listed or not: whoever has the address can
