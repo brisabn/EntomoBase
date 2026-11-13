@@ -603,6 +603,13 @@ input[type="file"]::file-selector-button { height: 2rem; border: 1.5px solid var
 .home-mine { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .home-mine li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
 .lab-numbers { margin-top: 0.7rem; font-size: 0.95rem; }
+.home-map-subtitle { font-size: 1.05rem; margin: -0.3rem 0 1rem; }
+.home-map .map { height: 440px; }
+@media (max-width: 600px) { .home-map .map { height: 340px; } }
+.pop-sub { font-weight: 600; }
+/* the laboratory colours are light, so on the home map the dots get a dark ring to stand out from the map */
+.home-map .dot { width: 18px; height: 18px; border: 3px solid var(--ink); }
+.home-map .legend-dot { border-color: var(--ink); }
 /* how it works: numbered steps */
 .home-steps { list-style: none; padding: 0; margin: 0; counter-reset: step; display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: 1rem; }

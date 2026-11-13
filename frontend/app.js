@@ -230,6 +230,10 @@ const app = createApp({
       labsError: null,
       // the numbers of the whole platform on the home page; null while loading or when the API fails
       overview: null,
+      // the public collection points of all listed laboratories, for the map of the home page
+      homePoints: [],
+      // a specimen chosen on the map of the home page, opened once its laboratory has loaded
+      pendingSpecimen: null,
       // a project opened by its share link: { token, status: loading | ok | failed, project, specimens, message }
       shared: null,
       // GET /me: the signed-in person and their laboratories, with the role in each
@@ -294,6 +298,19 @@ const app = createApp({
     },
     // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
     inLab() { return !['home', 'labs', 'shared'].includes(this.route.name); },
+    // the points of the home map, coloured like the card of their laboratory
+    homeMapPoints() {
+      const action = this.t('home.map_open');
+      return this.homePoints.map((p) => ({
+        id: p.id, lat: p.latitude, lng: p.longitude, color: this.labColor(p.laboratory), species: p.species,
+        code: p.catalog_number, locality: p.locality || '', thumb: this.platformImageUrl(p, p.laboratory, 240),
+        sub: p.laboratory_name, action
+      }));
+    },
+    homeMapLegend() {
+      const names = new Map(this.homePoints.map((p) => [p.laboratory, p.laboratory_name]));
+      return [...names].map(([slug, name]) => ({ slug, name, color: this.labColor(slug) })).sort((a, b) => cmp(a.name, b.name));
+    },
     sharedSpeciesCount() { return this.shared && this.shared.specimens ? this.countSpecies(this.shared.specimens) : 0; },
     // the laboratories the signed-in person manages; the API checks this again on every request
     adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
@@ -804,7 +821,7 @@ const app = createApp({
       else route = { name: 'about' };
       if (route.name === 'members') this.loadMembers();
       if (route.name === 'labs' || route.name === 'home') this.loadLabs();
-      if (route.name === 'home') this.loadOverview();
+      if (route.name === 'home') { this.loadOverview(); this.loadHomePoints(); }
       if (route.name === 'shared') {
         let token = b || '';
         try { token = decodeURIComponent(token); } catch { /* keep it as typed */ }
@@ -924,18 +941,34 @@ const app = createApp({
     async loadOverview() {
       try { this.overview = await this.api('/overview'); } catch { this.overview = null; }
     },
-    // the picture of a laboratory's card, built like any specimen's (see imageUrl), or null
-    labCoverUrl(l, width = 600) {
-      const c = l.cover;
+    // the picture of a specimen of any laboratory, from the fields the platform routes send (cover and
+    // map points), built like imageUrl does inside a laboratory; null when there is none
+    platformImageUrl(c, slug, width = 600) {
       if (!c) return null;
       if (isUrl(c.photo_url)) return c.photo_url.trim();
       const id = Zenodo.recordId(c.dataset_url);
       if (!c.image_file || !id) return null;
-      if (Zenodo.isDemo(id)) return `${this.apiUrl}/labs/${encodeURIComponent(l.slug)}/demo/image/${encodeURIComponent(c.image_file)}`;
+      if (Zenodo.isDemo(id)) return `${this.apiUrl}/labs/${encodeURIComponent(slug)}/demo/image/${encodeURIComponent(c.image_file)}`;
       return Zenodo.thumbnail(id, c.image_file, width);
     },
-    labCoverStyle(l, i) {
-      const style = { backgroundColor: this.coverColor({ id: i + 1 }) };
+    // each laboratory keeps its colour from its place in the list, on its card and on the map
+    labColor(slug) {
+      const i = this.labs.findIndex((l) => l.slug === slug);
+      return i < 0 ? '#555' : this.coverColor({ id: i + 1 });
+    },
+    labCoverUrl(l, width = 600) { return this.platformImageUrl(l.cover, l.slug, width); },
+    async loadHomePoints() {
+      try { this.homePoints = await this.api('/map'); } catch { this.homePoints = []; }
+    },
+    // a point of the home map opens its laboratory's map with the specimen's panel
+    openFromHomeMap(id) {
+      const point = this.homePoints.find((p) => p.id === id);
+      if (!point) return;
+      this.pendingSpecimen = id;
+      location.hash = this.link('collection', { view: 'map', lab: point.laboratory });
+    },
+    labCoverStyle(l) {
+      const style = { backgroundColor: this.labColor(l.slug) };
       const url = this.labCoverUrl(l);
       if (url) {
         style.backgroundImage = `url("${url.replace(/"/g, '%22')}")`;
@@ -985,6 +1018,12 @@ const app = createApp({
         this.labInfo = info;
         this.projects = projects;
         this.specimens = specimens;
+        if (this.pendingSpecimen) {
+          const id = this.pendingSpecimen;
+          this.pendingSpecimen = null;
+          this.mapFocus = id;
+          this.$nextTick(() => this.openPanelById(id));
+        }
       } catch (e) {
         if (slug !== this.labSlug) return;
         this.apiError = e.message;
@@ -1757,12 +1796,20 @@ app.component('collection-map', {
       const line = document.createElement('span');
       line.className = 'pop-line';
       line.textContent = p.code + (p.locality ? ' · ' + p.locality : '');
+      node.append(name, line);
+      // the map of the home page also names the laboratory and opens the specimen there
+      if (p.sub) {
+        const sub = document.createElement('span');
+        sub.className = 'pop-line pop-sub';
+        sub.textContent = p.sub;
+        node.appendChild(sub);
+      }
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'pop-button';
-      button.textContent = this.$root.t('map.details');
+      button.textContent = p.action || this.$root.t('map.details');
       button.addEventListener('click', () => this.$emit('open', p.id));
-      node.append(name, line, button);
+      node.appendChild(button);
       return node;
     },
     draw(fit) {

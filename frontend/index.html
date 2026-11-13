@@ -168,8 +168,8 @@
           </div>
           <p v-else-if="labsLoading && !labs.length" class="empty-state">{{ t('labs.loading') }}</p>
           <div v-else-if="labs.length" class="grid">
-            <a v-for="(l, i) in labs" :key="l.slug" class="card" :href="link('projects', { lab: l.slug })">
-              <div class="card-cover" :style="labCoverStyle(l, i)">
+            <a v-for="l in labs" :key="l.slug" class="card" :href="link('projects', { lab: l.slug })">
+              <div class="card-cover" :style="labCoverStyle(l)">
                 <span class="status">{{ l.collection_code }}</span>
               </div>
               <div class="card-body">
@@ -181,6 +181,18 @@
           </div>
           <p v-else class="empty-state">{{ t('labs.empty') }}</p>
           <template v-if="route.name === 'home'">
+            <!-- left out until there is at least one public point -->
+            <template v-if="homePoints.length">
+              <h2 class="members-heading">{{ t('home.map_title') }}</h2>
+              <p class="subtitle home-map-subtitle">{{ t('home.map_subtitle') }}</p>
+              <div class="map-area home-map">
+                <collection-map :points="homeMapPoints" :focus="null" @open="openFromHomeMap"></collection-map>
+                <div class="map-footer">
+                  <ul class="legend"><li v-for="l in homeMapLegend" :key="l.slug"><span class="legend-dot" :style="{ background: l.color }"></span>{{ l.name }}</li></ul>
+                  <span class="muted small">{{ count('point', homePoints.length) }}</span>
+                </div>
+              </div>
+            </template>
             <h2 class="members-heading">{{ t('home.how_title') }}</h2>
             <ol class="home-steps">
               <li v-for="k in ['account', 'join', 'record', 'publish']" :key="k">
