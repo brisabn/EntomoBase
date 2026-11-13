@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi import APIRouter, FastAPI, Depends, Query, Request
+from fastapi import APIRouter, FastAPI, Depends, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
@@ -26,9 +26,11 @@ from database import get_db
 from db_setup import initialize_database
 from authorization import (
     Context, get_context, get_visible_project, get_visible_specimen, public_specimens, require_admin,
-    require_member, require_superadmin, required_user, set_visibility, visible_projects, visible_specimens,
+    require_member, require_superadmin, required_user, set_visibility, unauthenticated, user_from_token,
+    visible_projects, visible_specimens,
 )
 from errors import api_error
+from invitations import issue_invitation, send_invitation, usable_invitation
 from laboratories import DEFAULT_LABORATORY
 from demo_images import render_svg
 from email_confirmation import hash_code, issue_code, send_already_registered, send_confirmation, utc_now
@@ -138,10 +140,15 @@ def login(credentials: schemas.UserLogin, request: Request, db: Session = Depend
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(credentials.password)
         db.commit()
+    return {"access_token": new_session_token(user), "email": user.email}
 
-    exp = datetime.now(timezone.utc) + timedelta(hours=8)
-    token = jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "email": user.email}
+
+SESSION_HOURS = 8
+
+
+def new_session_token(user: models.User) -> str:
+    exp = datetime.now(timezone.utc) + timedelta(hours=SESSION_HOURS)
+    return jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
 
 
 # open sign-up, which sends an e-mail to whatever address is typed, so it is limited per IP: every request
@@ -215,13 +222,93 @@ def me(user: models.User = Depends(required_user), db: Session = Depends(get_db)
     return schemas.Me(email=user.email, name=user.name, is_superadmin=user.is_superadmin, laboratories=laboratories)
 
 
-# the account with this e-mail, which must be confirmed: an unconfirmed one may still change hands (see
-# /signup), so it is never given a role. An unconfirmed account is reported as missing, like one that is
+def user_with_email(db: Session, email: str) -> Optional[models.User]:
+    return db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
+
+
+# the account with this e-mail, if its address was confirmed: an unconfirmed one may still change hands
+# (see /signup), so it never counts as an account
+def confirmed_account(db: Session, email: str) -> Optional[models.User]:
+    user = user_with_email(db, email)
+    return user if user is not None and user.email_verified_at is not None else None
+
+
+# the same, for a route that needs one; an unconfirmed account is reported as missing, like one that is
 def confirmed_user(db: Session, email: str) -> models.User:
-    user = db.query(models.User).filter(func.lower(models.User.email) == email.strip().lower()).first()
-    if user is None or user.email_verified_at is None:
+    user = confirmed_account(db, email)
+    if user is None:
         raise api_error(404, "user_not_found")
     return user
+
+
+# --- Invitations: the link in the e-mail ---
+def invitation_or_404(db: Session, code: str) -> models.Invitation:
+    invitation = usable_invitation(db, code)
+    if invitation is None:
+        raise api_error(404, "invitation_not_found")
+    return invitation
+
+
+# what the page of the link shows. Whoever has the code got it in that mailbox, so telling them whether the
+# address has an account reveals nothing they could not find out by signing up
+@app.get("/invitations/{code}", response_model=schemas.InvitationPublic)
+def show_invitation(code: str, db: Session = Depends(get_db)):
+    invitation = invitation_or_404(db, code)
+    return schemas.InvitationPublic(
+        laboratory=schemas.InvitationLaboratory(slug=invitation.laboratory.slug, name=invitation.laboratory.name),
+        email=invitation.email, role=invitation.role, has_account=confirmed_account(db, invitation.email) is not None,
+    )
+
+
+# someone with an account accepts while signed in as that account: the link alone does not put an account
+# into a laboratory. Someone without one creates it here, already confirmed (the link reached their mailbox),
+# and is signed in at once. An account whose address was never confirmed is taken over, like in /signup
+@app.post("/invitations/{code}/accept")
+def accept_invitation(code: str, data: Optional[schemas.InvitationAccept] = None, authorization: str = Header(None),
+                      db: Session = Depends(get_db)):
+    invitation = invitation_or_404(db, code)
+    user = user_with_email(db, invitation.email)
+    creates_account = user is None or user.email_verified_at is None
+    token = None
+    if not creates_account:
+        current = user_from_token(authorization, db)
+        if current is None:
+            raise unauthenticated(authorization)
+        if current.id != user.id:
+            raise api_error(403, "wrong_account")
+    else:
+        name, password = (data.name, data.password) if data else (None, None)
+        if not name:
+            raise api_error(400, "name_required")
+        if len(password or "") < MIN_PASSWORD_LENGTH:
+            raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
+        password_hash = hash_password(password)
+
+    laboratory = invitation.laboratory
+    try:
+        if creates_account:
+            if user is None:
+                user = models.User(email=invitation.email)
+                db.add(user)
+            user.password_hash, user.name, user.email_verified_at = password_hash, name, utc_now()
+            db.flush()
+            # a confirmation link sent before, for the account being taken over, must not work any more
+            db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
+            token = new_session_token(user)
+        membership = db.query(models.Membership).filter_by(user_id=user.id, laboratory_id=invitation.laboratory_id).first()
+        if membership is None:
+            membership = models.Membership(user_id=user.id, laboratory_id=invitation.laboratory_id, role=invitation.role)
+            db.add(membership)
+        db.delete(invitation)
+        db.commit()
+    except IntegrityError:
+        # the same link used twice at the same moment, both creating the account: the other request won
+        db.rollback()
+        raise api_error(404, "invitation_not_found")
+    return {
+        "laboratory": {"slug": laboratory.slug, "name": laboratory.name}, "role": membership.role,
+        "email": user.email, "access_token": token,
+    }
 
 
 # --- Laboratories ---
@@ -339,6 +426,59 @@ def remove_member(member_id: int, db: Session = Depends(get_db), ctx: Context = 
     if membership.role == "admin" and other_admins(db, membership) == 0:
         raise api_error(400, "last_admin")
     db.delete(membership)
+    db.commit()
+    return None
+
+
+# --- Invitations: what the admins do ---
+# every e-mail sent counts, so an admin account cannot be used to send e-mail to anyone in bulk
+INVITATION_WINDOW_SECONDS = 60 * 60
+invitation_limiter = AttemptLimiter(max_attempts=20, window_seconds=INVITATION_WINDOW_SECONDS)
+
+
+@members_router.get("/invitations", response_model=List[schemas.InvitationResponse])
+def list_invitations(db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    return db.query(models.Invitation).filter(models.Invitation.laboratory_id == ctx.laboratory.id).order_by(models.Invitation.email).all()
+
+
+# invites anyone by e-mail, whether or not the address has an account, and the answer is the same either way:
+# a list of who is registered must not be one invitation away. The only refusal is for someone already in
+# this laboratory, whom the admin already sees in the list of members. Inviting again sends a new link and
+# ends the old one
+@members_router.post("/invitations", response_model=schemas.InvitationResponse, status_code=201)
+def invite(data: schemas.InvitationCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    email = data.email.lower()
+    if not valid_address(email):
+        raise api_error(400, "invalid_email")
+    user = user_with_email(db, email)
+    if user is not None and db.query(models.Membership).filter_by(user_id=user.id, laboratory_id=ctx.laboratory.id).first():
+        raise api_error(400, "already_member")
+    ensure_login_allowed((invitation_limiter, ctx.user.id))
+    try:
+        invitation, code = issue_invitation(db, ctx.laboratory, email, data.role, ctx.user)
+    except IntegrityError:
+        # another invitation for the same address was created at the same moment: this one replaces it
+        db.rollback()
+        invitation, code = issue_invitation(db, ctx.laboratory, email, data.role, ctx.user)
+    try:
+        send_invitation(invitation, code)
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    invitation_limiter.record_failure(ctx.user.id)
+    db.commit()
+    db.refresh(invitation)
+    return invitation
+
+
+@members_router.delete("/invitations/{invitation_id}", status_code=204)
+def cancel_invitation(invitation_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    invitation = db.query(models.Invitation).filter(
+        models.Invitation.id == invitation_id, models.Invitation.laboratory_id == ctx.laboratory.id
+    ).first()
+    if invitation is None:
+        raise api_error(404, "invitation_not_found")
+    db.delete(invitation)
     db.commit()
     return None
 

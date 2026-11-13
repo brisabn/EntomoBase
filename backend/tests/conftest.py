@@ -52,6 +52,7 @@ def clean_state():
     main.account_limiter._failures.clear()
     main.ip_limiter._failures.clear()
     main.signup_limiter._failures.clear()
+    main.invitation_limiter._failures.clear()
     yield
 
 

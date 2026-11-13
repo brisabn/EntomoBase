@@ -7,17 +7,21 @@
 import io
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
+import mailer
 import models
 from conftest import SessionLocal, make_token
+from email_confirmation import hash_code
 from laboratories import default_laboratory
 
 FIRST = "ufmg"
 OTHER = "lab-b"
 NOWHERE = 999_999
+# the code of the invitation to the first laboratory, sent to an address with no account
+INVITE_CODE = "invite-code-of-a-0123456789"
 
 # the people who may knock on the door of the first laboratory
 PEOPLE = ["visitor", "no_lab", "admin_elsewhere", "superadmin", "researcher", "admin"]
@@ -86,10 +90,20 @@ def build_world() -> World:
         def membership(name, lab):
             return db.query(models.Membership).filter_by(user_id=people[name].id, laboratory_id=lab.id).one().id
 
+        def invitation(lab, email, by, code):
+            now = datetime.now()
+            row = models.Invitation(laboratory_id=lab.id, email=email, role="researcher", invited_by_id=people[by].id,
+                                    code_hash=hash_code(code), created_at=now, expires_at=now + timedelta(days=7))
+            db.add(row)
+            db.flush()
+            return row.id
+
         ids = {
             "a_public": a_public.id, "a_unlisted": a_unlisted.id, "a_private": a_private.id, "a_spec": a_spec.id,
             "b_public": b_public.id, "b_private": b_private.id, "b_spec": b_spec.id,
             "a_member": membership("researcher", first), "b_member": membership("researcher_b", other),
+            "a_invitation": invitation(first, "invited_a@lab.br", "admin", INVITE_CODE),
+            "b_invitation": invitation(other, "invited_b@lab.br", "admin_elsewhere", "invite-code-of-b-0123456789"),
         }
         db.commit()
         headers = {"visitor": {}}
@@ -102,6 +116,14 @@ def build_world() -> World:
 @pytest.fixture
 def world():
     return build_world()
+
+
+# inviting sends an e-mail; here it stays in memory
+@pytest.fixture(autouse=True)
+def mail_in_memory(monkeypatch):
+    monkeypatch.setenv("MAIL_BACKEND", "memory")
+    monkeypatch.setenv("SITE_URL", "https://entomobase.example")
+    mailer.outbox.clear()
 
 
 # ---------- the table ----------
@@ -157,6 +179,9 @@ CASES = [
     Case("POST", "/members", "admin", 201, lambda i: ("/members", {"email": "no_lab@lab.br", "role": "researcher"})),
     Case("PUT", "/members/{member_id}", "admin", 200, lambda i: (f"/members/{i['a_member']}", {"role": "admin"})),
     Case("DELETE", "/members/{member_id}", "admin", 204, lambda i: (f"/members/{i['a_member']}", None)),
+    Case("GET", "/invitations", "admin", 200, lambda i: ("/invitations", None)),
+    Case("POST", "/invitations", "admin", 201, lambda i: ("/invitations", {"email": "someone.new@lab.br", "role": "researcher"})),
+    Case("DELETE", "/invitations/{invitation_id}", "admin", 204, lambda i: (f"/invitations/{i['a_invitation']}", None)),
     # the platform
     Case("GET", "/labs", "public", 200, lambda i: ("/labs", None), in_lab=False),
     Case("GET", "/overview", "public", 200, lambda i: ("/overview", None), in_lab=False),
@@ -165,6 +190,11 @@ CASES = [
     Case("POST", "/labs", "superadmin", 201, lambda i: ("/labs", {"slug": "lab-new", "name": "N", "institution": "I", "collection_code": "N", "admin_email": "no_lab@lab.br"}), in_lab=False),
     Case("GET", "/shared/{token}", "public", 200, lambda i: ("/shared/token-of-a-0123456789", None), in_lab=False),
     Case("GET", "/shared/{token}/specimens", "public", 200, lambda i: ("/shared/token-of-a-0123456789/specimens", None), in_lab=False),
+    # the link of an invitation: whoever has the code (it went to that mailbox). This one is for an address with
+    # no account, so anyone holding it creates the account; with an account, test_invitations asks for a login
+    Case("GET", "/invitations/{code}", "public", 200, lambda i: (f"/invitations/{INVITE_CODE}", None), in_lab=False),
+    Case("POST", "/invitations/{code}/accept", "public", 200,
+         lambda i: (f"/invitations/{INVITE_CODE}/accept", {"name": "Invited", "password": "a-good-password"}), in_lab=False),
 ]
 
 # the routes anyone may call without an account by design; their own rules (wrong password, rate limits,
@@ -172,7 +202,7 @@ CASES = [
 OPEN_BY_DESIGN = {("POST", "/login"), ("POST", "/signup"), ("POST", "/confirm")}
 
 # the old addresses without a laboratory mean the first one; the members routes never had them
-MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}"}
+MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/invitations", "/invitations/{invitation_id}"}
 
 
 def addresses(case):
@@ -213,7 +243,7 @@ MATRIX = [(case, form, prefix, person) for case in CASES for form, prefix in add
 
 
 def case_id(case, form, person):
-    url, _ = case.request({k: 1 for k in ("a_public", "a_unlisted", "a_private", "a_spec", "a_member")})
+    url, _ = case.request({k: 1 for k in ("a_public", "a_unlisted", "a_private", "a_spec", "a_member", "a_invitation")})
     return f"{case.method} {url.replace('1', '<id>') if '{' in case.path else url} [{form}] {person}"
 
 
@@ -236,7 +266,7 @@ def test_the_routes_open_by_design_never_ask_for_an_account(client):
 READS = [c for c in CASES if c.method == "GET"]
 SECRETS_OF_A = ["UNLISTED-A", "PRIVATE-A", "A-UNL-1", "A-PRIV-1", "A-LOOSE-1", "COLLECTOR-SECRET", "DRAWER-SECRET"]
 # the e-mails of the people of the other laboratory too: a list of members must never show them here
-EVERYTHING_OF_B = ["PUBLIC-B-TITLE", "PRIVATE-B", "B-PUB-1", "B-PRIV-1", "researcher_b@", "admin_elsewhere@"]
+EVERYTHING_OF_B = ["PUBLIC-B-TITLE", "PRIVATE-B", "B-PUB-1", "B-PRIV-1", "researcher_b@", "admin_elsewhere@", "invited_b@"]
 # the platform routes show the public data of every listed laboratory; only hidden things must stay out
 SECRETS_OF_B = ["PRIVATE-B", "B-PRIV-1"]
 
@@ -278,7 +308,7 @@ def test_the_reads_do_return_data_so_the_check_above_means_something(client, wor
 
 # ---------- 4. an id of another laboratory is the same as an id that does not exist ----------
 # (route, the address with an id of the other laboratory, the same with an id that does not exist, body)
-def with_ids(i, project, specimen, member):
+def with_ids(i, project, specimen, member, invitation):
     return [
         ("PUT", f"/projects/{project}", {"title": "Hijacked"}),
         ("DELETE", f"/projects/{project}", None),
@@ -292,6 +322,7 @@ def with_ids(i, project, specimen, member):
         ("GET", f"/export/dwc?project_id={project}", None),
         ("PUT", f"/members/{member}", {"role": "admin"}),
         ("DELETE", f"/members/{member}", None),
+        ("DELETE", f"/invitations/{invitation}", None),
     ]
 
 
@@ -301,6 +332,7 @@ def snapshot(db):
         sorted((p.id, p.title, p.visibility, p.laboratory_id) for p in db.query(models.Project).all()),
         sorted((s.id, s.catalog_number, s.locality, s.project_id, s.laboratory_id) for s in db.query(models.Specimen).all()),
         sorted((m.id, m.role) for m in db.query(models.Membership).all()),
+        sorted((v.id, v.email, v.role, v.laboratory_id) for v in db.query(models.Invitation).all()),
     )
 
 
@@ -308,11 +340,11 @@ def snapshot(db):
 @pytest.mark.parametrize("target", ["b_public", "b_private"])
 def test_an_id_of_another_laboratory_gets_the_same_answer_as_one_that_does_not_exist(client, world, db, person, target):
     i = world.ids
-    foreign = with_ids(i, i[target], i["b_spec"], i["b_member"])
-    missing = with_ids(i, NOWHERE, NOWHERE, NOWHERE)
+    foreign = with_ids(i, i[target], i["b_spec"], i["b_member"], i["b_invitation"])
+    missing = with_ids(i, NOWHERE, NOWHERE, NOWHERE, NOWHERE)
     for (method, path, body), (_, nowhere_path, nowhere_body) in zip(foreign, missing):
         prefix = f"/labs/{FIRST}"
-        if person == "researcher" and path.startswith("/members"):
+        if person == "researcher" and path.startswith(("/members", "/invitations")):
             continue  # a researcher never reaches the members routes (see the table)
         before = snapshot(db)
         a = call(client, method, prefix + path, world.headers[person], body)
@@ -325,14 +357,15 @@ def test_an_id_of_another_laboratory_gets_the_same_answer_as_one_that_does_not_e
 def test_the_admin_of_another_laboratory_reaches_nothing_here_through_their_own(client, world, db):
     i = world.ids
     before = snapshot(db)
-    for method, path, body in with_ids(i, i["a_private"], i["a_spec"], i["a_member"]):
+    for method, path, body in with_ids(i, i["a_private"], i["a_spec"], i["a_member"], i["a_invitation"]):
         if path.startswith(f"/specimens/{i['a_spec']}") and body == {"project_id": i["a_private"]}:
             continue  # this line moves a specimen of the first laboratory, which is already covered above
         response = call(client, method, f"/labs/{OTHER}" + path, world.headers["admin_elsewhere"], body)
         assert response.status_code in (200, 400, 404), f"{method} {path}: {response.status_code}"
         for word in SECRETS_OF_A + ["PUBLIC-A", "A-PUB-1"]:
             assert word not in readable(response), f"{method} {path} let out {word}"
-    assert snapshot(db)[0] == before[0] and snapshot(db)[2] == before[2]
+    after = snapshot(db)
+    assert (after[0], after[2], after[3]) == (before[0], before[2], before[3])
     # the specimens of the first laboratory are untouched; the import may have created one in the other
     first_lab_specimens = [s for s in snapshot(db)[1] if s[4] == default_laboratory(db).id]
     assert first_lab_specimens == [s for s in before[1] if s[4] == default_laboratory(db).id]

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, StringConstraints
 from typing import Annotated, Literal, Optional, List
-from datetime import date
+from datetime import date, datetime
 
 class MeasurementBase(BaseModel):
     trait: str = Field(..., min_length=1)
@@ -286,6 +286,43 @@ class MemberCreate(BaseModel):
 
 class MemberUpdate(BaseModel):
     role: Literal["admin", "researcher"]
+
+
+class InvitationCreate(BaseModel):
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=254)]
+    role: Literal["admin", "researcher"] = "researcher"
+
+
+# a pending invitation, as the laboratory's admins see it; the code is never shown again after the e-mail
+class InvitationResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    created_at: datetime
+    expires_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InvitationLaboratory(BaseModel):
+    slug: str
+    name: str
+
+
+# what the page of the link shows to whoever opens it: where, as what, and whether to sign in or to create
+# an account. Only someone with the code (sent to that address) sees it
+class InvitationPublic(BaseModel):
+    laboratory: InvitationLaboratory
+    email: str
+    role: str
+    has_account: bool
+
+
+# a person without an account creates it while accepting; someone with one sends nothing and signs in instead
+class InvitationAccept(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+    password: Optional[str] = Field(None, max_length=128)
 
 
 class ValidateNamesRequest(BaseModel):

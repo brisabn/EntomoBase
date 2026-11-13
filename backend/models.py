@@ -152,6 +152,28 @@ class EmailConfirmation(Base):
     user = relationship("User", back_populates="email_confirmations")
 
 
+# an admin's invitation for someone to join a laboratory, sent by e-mail. Only the hash of the code is
+# stored, like the confirmation codes. A laboratory has at most one invitation per address: inviting again
+# replaces it. Accepting deletes it
+class Invitation(Base):
+    __tablename__ = "invitations"
+    __table_args__ = (UniqueConstraint("laboratory_id", "email", name="uq_invitations_laboratory_id_email"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=False, index=True)
+    # always lowercase; the account, if any, is found by this address when the invitation is accepted
+    email = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    # the admin who sent it; the invitation stops working if they are no longer an admin there
+    invited_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    code_hash = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+    laboratory = relationship("Laboratory")
+    invited_by = relationship("User")
+
+
 LAB_REQUEST_STATUSES = ("pending", "approved", "rejected")
 
 
