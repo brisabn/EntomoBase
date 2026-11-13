@@ -106,7 +106,7 @@ pytest               # roda os testes
 pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
 ```
 
-Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios e membros, o que visitantes veem, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, migração do banco antigo, CORS e a conferência de que todo texto do site tem tradução.
+Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios e membros, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
 
 ## Variáveis de ambiente
 
