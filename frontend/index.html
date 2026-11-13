@@ -64,21 +64,73 @@
       <!-- where the visitor is: the list of laboratories and the one being shown -->
       <nav class="lab-bar" :aria-label="t('labs.bar_aria')">
         <a class="lab-bar-all" :href="link('labs', { lab: null })" :aria-current="route.name === 'labs' ? 'page' : null">{{ t('labs.all') }}</a>
-        <template v-if="route.name !== 'labs' && labInfo">
+        <template v-if="route.name !== 'labs' && barLab">
           <span class="lab-bar-sep" aria-hidden="true">/</span>
-          <a class="lab-bar-current" :href="link('about')">{{ labInfo.name }}</a>
-          <span class="lab-bar-inst">{{ labInfo.institution }}</span>
+          <a class="lab-bar-current" :href="route.name === 'shared' ? link('about', { lab: barLab.slug }) : link('about')">{{ barLab.name }}</a>
+          <span class="lab-bar-inst">{{ barLab.institution }}</span>
         </template>
       </nav>
 
-      <nav v-if="route.name !== 'labs'" class="tabs" :aria-label="t('nav.aria')">
+      <nav v-if="route.name !== 'labs' && route.name !== 'shared'" class="tabs" :aria-label="t('nav.aria')">
         <a v-for="tab in tabs" :key="tab.id" :href="tab.href" :class="['tab', { current: activeTab === tab.id }]" :aria-current="activeTab === tab.id ? 'page' : null">{{ tab.label }}</a>
       </nav>
 
       <main class="folder">
 
+        <!-- A PROJECT OPENED BY ITS SHARE LINK (no sign-in; the API leaves the internal fields out) -->
+        <div class="sheet" v-if="route.name === 'shared'">
+          <p v-if="!shared || shared.status === 'loading'" class="empty-state">{{ t('project.loading') }}</p>
+          <div v-else-if="shared.status === 'failed'" class="empty-state">
+            <p>{{ shared.message }}</p>
+            <p>{{ t('shared.gone') }}</p>
+            <a class="link" :href="link('labs', { lab: null })">{{ t('labs.all') }}</a>
+          </div>
+          <template v-else>
+            <p class="shared-note" role="note">{{ t('shared.note', { lab: shared.project.laboratory.name }) }}</p>
+            <div class="detail-cover" :style="coverStyle(shared.project)">
+              <span class="status">{{ statusLabel(shared.project) }}</span>
+            </div>
+            <h1 class="page-title">{{ shared.project.title }}</h1>
+            <p class="subtitle">{{ shared.project.insect_group }} · {{ shared.project.year }}<template v-if="shared.project.locality"> · {{ shared.project.locality }}</template></p>
+            <p class="description" v-if="shared.project.description">{{ shared.project.description }}</p>
+            <dl class="facts">
+              <div class="fact"><dt>{{ t('fact.species') }}</dt><dd>{{ n(sharedSpeciesCount) }}</dd></div>
+              <div class="fact"><dt>{{ t('fact.specimens') }}</dt><dd>{{ n(shared.specimens.length) }}</dd></div>
+              <div class="fact" v-if="shared.project.linked_publication">
+                <dt>{{ t('fact.publication') }}</dt>
+                <dd>
+                  <a v-if="isUrl(shared.project.linked_publication)" class="link-ext" :href="shared.project.linked_publication" target="_blank" rel="noopener">{{ t('fact.open_publication') }} <icon name="external"></icon></a>
+                  <template v-else>{{ shared.project.linked_publication }}</template>
+                </dd>
+              </div>
+              <div class="fact" v-if="isUrl(shared.project.dataset_url)">
+                <dt>{{ t('fact.repository') }}</dt>
+                <dd><a class="link-ext" :href="shared.project.dataset_url" target="_blank" rel="noopener">Zenodo <icon name="external"></icon></a></dd>
+              </div>
+            </dl>
+            <h2 class="members-heading">{{ t('shared.specimens', { n: shared.specimens.length }) }}</h2>
+            <div v-if="shared.specimens.length" class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>{{ t('col.catalog') }}</th><th>{{ t('col.species') }}</th><th>{{ t('col.family') }}</th><th>{{ t('col.locality') }}</th><th>{{ t('col.date') }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="e in shared.specimens" :key="e.id">
+                    <td class="mono">{{ e.catalog_number }}</td>
+                    <td><em>{{ e.species }}</em></td>
+                    <td>{{ e.family || '—' }}</td>
+                    <td>{{ e.locality || '—' }}</td>
+                    <td>{{ formatDate(e.collection_date) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-else class="empty-state">{{ t('shared.no_specimens') }}</p>
+          </template>
+        </div>
+
         <!-- LABORATORIES (the public list) -->
-        <div class="sheet" v-if="route.name === 'labs'">
+        <div class="sheet" v-else-if="route.name === 'labs'">
           <h1 class="page-title">{{ t('labs.title') }}</h1>
           <p class="subtitle">{{ t('labs.subtitle') }}</p>
           <div v-if="labsError" class="error-banner" role="alert">
@@ -286,6 +338,7 @@
               <a v-for="p in filteredProjects" :key="p.id" class="card" :href="link('project', { id: p.id })">
                 <div class="card-cover" :style="{ background: coverColor(p) }">
                   <span class="status">{{ statusLabel(p) }}</span>
+                  <span v-if="isMember" :class="['status', 'vis-badge', 'vis-' + p.visibility]">{{ t(`badge.${p.visibility}`) }}</span>
                 </div>
                 <div class="card-body">
                   <h2 class="card-title">{{ p.title }}</h2>
@@ -312,6 +365,7 @@
             <template v-else-if="currentProject">
               <div class="detail-cover" :style="coverStyle(currentProject)">
                 <span class="status">{{ statusLabel(currentProject) }}</span>
+                <span v-if="isMember" :class="['status', 'vis-badge', 'vis-' + currentProject.visibility]">{{ t(`badge.${currentProject.visibility}`) }}</span>
               </div>
 
               <div class="detail-header">
@@ -322,6 +376,14 @@
                 <div class="actions" v-if="labAccess">
                   <button type="button" class="btn-light" @click="openProjectForm(currentProject)">{{ t('common.edit') }}</button>
                   <button type="button" class="btn-danger" @click="askDeleteProject(currentProject)">{{ t('common.delete') }}</button>
+                </div>
+              </div>
+
+              <div v-if="isMember && currentProject.visibility === 'unlisted' && currentProject.share_token" class="share-box">
+                <p><strong>{{ t('share.title') }}</strong> {{ t('share.text') }}</p>
+                <div class="share-row">
+                  <input type="text" readonly :value="shareUrl(currentProject)" :aria-label="t('share.title')" @focus="$event.target.select()">
+                  <button type="button" class="btn-dark" @click="copyShareLink(currentProject)">{{ t('share.copy') }}</button>
                 </div>
               </div>
 
@@ -709,9 +771,10 @@
             <span>{{ t('projectForm.visibility') }}</span>
             <select v-model="projectForm.visibility">
               <option value="private">{{ t('visibility.private') }}</option>
-              <option v-if="projectForm.visibility === 'unlisted'" value="unlisted">{{ t('visibility.unlisted') }}</option>
+              <option value="unlisted">{{ t('visibility.unlisted') }}</option>
               <option value="public">{{ t('visibility.public') }}</option>
             </select>
+            <small class="field-hint">{{ t(`visibility.hint_${projectForm.visibility}`) }}</small>
           </label>
           <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <div class="modal-actions">

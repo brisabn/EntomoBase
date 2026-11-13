@@ -140,6 +140,13 @@ const MESSAGES = {
     'labs.empty': 'Ainda não há laboratórios públicos.',
     'labs.bar_aria': 'Laboratório',
 
+    // a project opened by its share link
+    'shared.title': 'Projeto compartilhado',
+    'shared.note': (p) => `Projeto de ${p.lab}, compartilhado por link. Ele não é público: só quem recebeu o link pode vê-lo.`,
+    'shared.specimens': (p) => `Espécimes (${p.n})`,
+    'shared.no_specimens': 'Este projeto ainda não tem espécimes.',
+    'shared.gone': 'O link pode estar incompleto ou ter sido desativado pelo laboratório.',
+
     // laboratory members
     'members.title': 'Membros do laboratório',
     'members.login_needed': 'Entre para gerenciar os membros do seu laboratório.',
@@ -170,6 +177,12 @@ const MESSAGES = {
     'projectForm.cover': 'URL da imagem de capa', 'projectForm.finished': 'Projeto concluído (a pesquisa terminou)',
     'projectForm.visibility': 'Quem pode ver', 'visibility.private': 'Privado (só o laboratório)',
     'visibility.unlisted': 'Só com o link', 'visibility.public': 'Público',
+    'visibility.hint_private': 'Só os membros do laboratório veem.',
+    'visibility.hint_unlisted': 'Quem tiver o link vê, sem precisar entrar. O projeto não aparece nas listas, na busca nem nas exportações públicas. Mudar para outra opção desativa o link.',
+    'visibility.hint_public': 'Qualquer pessoa vê. O projeto aparece nas listas, na busca e nas exportações públicas.',
+    'badge.private': 'Privado', 'badge.unlisted': 'Só com link', 'badge.public': 'Público',
+    'share.title': 'Link de compartilhamento.', 'share.text': 'Quem tiver este link vê o projeto e os espécimes, sem os campos internos.',
+    'share.copy': 'Copiar link', 'notify.share_copied': 'Link copiado.',
 
     // specimen form
     'specimenForm.new': 'Novo espécime', 'specimenForm.edit': 'Editar espécime',
@@ -426,6 +439,12 @@ const MESSAGES = {
     'labs.empty': 'There are no public laboratories yet.',
     'labs.bar_aria': 'Laboratory',
 
+    'shared.title': 'Shared project',
+    'shared.note': (p) => `A project by ${p.lab}, shared by link. It is not public: only people who received the link can see it.`,
+    'shared.specimens': (p) => `Specimens (${p.n})`,
+    'shared.no_specimens': 'This project has no specimens yet.',
+    'shared.gone': 'The link may be incomplete or may have been turned off by the laboratory.',
+
     'members.title': 'Laboratory members',
     'members.login_needed': 'Sign in to manage the members of your laboratory.',
     'members.not_admin': 'Only the admins of a laboratory can see and manage its members.',
@@ -454,6 +473,12 @@ const MESSAGES = {
     'projectForm.cover': 'Cover image URL', 'projectForm.finished': 'Finished project (the research is done)',
     'projectForm.visibility': 'Who can see it', 'visibility.private': 'Private (only the laboratory)',
     'visibility.unlisted': 'Only with the link', 'visibility.public': 'Public',
+    'visibility.hint_private': 'Only the members of the laboratory can see it.',
+    'visibility.hint_unlisted': 'Anyone with the link can see it without signing in. The project stays out of the lists, the search and the public exports. Choosing another option turns the link off.',
+    'visibility.hint_public': 'Anyone can see it. The project shows in the lists, the search and the public exports.',
+    'badge.private': 'Private', 'badge.unlisted': 'Link only', 'badge.public': 'Public',
+    'share.title': 'Share link.', 'share.text': 'Anyone with this link sees the project and its specimens, without the internal fields.',
+    'share.copy': 'Copy link', 'notify.share_copied': 'Link copied.',
 
     'specimenForm.new': 'New specimen', 'specimenForm.edit': 'Edit specimen',
     'sf.catalog': 'Catalog number', 'sf.project': 'Project', 'sf.none': 'None',

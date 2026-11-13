@@ -48,6 +48,9 @@ def test_dynamic_text_keys_exist():
     expected |= {f"sort.{x}" for x in ("recent", "title", "species")}
     expected |= {f"filter.{x}" for x in ("year", "group", "status", "locality")}
     expected |= {f"warning.{x}" for x in ("fuzzy", "synonym", "genus_only", "not_found")}
+    # projects show who can see them: a badge and a hint for each visibility
+    expected |= {f"badge.{x}" for x in ("private", "unlisted", "public")}
+    expected |= {f"visibility.hint_{x}" for x in ("private", "unlisted", "public")}
     source = read("app.js")
     fields = re.search(r"const IMPORT_FIELDS = \[(.*?)\];", source, re.S).group(1)
     expected |= {f"importField.{f}" for f in re.findall(r"'(\w+)'", fields)}

@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared' }
 };
 // the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
 const LAB_WORD = 'lab';
@@ -228,6 +228,8 @@ const app = createApp({
       labs: [],
       labsLoading: false,
       labsError: null,
+      // a project opened by its share link: { token, status: loading | ok | failed, project, specimens, message }
+      shared: null,
       // GET /me: the signed-in person and their laboratories, with the role in each
       me: null,
       // the members page: which laboratory, its members and the form to add someone
@@ -274,6 +276,20 @@ const app = createApp({
       if (this.adminLabs.length) ids.push('members');
       return ids.map((id) => ({ id, label: this.t(`tab.${id}`), href: this.link(id) }));
     },
+    // the role of the signed-in person in the laboratory being shown (null when not a member); labInfo also
+    // names the first laboratory on the old addresses. Only for what the page shows: the API decides
+    currentRole() {
+      if (!this.me || !this.labInfo) return null;
+      const lab = this.me.laboratories.find((l) => l.slug === this.labInfo.slug);
+      return lab ? lab.role : null;
+    },
+    isMember() { return !!this.currentRole; },
+    // the laboratory named above the tabs: the one of the address, or the owner of a shared project
+    barLab() {
+      if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
+      return this.labInfo;
+    },
+    sharedSpeciesCount() { return this.shared && this.shared.specimens ? this.countSpecies(this.shared.specimens) : 0; },
     // the laboratories the signed-in person manages; the API checks this again on every request
     adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
     // the one chosen on the page, otherwise the laboratory in the address, otherwise the first one
@@ -296,7 +312,8 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title' };
+      if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
       }
@@ -690,6 +707,7 @@ const app = createApp({
       if (name === 'project') return `${prefix}${w.projects}/${id}${view && view !== 'table' ? '/' + w[view] : ''}`;
       if (name === 'collection') return `${prefix}${w.collection}${view && view !== 'tree' ? '/' + w[view] : ''}`;
       if (name === 'search') return `${prefix}${w.search}${q ? '/' + encodeURIComponent(q) : ''}`;
+      if (name === 'shared') return `${prefix}${w.shared}/${encodeURIComponent(id)}`;
       return prefix + w[name];
     },
     // the same page as the current one, in lang (used by the language switch and the table address)
@@ -703,6 +721,7 @@ const app = createApp({
       }
       if (r.name === 'collection') return this.link('collection', { view: r.view }, lang);
       if (r.name === 'search') return this.link('search', { q: this.searchTerm.trim() }, lang);
+      if (r.name === 'shared') return this.link('shared', { id: this.shared ? this.shared.token : '', lab: null }, lang);
       return this.link(r.name, {}, lang);
     },
     switchLanguage() {
@@ -771,9 +790,15 @@ const app = createApp({
       else if (page === 'confirm') route = { name: 'confirm' };
       else if (page === 'members') route = { name: 'members' };
       else if (page === 'labs') route = { name: 'labs' };
+      else if (page === 'shared') route = { name: 'shared' };
       else route = { name: 'about' };
       if (route.name === 'members') this.loadMembers();
       if (route.name === 'labs') this.loadLabs();
+      if (route.name === 'shared') {
+        let token = b || '';
+        try { token = decodeURIComponent(token); } catch { /* keep it as typed */ }
+        this.loadShared(token);
+      }
       if (route.name === 'confirm' && b) {
         // the code works only once: it is sent right away and taken out of the address bar and the history
         this.confirmEmail(b);
@@ -869,6 +894,20 @@ const app = createApp({
     // the API address of a laboratory's data: /labs/<slug>/projects, or the old /projects (the first laboratory)
     labPath(path) {
       return this.labSlug ? `/labs/${encodeURIComponent(this.labSlug)}${path}` : path;
+    },
+    // the same link opened again (a language switch, say) is not asked for twice
+    async loadShared(token) {
+      if (this.shared && this.shared.token === token && this.shared.status !== 'failed') return;
+      this.shared = { token, status: 'loading', project: null, specimens: [], message: null };
+      try {
+        const path = `/shared/${encodeURIComponent(token)}`;
+        const [project, specimens] = await Promise.all([this.api(path), this.api(path + '/specimens')]);
+        if (!this.shared || this.shared.token !== token) return;
+        this.shared = { token, status: 'ok', project, specimens, message: null };
+      } catch (e) {
+        if (!this.shared || this.shared.token !== token) return;
+        this.shared = { token, status: 'failed', project: null, specimens: [], message: e.message };
+      }
     },
     async loadLabs() {
       this.labsLoading = true;
@@ -1351,14 +1390,19 @@ const app = createApp({
     async changeRole(member, role) {
       if (role === member.role) return;
       this.memberError = null;
+      // shown at once, or the select would jump back to the old role while the request is on its way;
+      // a refused change is undone right after
+      const previous = member.role;
+      member.role = role;
       try {
         await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members/${member.id}`, { method: 'PUT', body: { role } });
         this.notify(this.t('notify.role_changed'));
         if (this.isMe(member)) await this.afterOwnChange();
       } catch (e) {
+        member.role = previous;
         this.memberError = e.message;
       }
-      // reloading also puts the select back when the change was refused (the last admin, for example)
+      // reloading also brings any change made by another admin in the meantime
       if (this.route.name === 'members') await this.loadMembers({ keepError: true });
     },
     askRemoveMember(member) {
@@ -1563,6 +1607,18 @@ const app = createApp({
       this.downloadFromApi(this.labPath('/export/dwc' + (projectId ? `?project_id=${projectId}` : '')), `${name}.zip`);
     },
     openInfo(which) { this.info = which; },
+    // the address of a project shared by link; it opens without signing in and outside any laboratory
+    shareUrl(p) {
+      return location.origin + location.pathname + this.link('shared', { id: p.share_token, lab: null });
+    },
+    async copyShareLink(p) {
+      try {
+        await navigator.clipboard.writeText(this.shareUrl(p));
+        this.notify(this.t('notify.share_copied'));
+      } catch {
+        this.notify(this.t('notify.copy_failed'));
+      }
+    },
     async copyCitation() {
       try {
         await navigator.clipboard.writeText(this.citationText);
