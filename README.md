@@ -110,6 +110,27 @@ pytest --cov         # roda os testes e mostra a cobertura de código (mínimo e
 
 Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios e membros, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
 
+### Testes de ponta a ponta (E2E)
+
+Ficam em `e2e/` e usam o Playwright: um navegador de verdade abre o site, que fala com uma API de verdade. Cada execução sobe a própria API e o próprio site em portas livres, com um banco temporário preenchido pelo `seed.py`, e nunca toca em `entomobase.db`.
+
+```powershell
+pip install -r e2e\requirements.txt
+playwright install chromium    # opcional: sem ele, os testes usam o Edge ou o Chrome instalado
+cd e2e
+pytest                         # os 4 testes, cerca de 1 minuto
+$env:E2E_HEADED = "1"; pytest  # o mesmo, com a janela do navegador à vista e mais devagar
+```
+
+| Teste | O que a pessoa faz |
+|---|---|
+| `test_visitor.py` | Sem conta, vai da página inicial a um laboratório, filtra os projetos e abre um espécime. Não vê projeto privado, projeto só com link, laboratório fora da lista nem campo interno, nem na tela nem no que o navegador recebe da API. |
+| `test_account.py` | Cria uma conta, tenta entrar antes de confirmar o e-mail (é recusada), abre o link do e-mail e entra. O link não funciona uma segunda vez. |
+| `test_member.py` | Um pesquisador cria um projeto e importa um CSV: com uma linha errada nada é importado; corrigido, entram os 2 espécimes. Compartilha o projeto por link, que abre sem login, e o projeto continua fora da lista pública. |
+| `test_language.py` | Troca para inglês: textos, endereço (`#/en/...`) e valores salvos em português (`macho` vira `male`) mudam, sem pedir os espécimes de novo à API. Um navegador em inglês já abre o site em inglês. |
+
+Os e-mails não são enviados: a API os mostra no próprio registro, de onde o teste lê o link de confirmação. O GBIF fica de fora de propósito (a importação só avisa que ele não respondeu). O site carrega o Vue, o Leaflet e as fontes da internet, então estes testes precisam de conexão.
+
 ## Variáveis de ambiente
 
 | Variável | Para que serve |
