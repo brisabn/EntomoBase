@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1194" width="1700" height="1194" font-family="Segoe UI, Arial, sans-serif">
-<rect width="1700" height="1194" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1306" width="1700" height="1306" font-family="Segoe UI, Arial, sans-serif">
+<rect width="1700" height="1306" fill="#ffffff"/>
 <text x="44" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
-<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0004) · 10 tabelas · SQLite ou PostgreSQL</text>
+<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0005) · 11 tabelas · SQLite ou PostgreSQL</text>
 <rect x="64" y="130" width="290" height="212" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M64 168 V138 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V168 Z" fill="#2a5f9e"/>
 <text x="78" y="155" font-size="16" fill="#ffffff" font-weight="700">laboratories</text>
@@ -246,6 +246,39 @@
 <text x="78" y="1020" font-size="13.5" fill="#1d2a24" font-weight="700">expires_at</text>
 <text x="266" y="1020" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
 <text x="64" y="1053" font-size="11.5" fill="#5a6660" font-style="italic">código do e-mail de confirmação (só o hash), vale 24 horas</text>
+<rect x="500" y="1010" width="290" height="236" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
+<path d="M500 1048 V1018 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V1048 Z" fill="#2a5f9e"/>
+<text x="514" y="1035" font-size="16" fill="#ffffff" font-weight="700">invitations</text>
+<text x="776" y="1035" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">8 colunas</text>
+<text x="514" y="1064" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
+<text x="702" y="1064" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1053" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="763" y="1064.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
+<rect x="502" y="1072" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="514" y="1088" font-size="13.5" fill="#1d2a24" font-weight="700">laboratory_id</text>
+<text x="702" y="1088" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1077" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="1088.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<text x="514" y="1112" font-size="13.5" fill="#1d2a24" font-weight="700">email</text>
+<text x="702" y="1112" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="1120" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="514" y="1136" font-size="13.5" fill="#1d2a24" font-weight="700">role</text>
+<text x="702" y="1136" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="1160" font-size="13.5" fill="#1d2a24" font-weight="700">invited_by_id</text>
+<text x="702" y="1160" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1149" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="1160.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<rect x="502" y="1168" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="514" y="1184" font-size="13.5" fill="#1d2a24" font-weight="700">code_hash</text>
+<text x="702" y="1184" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="750" y="1173" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="763" y="1184.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">UQ</text>
+<text x="514" y="1208" font-size="13.5" fill="#1d2a24" font-weight="700">created_at</text>
+<text x="702" y="1208" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<rect x="502" y="1216" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="514" y="1232" font-size="13.5" fill="#1d2a24" font-weight="700">expires_at</text>
+<text x="702" y="1232" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<text x="500" y="1265" font-size="11.5" fill="#5a6660" font-style="italic">convite por e-mail (só o hash do código), vale 7 dias; um por endereço em cada laboratório</text>
 <rect x="500" y="590" width="290" height="356" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M500 628 V598 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V628 Z" fill="#2a5f9e"/>
 <text x="514" y="615" font-size="16" fill="#ffffff" font-weight="700">laboratory_requests</text>
@@ -364,6 +397,16 @@
 <text x="50" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M50 937 L64 944 L50 951" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="48" y="934" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M354 180 L420 180 L420 1084 L500 1084" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="180" r="4" fill="#2a6fb0"/>
+<text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M486 1077 L500 1084 L486 1091" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="1074" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M354 660 L476 660 L476 1156 L500 1156" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="660" r="4" fill="#2a6fb0"/>
+<text x="368" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M486 1149 L500 1156 L486 1163" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="1146" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <path d="M354 660 L436 660 L436 664 L500 664" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="354" cy="660" r="4" fill="#2a6fb0"/>
 <text x="368" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
@@ -379,7 +422,7 @@
 <text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 921 L500 928 L486 935" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="918" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<rect x="920" y="900" width="340" height="264" rx="8" fill="#fbfaf4" stroke="#d8d2b8"/>
+<rect x="920" y="900" width="340" height="280" rx="8" fill="#fbfaf4" stroke="#d8d2b8"/>
 <text x="934" y="924" font-size="13" fill="#5a5230" font-weight="700">Regras que o esquema carrega</text>
 <text x="934" y="948" font-size="12" fill="#4a4630">• Visitantes só recebem projetos públicos e os</text>
 <text x="934" y="964" font-size="12" fill="#4a4630">   espécimes deles; as contagens e o mapa</text>
@@ -390,8 +433,9 @@
 <text x="934" y="1060" font-size="12" fill="#4a4630">   laboratório (laboratory_id + catalog_number).</text>
 <text x="934" y="1084" font-size="12" fill="#4a4630">• Projeto novo nasce privado. O link de</text>
 <text x="934" y="1100" font-size="12" fill="#4a4630">   compartilhamento usa share_token, nunca o id.</text>
-<text x="934" y="1124" font-size="12" fill="#4a4630">• Uma conta só ganha papel em um laboratório</text>
-<text x="934" y="1140" font-size="12" fill="#4a4630">   depois de confirmar o e-mail.</text>
+<text x="934" y="1124" font-size="12" fill="#4a4630">• Ninguém entra em um laboratório sem aceitar</text>
+<text x="934" y="1140" font-size="12" fill="#4a4630">   um convite; o convite deixa de valer se quem</text>
+<text x="934" y="1156" font-size="12" fill="#4a4630">   o enviou não for mais administrador ali.</text>
 <rect x="1360" y="820" width="290" height="178" rx="8" fill="#ffffff" stroke="#cfd6d2"/>
 <text x="1374" y="844" font-size="13" fill="#33423a" font-weight="700">Legenda</text>
 <rect x="1374" y="856" width="26" height="15" rx="3" fill="#b8860b"/>
