@@ -53,7 +53,8 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Rodar de novo com o mes
 - **Confirmação** (`POST /confirm`, com o código do link): só depois dela a conta consegue entrar. Para receber outro link, basta se cadastrar de novo com o mesmo e-mail; enquanto o e-mail não for confirmado, o cadastro mais recente troca a senha, para ninguém "guardar" o e-mail de outra pessoa.
 - Quem é criado pelo `create_admin.py` já fica com o e-mail confirmado.
 - **Laboratórios** são criados pelo administrador da plataforma (`create_admin.py email --superadmin`), com `POST /labs`, indicando o primeiro administrador do laboratório.
-- **Membros**: o administrador do laboratório adiciona quem já tem conta confirmada (`POST /labs/<slug>/members`, como pesquisador ou administrador), muda o papel (`PUT`) e remove (`DELETE`). Um laboratório nunca fica sem administrador.
+- **Convites**: o administrador do laboratório convida pelo e-mail, como pesquisador ou administrador (`POST /labs/<slug>/invitations`). A pessoa recebe um link que vale 7 dias. Sem conta, ela informa nome e senha na página do link e a conta já nasce confirmada; com conta, ela entra e aceita. Ninguém entra num laboratório sem aceitar. A resposta ao administrador é a mesma exista ou não a conta. Convidar de novo troca o link (o anterior para de funcionar), e um convite deixa de valer se quem o enviou deixar de ser administrador ali. Cada administrador envia até 20 convites por hora. Os pendentes ficam na página de membros, com reenviar e cancelar.
+- **Membros**: o administrador muda o papel (`PUT /labs/<slug>/members/<id>`) e remove (`DELETE`). Qualquer membro também deixa o laboratório por conta própria, no fim da aba Sobre (`DELETE /labs/<slug>/membership`); para voltar, precisa de um novo convite. Um laboratório nunca fica sem administrador: o último não pode sair nem ser removido.
 
 A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.
 
@@ -108,7 +109,7 @@ pytest               # roda os testes
 pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
 ```
 
-Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Uma tabela em `tests/test_access_matrix.py` lista todas as rotas da API e quem pode usar cada uma; o teste falha se alguém criar uma rota sem pô-la na tabela. Os testes cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios e membros, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
+Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Uma tabela em `tests/test_access_matrix.py` lista todas as rotas da API e quem pode usar cada uma; o teste falha se alguém criar uma rota sem pô-la na tabela. Os testes cobrem login e limite de tentativas, cadastro e confirmação de e-mail, laboratórios, membros e convites, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
 
 ### Testes de ponta a ponta (E2E)
 
@@ -118,18 +119,18 @@ Ficam em `e2e/` e usam o Playwright: um navegador de verdade abre o site, que fa
 pip install -r e2e\requirements.txt
 playwright install chromium    # opcional: sem ele, os testes usam o Edge ou o Chrome instalado
 cd e2e
-pytest                         # os 4 testes, cerca de 1 minuto
+pytest                         # os testes dos 4 cenários, cerca de 1 minuto
 $env:E2E_HEADED = "1"; pytest  # o mesmo, com a janela do navegador à vista e mais devagar
 ```
 
 | Teste | O que a pessoa faz |
 |---|---|
 | `test_visitor.py` | Sem conta, vai da página inicial a um laboratório, filtra os projetos e abre um espécime. Não vê projeto privado, projeto só com link, laboratório fora da lista nem campo interno, nem na tela nem no que o navegador recebe da API. |
-| `test_account.py` | Cria uma conta, tenta entrar antes de confirmar o e-mail (é recusada), abre o link do e-mail e entra. O link não funciona uma segunda vez. |
+| `test_account.py` | Cria uma conta, tenta entrar antes de confirmar o e-mail (é recusada), abre o link do e-mail e entra. O link não funciona uma segunda vez. E um administrador convida alguém sem conta, que abre o link do convite, cria a conta ali e já entra como pesquisador; o convite sai da lista de pendentes. |
 | `test_member.py` | Um pesquisador cria um projeto e importa um CSV: com uma linha errada nada é importado; corrigido, entram os 2 espécimes. Compartilha o projeto por link, que abre sem login, e o projeto continua fora da lista pública. |
 | `test_language.py` | Troca para inglês: textos, endereço (`#/en/...`) e valores salvos em português (`macho` vira `male`) mudam, sem pedir os espécimes de novo à API. Um navegador em inglês já abre o site em inglês. |
 
-Os e-mails não são enviados: a API os mostra no próprio registro, de onde o teste lê o link de confirmação. O GBIF fica de fora de propósito (a importação só avisa que ele não respondeu). O site carrega o Vue, o Leaflet e as fontes da internet, então estes testes precisam de conexão.
+Os e-mails não são enviados: a API os mostra no próprio registro, de onde o teste lê os links de confirmação e de convite. O GBIF fica de fora de propósito (a importação só avisa que ele não respondeu). O site carrega o Vue, o Leaflet e as fontes da internet, então estes testes precisam de conexão.
 
 ## Variáveis de ambiente
 

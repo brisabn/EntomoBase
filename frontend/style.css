@@ -155,6 +155,9 @@ mark { background: #f3e08a; color: inherit; border-radius: 3px; padding: 0 1px; 
 /* ---------- about ---------- */
 .about-text { max-width: 62rem; font-size: 1.3rem; line-height: 1.5; margin-bottom: 3.5rem; }
 .team { display: flex; justify-content: space-around; gap: 2.5rem; flex-wrap: wrap; padding: 0 2rem 1rem; }
+/* leaving the laboratory: set apart at the end of the About page */
+.lab-membership { margin-top: 2.4rem; padding-top: 0.4rem; border-top: 1px solid var(--fold); max-width: 40rem; }
+.lab-membership p { margin-bottom: 1rem; }
 .member { text-align: center; max-width: 360px; }
 .avatar {
   width: 190px; height: 190px; border-radius: 50%; background: #c9d9a2; margin: 0 auto 1.4rem;
@@ -338,6 +341,11 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .member-email { font-weight: 600; overflow-wrap: anywhere; }
 .member-you { font-weight: 400; color: var(--ink-2); }
 .member-fullname { color: var(--ink-2); font-size: 0.95rem; }
+.invitation-expired { color: var(--danger); font-weight: 600; }
+/* the page of an invitation link */
+.invite-email { color: var(--ink-2); overflow-wrap: anywhere; }
+.invite-form { max-width: 26rem; }
+a.btn-dark { text-decoration: none; }
 .member-role-select { border: 1px solid var(--line); border-radius: 10px; padding: 0.45rem 0.6rem; background: var(--white); color: var(--ink); font: inherit; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
 .field > span { font-size: 0.88rem; font-weight: 600; color: var(--ink-2); }

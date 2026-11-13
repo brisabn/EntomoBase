@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado', invite: 'convite' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared', invite: 'invite' }
 };
 // the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
 const LAB_WORD = 'lab';
@@ -238,12 +238,16 @@ const app = createApp({
       shared: null,
       // GET /me: the signed-in person and their laboratories, with the role in each
       me: null,
-      // the members page: which laboratory, its members and the form to add someone
+      // the members page: which laboratory, its members, the pending invitations and the form to invite someone
       membersSlug: null,
       members: [],
+      invitations: [],
       membersLoading: false,
-      memberForm: { email: '', role: 'researcher' },
+      inviteForm: { email: '', role: 'researcher' },
       memberError: null,
+      // the page of an invitation link: { code, status: loading | ready | failed | done, data, message, error }
+      invite: null,
+      acceptForm: { name: '', password: '' },
       submitting: false,
       openMenu: null,
       popover: null,
@@ -293,11 +297,16 @@ const app = createApp({
     // the laboratory named above the tabs: the one of the address, or the owner of a shared project
     barLab() {
       if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
+      if (this.route.name === 'invite') return this.invite && this.invite.data ? this.invite.data.laboratory : null;
       if (this.route.name === 'home') return null;
       return this.labInfo;
     },
     // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
-    inLab() { return !['home', 'labs', 'shared'].includes(this.route.name); },
+    inLab() { return !['home', 'labs', 'shared', 'invite'].includes(this.route.name); },
+    // whether the signed-in account is the one the invitation was sent to
+    inviteIsForMe() {
+      return !!this.userEmail && !!this.invite && !!this.invite.data && this.invite.data.email === this.userEmail.toLowerCase();
+    },
     // the points of the home map, coloured like the card of their laboratory
     homeMapPoints() {
       const action = this.t('home.map_open');
@@ -334,7 +343,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title', invite: 'invite.title' };
       if (this.route.name === 'home') return `EntomoBase · ${this.t('home.title')}`;
       if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
@@ -816,6 +825,7 @@ const app = createApp({
       else if (page === 'members') route = { name: 'members' };
       else if (page === 'labs') route = { name: 'labs' };
       else if (page === 'shared') route = { name: 'shared' };
+      else if (page === 'invite') route = { name: 'invite' };
       // #/ alone is the home page; #/lab/<slug> alone and unknown words keep showing a laboratory
       else if (!parts.length && !slug) route = { name: 'home' };
       else route = { name: 'about' };
@@ -831,6 +841,11 @@ const app = createApp({
         // the code works only once: it is sent right away and taken out of the address bar and the history
         this.confirmEmail(b);
         history.replaceState(null, '', this.link('confirm', {}, lang));
+      }
+      if (route.name === 'invite' && b) {
+        // like the confirmation code: kept in memory for the steps of the page, out of the address and the history
+        this.openInvitation(b);
+        history.replaceState(null, '', this.link('invite', { lab: null }, lang));
       }
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
@@ -1070,17 +1085,20 @@ const app = createApp({
       this.submitting = true;
       try {
         const d = await this.api('/login', { method: 'POST', body: this.credentials });
-        this.token = d.access_token;
-        this.userEmail = d.email;
-        localStorage.setItem('entomobase_token', this.token);
-        localStorage.setItem('entomobase_email', this.userEmail);
         this.showLogin = false;
         this.credentials = { email: '', password: '' };
-        await Promise.all([this.loadAll(), this.loadMe()]);
+        await this.startSession(d.access_token, d.email);
       } catch (e) {
         this.loginError = e.message;
       }
       this.submitting = false;
+    },
+    async startSession(token, email) {
+      this.token = token;
+      this.userEmail = email;
+      localStorage.setItem('entomobase_token', token);
+      localStorage.setItem('entomobase_email', email);
+      await Promise.all([this.loadAll(), this.loadMe()]);
     },
     // a failure here only hides what depends on it (like the members tab); the rest of the site works
     async loadMe() {
@@ -1097,6 +1115,7 @@ const app = createApp({
       this.userEmail = null;
       this.me = null;
       this.members = [];
+      this.invitations = [];
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     },
@@ -1430,9 +1449,13 @@ const app = createApp({
       this.membersLoading = true;
       if (!keepError) this.memberError = null;
       try {
-        const list = await this.api(`/labs/${encodeURIComponent(lab.slug)}/members`);
+        const base = `/labs/${encodeURIComponent(lab.slug)}`;
+        const [list, invitations] = await Promise.all([this.api(`${base}/members`), this.api(`${base}/invitations`)]);
         // an answer for a laboratory that is no longer the chosen one is dropped
-        if (this.membersLab && this.membersLab.slug === lab.slug) this.members = list;
+        if (this.membersLab && this.membersLab.slug === lab.slug) {
+          this.members = list;
+          this.invitations = invitations;
+        }
       } catch (e) {
         this.memberError = e.message;
       }
@@ -1441,6 +1464,7 @@ const app = createApp({
     chooseMembersLab(slug) {
       this.membersSlug = slug;
       this.members = [];
+      this.invitations = [];
       this.loadMembers();
     },
     isMe(member) { return !!this.me && member.email === this.me.email; },
@@ -1453,18 +1477,74 @@ const app = createApp({
         location.hash = this.link('about');
       }
     },
-    async addMember() {
+    // the API answers the same whether or not the address has an account; the person joins when they accept
+    async sendInvitation(body = this.inviteForm) {
       this.memberError = null;
       this.submitting = true;
       try {
-        const added = await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/members`, { method: 'POST', body: this.memberForm });
-        this.memberForm = { email: '', role: 'researcher' };
-        this.notify(this.t('notify.member_added', { email: added.email }));
+        const sent = await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/invitations`, { method: 'POST', body });
+        if (body === this.inviteForm) this.inviteForm = { email: '', role: 'researcher' };
+        this.notify(this.t('notify.invitation_sent', { email: sent.email }));
         await this.loadMembers();
       } catch (e) {
         this.memberError = e.message;
       }
       this.submitting = false;
+    },
+    // a new link, with a new deadline; the one in the e-mail sent before stops working
+    resendInvitation(invitation) { return this.sendInvitation({ email: invitation.email, role: invitation.role }); },
+    async cancelInvitation(invitation) {
+      this.memberError = null;
+      try {
+        await this.api(`/labs/${encodeURIComponent(this.membersLab.slug)}/invitations/${invitation.id}`, { method: 'DELETE' });
+        this.notify(this.t('notify.invitation_cancelled'));
+      } catch (e) {
+        this.memberError = e.message;
+      }
+      await this.loadMembers({ keepError: true });
+    },
+    // the deadline comes from the API in UTC without a zone
+    invitationExpired(invitation) { return new Date(invitation.expires_at + 'Z') <= new Date(); },
+    invitationDeadline(invitation) {
+      const d = new Date(invitation.expires_at + 'Z');
+      const pad = (n) => String(n).padStart(2, '0');
+      return this.formatDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    },
+
+    // ---------- the page of an invitation link ----------
+    async openInvitation(code) {
+      if (this.invite && this.invite.code === code) return;
+      this.invite = { code, status: 'loading', data: null, message: null, error: null };
+      this.acceptForm = { name: '', password: '' };
+      try {
+        const data = await this.api(`/invitations/${encodeURIComponent(code)}`);
+        if (this.invite && this.invite.code === code) this.invite = { ...this.invite, status: 'ready', data };
+      } catch (e) {
+        if (this.invite && this.invite.code === code) this.invite = { ...this.invite, status: 'failed', message: e.message };
+      }
+    },
+    // without an account, the name and password create it and the API signs the person in; with one, the
+    // signed-in session is what the API checks
+    async acceptInvitation() {
+      const invite = this.invite;
+      this.invite = { ...invite, error: null };
+      this.submitting = true;
+      try {
+        const body = invite.data.has_account ? null : this.acceptForm;
+        const d = await this.api(`/invitations/${encodeURIComponent(invite.code)}/accept`, { method: 'POST', body });
+        this.acceptForm = { name: '', password: '' };
+        if (d.access_token) await this.startSession(d.access_token, d.email);
+        else await this.loadMe();
+        this.invite = { ...invite, status: 'done', error: null, data: { ...invite.data, role: d.role } };
+      } catch (e) {
+        this.invite = { ...invite, error: e.message };
+      }
+      this.submitting = false;
+    },
+    // signed in as someone else: leaves that session so the right account can sign in
+    async switchAccountForInvite() {
+      await this.logout();
+      this.openLogin(this.invite.data.email);
     },
     async changeRole(member, role) {
       if (role === member.role) return;
@@ -1498,6 +1578,22 @@ const app = createApp({
           this.notify(this.t('notify.member_removed'));
           if (self) await this.afterOwnChange();
           else await this.loadMembers();
+        }
+      };
+    },
+    // any member leaves on their own; the last admin is refused by the API, and the reason shows in the window
+    askLeaveLab() {
+      this.formError = null;
+      const lab = this.labInfo;
+      this.confirmation = {
+        title: this.t('leave.confirm_title', { lab: lab.name }),
+        text: this.t('leave.confirm_text'),
+        button: this.t('leave.button'),
+        busy: this.t('leave.leaving'),
+        action: async () => {
+          await this.api(`/labs/${encodeURIComponent(lab.slug)}/membership`, { method: 'DELETE' });
+          this.notify(this.t('notify.left_lab', { lab: lab.name }));
+          await Promise.all([this.loadMe(), this.loadAll()]);
         }
       };
     },
@@ -1827,9 +1923,11 @@ app.component('collection-map', {
       this.leafletMap.addLayer(cluster);
       this.cluster = markRaw(cluster);
       this.markers = markRaw(markers);
+      // fitting to the points happens on its own when they arrive, so it is not animated: leaving the page in
+      // the middle of a zoom animation made Leaflet finish it on a map already removed (a JavaScript error)
       if (fit) {
-        if ((this.points || []).length) this.leafletMap.fitBounds(cluster.getBounds().pad(0.15), { maxZoom: 13 });
-        else this.leafletMap.setView([-15, -47], 4);
+        if ((this.points || []).length) this.leafletMap.fitBounds(cluster.getBounds().pad(0.15), { maxZoom: 13, animate: false });
+        else this.leafletMap.setView([-15, -47], 4, { animate: false });
       }
       this.applyFocus();
     },

@@ -85,10 +85,16 @@ class Servers:
             process.wait(timeout=10)
         self.log.close()
 
-    def confirmation_links(self):
+    def links_in_emails(self, page):
         text = self.api_log.read_text(encoding="utf-8", errors="replace")
         # an e-mail may show its link more than once; each link counts once, in the order they were sent
-        return list(dict.fromkeys(re.findall(re.escape(self.site) + r"/#/confirm/[\w-]+", text)))
+        return list(dict.fromkeys(re.findall(re.escape(self.site) + f"/#/{page}/" + r"[\w-]+", text)))
+
+    def confirmation_links(self):
+        return self.links_in_emails("confirm")
+
+    def invitation_links(self):
+        return self.links_in_emails("invite")
 
 
 @pytest.fixture(scope="session")

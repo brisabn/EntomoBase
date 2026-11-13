@@ -77,6 +77,8 @@ def build_world() -> World:
             ("researcher", {first.id: "researcher"}, False),
             ("admin", {first.id: "admin"}, False),
             ("researcher_b", {other.id: "researcher"}, False),
+            # a second admin here, so the admin may leave (the last one cannot; test_members covers that)
+            ("second_admin", {first.id: "admin"}, False),
         ]:
             user = models.User(email=f"{name}@lab.br", password_hash="x", name=name, is_superadmin=superadmin,
                                email_verified_at=datetime(2026, 1, 1))
@@ -176,9 +178,9 @@ CASES = [
     Case("GET", "/demo/image/{file_name}", "public", 200, lambda i: ("/demo/image/a-pub-1.jpg", None)),
     # members (only with the laboratory in the address)
     Case("GET", "/members", "admin", 200, lambda i: ("/members", None)),
-    Case("POST", "/members", "admin", 201, lambda i: ("/members", {"email": "no_lab@lab.br", "role": "researcher"})),
     Case("PUT", "/members/{member_id}", "admin", 200, lambda i: (f"/members/{i['a_member']}", {"role": "admin"})),
     Case("DELETE", "/members/{member_id}", "admin", 204, lambda i: (f"/members/{i['a_member']}", None)),
+    Case("DELETE", "/membership", "member", 204, lambda i: ("/membership", None)),
     Case("GET", "/invitations", "admin", 200, lambda i: ("/invitations", None)),
     Case("POST", "/invitations", "admin", 201, lambda i: ("/invitations", {"email": "someone.new@lab.br", "role": "researcher"})),
     Case("DELETE", "/invitations/{invitation_id}", "admin", 204, lambda i: (f"/invitations/{i['a_invitation']}", None)),
@@ -202,7 +204,7 @@ CASES = [
 OPEN_BY_DESIGN = {("POST", "/login"), ("POST", "/signup"), ("POST", "/confirm")}
 
 # the old addresses without a laboratory mean the first one; the members routes never had them
-MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/invitations", "/invitations/{invitation_id}"}
+MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/membership", "/invitations", "/invitations/{invitation_id}"}
 
 
 def addresses(case):

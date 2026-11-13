@@ -217,6 +217,13 @@
               <p class="member-role">{{ m.role }}</p>
             </div>
           </div>
+
+          <!-- leaving the laboratory, for members only; worded and placed apart from signing out on purpose -->
+          <section v-if="isMember && labInfo" class="lab-membership" :aria-label="t('leave.title')">
+            <h2 class="members-heading">{{ t('leave.title') }}</h2>
+            <p>{{ t('leave.text', { lab: labInfo.name, role: t(`role.${currentRole}`).toLowerCase() }) }}</p>
+            <button type="button" class="btn-danger" @click="askLeaveLab">{{ t('leave.button') }}</button>
+          </section>
         </div>
 
         <!-- E-MAIL CONFIRMATION (the link of the e-mail opens this page) -->
@@ -248,19 +255,19 @@
             </label>
             <p v-else class="subtitle">{{ membersLab.name }}</p>
 
-            <section class="members-add" :aria-label="t('members.add_title')">
-              <h2 class="members-heading">{{ t('members.add_title') }}</h2>
-              <form class="members-form" @submit.prevent="addMember">
-                <label class="field"><span>{{ t('login.email') }}</span><input v-model="memberForm.email" type="email" required maxlength="254" autocomplete="off"></label>
+            <section class="members-add" :aria-label="t('members.invite_title')">
+              <h2 class="members-heading">{{ t('members.invite_title') }}</h2>
+              <form class="members-form" @submit.prevent="sendInvitation()">
+                <label class="field"><span>{{ t('login.email') }}</span><input v-model="inviteForm.email" type="email" required maxlength="254" autocomplete="off"></label>
                 <label class="field"><span>{{ t('members.role') }}</span>
-                  <select v-model="memberForm.role">
+                  <select v-model="inviteForm.role">
                     <option value="researcher">{{ t('role.researcher') }}</option>
                     <option value="admin">{{ t('role.admin') }}</option>
                   </select>
                 </label>
-                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('members.adding') : t('members.add') }}</button>
+                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('members.inviting') : t('members.invite') }}</button>
               </form>
-              <p class="field-hint">{{ t('members.add_hint') }}</p>
+              <p class="field-hint">{{ t('members.invite_hint') }}</p>
             </section>
 
             <p v-if="memberError" class="form-error" role="alert">{{ memberError }}</p>
@@ -280,7 +287,72 @@
                 <button type="button" class="btn-light" :aria-label="t('members.remove_aria', { email: m.email })" @click="askRemoveMember(m)">{{ t('members.remove') }}</button>
               </li>
             </ul>
+
+            <template v-if="invitations.length">
+              <h2 class="members-heading">{{ t('members.pending_title', { n: invitations.length }) }}</h2>
+              <ul class="member-list invitation-list">
+                <li v-for="i in invitations" :key="i.id" class="member-row">
+                  <div class="member-who">
+                    <span class="member-email">{{ i.email }}</span>
+                    <span class="member-fullname">
+                      {{ t(`role.${i.role}`) }} ·
+                      <span :class="{ 'invitation-expired': invitationExpired(i) }">{{ invitationExpired(i) ? t('members.invite_expired') : t('members.invite_until', { date: invitationDeadline(i) }) }}</span>
+                    </span>
+                  </div>
+                  <button type="button" class="btn-light" :disabled="submitting" :aria-label="t('members.resend_aria', { email: i.email })" @click="resendInvitation(i)">{{ t('members.resend') }}</button>
+                  <button type="button" class="btn-light" :aria-label="t('members.cancel_invite_aria', { email: i.email })" @click="cancelInvitation(i)">{{ t('members.cancel_invite') }}</button>
+                </li>
+              </ul>
+            </template>
           </template>
+        </div>
+
+        <!-- INVITATION (the link of the e-mail opens this page) -->
+        <div class="sheet" v-else-if="route.name === 'invite'">
+          <h1 class="page-title">{{ t('invite.title') }}</h1>
+          <div class="confirm-box" aria-live="polite">
+            <p v-if="!invite">{{ t('invite.no_code') }}</p>
+            <p v-else-if="invite.status === 'loading'" role="status">{{ t('invite.loading') }}</p>
+            <p v-else-if="invite.status === 'failed'" class="form-error">{{ invite.message }}</p>
+
+            <template v-else-if="invite.status === 'done'">
+              <p role="status">{{ t('invite.done', { lab: invite.data.laboratory.name, role: t(`role.${invite.data.role}`).toLowerCase() }) }}</p>
+              <p><a class="btn-dark" :href="link('about', { lab: invite.data.laboratory.slug })">{{ t('invite.go_to_lab') }}</a></p>
+            </template>
+
+            <template v-else>
+              <p>{{ t('invite.text', { lab: invite.data.laboratory.name, role: t(`role.${invite.data.role}`).toLowerCase() }) }}</p>
+              <p class="invite-email">{{ t('invite.for_email', { email: invite.data.email }) }}</p>
+
+              <!-- no account yet: it is created here, already confirmed, with the address of the invitation -->
+              <form v-if="!invite.data.has_account" class="invite-form" @submit.prevent="acceptInvitation">
+                <label class="field"><span>{{ t('signup.name') }}</span><input v-autofocus v-model="acceptForm.name" type="text" required maxlength="120" autocomplete="name"></label>
+                <label class="field">
+                  <span>{{ t('login.password') }}</span>
+                  <input v-model="acceptForm.password" type="password" required :minlength="minPasswordLength" maxlength="128" autocomplete="new-password" aria-describedby="invite-password-hint">
+                  <small id="invite-password-hint" class="field-hint">{{ t('signup.password_hint', { minimum: minPasswordLength }) }}</small>
+                </label>
+                <p v-if="invite.error" class="form-error" role="alert">{{ invite.error }}</p>
+                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('invite.creating') : t('invite.create') }}</button>
+              </form>
+
+              <!-- an account already exists: it accepts while signed in -->
+              <template v-else>
+                <template v-if="!labAccess">
+                  <p>{{ t('invite.sign_in_first') }}</p>
+                  <p><button type="button" class="btn-dark" @click="openLogin(invite.data.email)">{{ t('auth.login') }}</button></p>
+                </template>
+                <template v-else-if="!inviteIsForMe">
+                  <p class="form-error">{{ t('invite.other_account', { email: userEmail }) }}</p>
+                  <p><button type="button" class="btn-dark" @click="switchAccountForInvite">{{ t('invite.switch_account') }}</button></p>
+                </template>
+                <template v-else>
+                  <p v-if="invite.error" class="form-error" role="alert">{{ invite.error }}</p>
+                  <p><button type="button" class="btn-dark" :disabled="submitting" @click="acceptInvitation">{{ submitting ? t('invite.accepting') : t('invite.accept') }}</button></p>
+                </template>
+              </template>
+            </template>
+          </div>
         </div>
 
         <!-- SEARCH -->

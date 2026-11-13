@@ -376,19 +376,7 @@ def list_members(db: Session = Depends(get_db), ctx: Context = Depends(require_a
     return [schemas.MemberResponse(id=m.id, email=u.email, name=u.name, role=m.role) for m, u in rows]
 
 
-# an admin brings in someone who already has an account (they sign up first, on their own)
-@members_router.post("/members", response_model=schemas.MemberResponse, status_code=201)
-def add_member(data: schemas.MemberCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
-    user = confirmed_user(db, data.email)
-    membership = models.Membership(user_id=user.id, laboratory_id=ctx.laboratory.id, role=data.role)
-    db.add(membership)
-    try:
-        db.commit()
-    except IntegrityError:
-        # a person belongs to a laboratory only once (unique in the database)
-        db.rollback()
-        raise api_error(400, "already_member")
-    return schemas.MemberResponse(id=membership.id, email=user.email, name=user.name, role=membership.role)
+# nobody is put into a laboratory directly: an admin invites them (below) and they accept
 
 
 # the membership with this id, if it belongs to the laboratory of the request; any other id is a 404
@@ -423,6 +411,19 @@ def change_member_role(member_id: int, data: schemas.MemberUpdate, db: Session =
 @members_router.delete("/members/{member_id}", status_code=204)
 def remove_member(member_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
     membership = get_membership(db, ctx, member_id)
+    if membership.role == "admin" and other_admins(db, membership) == 0:
+        raise api_error(400, "last_admin")
+    db.delete(membership)
+    db.commit()
+    return None
+
+
+# any member leaves on their own. The address has no id, so it can only ever be the person's own membership,
+# in the laboratory of the address. The last admin cannot leave, or nobody could manage the laboratory; the
+# invitations a leaving admin sent stop working too (see usable_invitation)
+@members_router.delete("/membership", status_code=204)
+def leave_laboratory(db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
+    membership = db.query(models.Membership).filter_by(user_id=ctx.user.id, laboratory_id=ctx.laboratory.id).one()
     if membership.role == "admin" and other_admins(db, membership) == 0:
         raise api_error(400, "last_admin")
     db.delete(membership)

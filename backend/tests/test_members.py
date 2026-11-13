@@ -349,112 +349,101 @@ def test_there_is_no_address_for_removing_without_the_laboratory(client, admin, 
     assert db.query(models.Membership).count() == 2
 
 
-# ---------- adding a member ----------
-def add(client, headers, email, role=None, slug="ufmg"):
-    body = {"email": email} if role is None else {"email": email, "role": role}
-    return client.post(f"/labs/{slug}/members", json=body, headers=headers)
+# ---------- leaving on one's own ----------
+def leave(client, headers, slug="ufmg", **kwargs):
+    return client.request("DELETE", f"/labs/{slug}/membership", headers=headers, **kwargs)
 
 
-def test_an_admin_adds_someone_with_an_account_as_a_researcher(client, admin, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    response = add(client, admin, "new@lab.br")
-    assert response.status_code == 201
-    body = response.json()
-    assert (body["email"], body["role"]) == ("new@lab.br", "researcher") and body["id"] == member_id(db, "new@lab.br")
-    assert set(body) == {"id", "email", "name", "role"}
+def test_a_researcher_leaves_the_laboratory(client, admin, researcher, db):
+    response = leave(client, researcher)
+    assert response.status_code == 204 and response.content == b""
+    assert [m["email"] for m in client.get("/labs/ufmg/members", headers=admin).json()] == [EMAIL]
 
 
-def test_an_admin_can_add_another_admin(client, admin, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    assert add(client, admin, "new@lab.br", "admin").json()["role"] == "admin"
-    assert role_of(db, "new@lab.br") == "admin"
+def test_whoever_left_loses_access_at_once_and_keeps_the_account_and_the_work(client, admin, researcher, db):
+    from helpers import create_project, project_body
+    create_project(client, researcher, title="Made by the researcher", visibility="private")
+    leave(client, researcher)
+    assert client.post("/labs/ufmg/projects", json=project_body(), headers=researcher).status_code == 403
+    assert client.get("/labs/ufmg/projects", headers=researcher).json() == []
+    assert db.query(models.User).filter_by(email=RESEARCHER_EMAIL).count() == 1
+    assert [p["title"] for p in client.get("/labs/ufmg/projects", headers=admin).json()] == ["Made by the researcher"]
 
 
-def test_the_new_member_can_work_at_once(client, admin, password_hash):
-    from helpers import project_body
-    add_user("new@lab.br", password_hash)
-    member = {"Authorization": f"Bearer {make_token(email='new@lab.br')}"}
-    assert client.post("/labs/ufmg/projects", json=project_body(), headers=member).status_code == 403
-    add(client, admin, "new@lab.br")
-    assert client.post("/labs/ufmg/projects", json=project_body(), headers=member).status_code == 201
+def test_an_admin_leaves_when_another_admin_stays(client, admin, researcher, db):
+    client.put(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", json={"role": "admin"}, headers=admin)
+    assert leave(client, admin).status_code == 204
+    assert client.get("/labs/ufmg/members", headers=admin).status_code == 403
+    assert role_of(db, RESEARCHER_EMAIL) == "admin"
 
 
-def test_the_e_mail_is_matched_ignoring_case_and_spaces(client, admin, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    assert add(client, admin, "  NEW@Lab.br ").status_code == 201
+def test_the_last_admin_cannot_leave(client, admin, researcher, db):
+    response = leave(client, admin)
+    assert response.status_code == 400 and response.json()["detail"]["code"] == "last_admin"
+    assert role_of(db, EMAIL) == "admin"
 
 
-def test_an_unknown_e_mail_is_a_404(client, admin, db):
-    response = add(client, admin, "nobody@lab.br")
-    assert response.status_code == 404 and response.json()["detail"]["code"] == "user_not_found"
-    assert db.query(models.Membership).count() == 1
+def test_being_an_admin_elsewhere_does_not_let_the_last_admin_here_leave(client, admin, db):
+    join(db, EMAIL, second_lab(db), "admin")
+    assert leave(client, admin).json()["detail"]["code"] == "last_admin"
 
 
-def test_an_account_whose_e_mail_is_not_confirmed_looks_the_same_as_none(client, admin, password_hash, db):
-    add_user("pending@lab.br", password_hash, confirmed=False)
-    response = add(client, admin, "pending@lab.br")
-    assert response.status_code == 404 and response.json()["detail"]["code"] == "user_not_found"
-    assert db.query(models.Membership).count() == 1
+def test_leaving_one_laboratory_keeps_the_others(client, admin, researcher, db):
+    join(db, RESEARCHER_EMAIL, second_lab(db), "researcher")
+    leave(client, researcher)
+    assert role_of(db, RESEARCHER_EMAIL, "lab-b") == "researcher"
+    assert db.query(models.Membership).join(models.User).filter(models.User.email == RESEARCHER_EMAIL).count() == 1
 
 
-def test_someone_already_in_the_laboratory_is_not_added_twice(client, admin, researcher, db):
-    response = add(client, admin, RESEARCHER_EMAIL, "admin")
-    assert response.status_code == 400 and response.json()["detail"]["code"] == "already_member"
+def test_leaving_another_laboratory_only_touches_that_one(client, admin, researcher, db):
+    join(db, RESEARCHER_EMAIL, second_lab(db), "researcher")
+    assert leave(client, researcher, slug="lab-b").status_code == 204
     assert role_of(db, RESEARCHER_EMAIL) == "researcher"
 
 
-def test_adding_the_same_person_twice_keeps_one_membership(client, admin, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    assert add(client, admin, "new@lab.br").status_code == 201
-    response = add(client, admin, "new@lab.br", "admin")
-    assert response.status_code == 400 and response.json()["detail"]["code"] == "already_member"
-    assert db.query(models.Membership).count() == 2 and role_of(db, "new@lab.br") == "researcher"
+def test_nobody_else_can_be_made_to_leave_through_the_body(client, admin, researcher, db):
+    before = member_id(db, RESEARCHER_EMAIL)
+    client.put(f"/labs/ufmg/members/{before}", json={"role": "admin"}, headers=admin)
+    leave(client, admin, json={"user_id": db.query(models.User).filter_by(email=RESEARCHER_EMAIL).one().id, "member_id": before})
+    assert role_of(db, RESEARCHER_EMAIL) == "admin"
+    assert db.query(models.Membership).join(models.User).filter(models.User.email == EMAIL).count() == 0
 
 
-def test_a_member_of_another_laboratory_can_be_added_here_too(client, admin, password_hash, db):
-    other = second_lab(db)
-    add_user("elsewhere@lab.br", password_hash)
-    join(db, "elsewhere@lab.br", other, "admin")
-    assert add(client, admin, "elsewhere@lab.br").status_code == 201
-    assert role_of(db, "elsewhere@lab.br", "lab-b") == "admin" and role_of(db, "elsewhere@lab.br") == "researcher"
+def test_only_members_can_leave(client, admin, outsider, superadmin, db):
+    assert leave(client, outsider).status_code == 403
+    assert leave(client, superadmin).status_code == 403
+    assert leave(client, {}).status_code == 401
+    assert db.query(models.Membership).count() == 1
 
 
-@pytest.mark.parametrize("body", [{}, {"email": "new@lab.br", "role": "owner"}, {"email": "x"}, {"email": "a" * 255}])
-def test_a_bad_request_is_a_422(client, admin, password_hash, body):
-    add_user("new@lab.br", password_hash)
-    assert client.post("/labs/ufmg/members", json=body, headers=admin).status_code == 422
+def test_leaving_twice_is_refused_the_second_time(client, admin, researcher):
+    assert leave(client, researcher).status_code == 204
+    assert leave(client, researcher).status_code == 403
 
 
-def test_a_researcher_cannot_add_members(client, admin, researcher, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    assert add(client, researcher, "new@lab.br").status_code == 403
+def test_there_is_no_address_for_leaving_without_the_laboratory(client, admin, researcher, db):
+    assert client.delete("/membership", headers=researcher).status_code in (404, 405)
     assert db.query(models.Membership).count() == 2
 
 
-def test_someone_outside_or_a_visitor_cannot_add_members(client, admin, outsider, db):
-    assert add(client, outsider, "outsider@lab.br").status_code == 403
-    assert add(client, {}, "outsider@lab.br").status_code == 401
-    assert db.query(models.Membership).count() == 1
+def test_the_invitations_of_an_admin_who_left_stop_working(client, admin, researcher, db, monkeypatch):
+    import re
+    import mailer
+    monkeypatch.setenv("MAIL_BACKEND", "memory")
+    monkeypatch.setenv("SITE_URL", "https://entomobase.example")
+    mailer.outbox.clear()
+    client.put(f"/labs/ufmg/members/{member_id(db, RESEARCHER_EMAIL)}", json={"role": "admin"}, headers=admin)
+    client.post("/labs/ufmg/invitations", json={"email": "invited@lab.br"}, headers=researcher)
+    code = re.search(r"/#/invite/([\w-]+)", mailer.outbox[0].get_content()).group(1)
+    leave(client, researcher)
+    assert client.get(f"/invitations/{code}").status_code == 404
 
 
-def test_a_platform_administrator_without_a_membership_cannot_add_members(client, admin, superadmin, db):
-    assert add(client, superadmin, "super@lab.br", "admin").status_code == 403
-    assert db.query(models.Membership).count() == 1
-
-
-def test_an_admin_cannot_add_people_to_a_laboratory_they_do_not_manage(client, admin, password_hash, db):
-    second_lab(db)
+# ---------- adding a member ----------
+# there is no way to put someone into a laboratory directly any more: an admin invites them by e-mail and
+# they accept (test_invitations.py). The old route answered whether an address had an account
+def test_there_is_no_route_that_adds_a_member_directly(client, admin, password_hash, db):
     add_user("new@lab.br", password_hash)
-    assert add(client, admin, "new@lab.br", slug="lab-b").status_code == 403
-    assert db.query(models.Membership).count() == 1
-
-
-def test_adding_to_an_unknown_laboratory_is_a_404(client, admin, password_hash):
-    add_user("new@lab.br", password_hash)
-    assert add(client, admin, "new@lab.br", slug="nowhere").json()["detail"]["code"] == "lab_not_found"
-
-
-def test_there_is_no_address_for_adding_without_the_laboratory(client, admin, password_hash, db):
-    add_user("new@lab.br", password_hash)
-    assert client.post("/members", json={"email": "new@lab.br"}, headers=admin).status_code in (404, 405)
+    for url in ("/labs/ufmg/members", "/members"):
+        assert client.post(url, json={"email": "new@lab.br", "role": "admin"}, headers=admin).status_code in (404, 405)
     assert db.query(models.Membership).count() == 1

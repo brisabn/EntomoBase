@@ -279,11 +279,6 @@ class Me(BaseModel):
     laboratories: List[MyLaboratory]
 
 
-class MemberCreate(BaseModel):
-    email: str = Field(..., min_length=3, max_length=254)
-    role: Literal["admin", "researcher"] = "researcher"
-
-
 class MemberUpdate(BaseModel):
     role: Literal["admin", "researcher"]
 
