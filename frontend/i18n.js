@@ -133,6 +133,19 @@ const MESSAGES = {
     'verify.done': (p) => `Pronto! O e-mail ${p.email} foi confirmado e você já pode entrar.`,
     'verify.no_code': 'Para confirmar sua conta, abra o link que enviamos por e-mail.',
 
+    // home page
+    'home.title': 'Coleções de insetos, abertas',
+    'home.lead': 'O EntomoBase reúne as coleções entomológicas de laboratórios de pesquisa. Cada laboratório organiza seus espécimes e projetos aqui e escolhe o que mostrar ao público.',
+    'home.specimens_title': 'Espécimes, projetos e medidas',
+    'home.specimens_text': 'Cada espécime guarda identificação, local e data de coleta, fotos e medidas, ligado ao projeto de pesquisa de onde veio.',
+    'home.open_title': 'Dados abertos',
+    'home.open_text': 'Os dados públicos podem ser baixados em CSV e em Darwin Core, o padrão usado pelo GBIF, e ligados a um repositório como o Zenodo.',
+    'home.private_title': 'O laboratório decide',
+    'home.private_text': 'Cada projeto é privado, só com link ou público. Dados internos, como empréstimos e onde o espécime está guardado, ficam só com os membros.',
+    'home.your_labs': 'Seus laboratórios',
+    'home.join_title': 'Faz parte de um laboratório?',
+    'home.join_text': 'Crie sua conta e confirme o e-mail. Depois, um administrador do laboratório adiciona você como membro.',
+
     // laboratories
     'labs.title': 'Laboratórios', 'labs.all': 'Laboratórios',
     'labs.subtitle': 'Laboratórios que publicam seus dados no EntomoBase.',
@@ -432,6 +445,18 @@ const MESSAGES = {
     'verify.working': 'Confirming your e-mail...',
     'verify.done': (p) => `Done! The e-mail ${p.email} is confirmed and you can sign in now.`,
     'verify.no_code': 'To confirm your account, open the link we sent you by e-mail.',
+
+    'home.title': 'Insect collections, in the open',
+    'home.lead': 'EntomoBase brings together the insect collections of research laboratories. Each laboratory keeps its specimens and projects here and chooses what to show the public.',
+    'home.specimens_title': 'Specimens, projects and measurements',
+    'home.specimens_text': 'Each specimen keeps its identification, collection place and date, photos and measurements, linked to the research project it came from.',
+    'home.open_title': 'Open data',
+    'home.open_text': 'Public data can be downloaded as CSV and as Darwin Core, the standard used by GBIF, and linked to a repository such as Zenodo.',
+    'home.private_title': 'The laboratory decides',
+    'home.private_text': 'Each project is private, link-only or public. Internal data, such as loans and where a specimen is stored, stays with the members.',
+    'home.your_labs': 'Your laboratories',
+    'home.join_title': 'Part of a laboratory?',
+    'home.join_text': 'Create an account and confirm your e-mail. Then an admin of the laboratory adds you as a member.',
 
     'labs.title': 'Laboratories', 'labs.all': 'Laboratories',
     'labs.subtitle': 'Laboratories that publish their data on EntomoBase.',

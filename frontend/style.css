@@ -188,7 +188,8 @@ mark { background: #f3e08a; color: inherit; border-radius: 3px; padding: 0 1px; 
 .menu button.sel { font-weight: 700; background: #eef2dc; }
 
 /* ---------- project cards ---------- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 2.2rem 2rem; }
+/* on a narrow phone the column shrinks to the sheet instead of being cut off by it */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr)); gap: 2.2rem 2rem; }
 .card {
   display: flex; flex-direction: column; background: var(--white); border-radius: 20px; overflow: hidden;
   text-decoration: none; box-shadow: 0 6px 16px rgba(66, 78, 20, 0.1);
@@ -586,3 +587,14 @@ input[type="file"]::file-selector-button { height: 2rem; border: 1.5px solid var
 
 /* a project opened by its share link */
 .shared-note { background: #fff8dc; border: 1px solid #e6cf7a; border-radius: 14px; padding: 0.8rem 1.1rem; margin-bottom: 1.4rem; }
+
+/* home page */
+.home-lead { max-width: 52rem; font-size: 1.3rem; line-height: 1.5; margin: 0.6rem 0 2rem; }
+.home-points { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+.home-points li { background: var(--white); border-radius: 18px; padding: 1.2rem 1.4rem; }
+.home-points p, .home-join p { color: var(--ink-2); line-height: 1.45; }
+.home-point-title { font-family: var(--serif); font-weight: 600; font-size: 1.2rem; margin-bottom: 0.4rem; }
+.home-mine { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.home-mine li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
+.home-join { margin-top: 2.2rem; padding: 1.4rem 1.6rem; border: 1px dashed var(--line); border-radius: 18px; }
+.home-join .actions { margin-top: 0.9rem; flex-wrap: wrap; }

@@ -51,6 +51,9 @@ def test_dynamic_text_keys_exist():
     # projects show who can see them: a badge and a hint for each visibility
     expected |= {f"badge.{x}" for x in ("private", "unlisted", "public")}
     expected |= {f"visibility.hint_{x}" for x in ("private", "unlisted", "public")}
+    # the three points of the home page, and the role shown next to each of the person's laboratories
+    expected |= {f"home.{x}_{part}" for x in ("specimens", "open", "private") for part in ("title", "text")}
+    expected |= {f"role.{x}" for x in ("admin", "researcher")}
     source = read("app.js")
     fields = re.search(r"const IMPORT_FIELDS = \[(.*?)\];", source, re.S).group(1)
     expected |= {f"importField.{f}" for f in re.findall(r"'(\w+)'", fields)}

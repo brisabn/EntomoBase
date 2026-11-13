@@ -21,7 +21,7 @@
     <div class="page">
 
       <header class="topbar">
-        <a class="logo" :href="link('about')" :aria-label="t('site.home_aria')">
+        <a class="logo" :href="link('home')" :aria-label="t('site.home_aria')">
           <svg class="logo-icon" viewBox="0 0 48 48" aria-hidden="true">
             <ellipse cx="24" cy="9.5" rx="4.6" ry="4.4" fill="currentColor"/>
             <ellipse cx="24" cy="22" rx="4.2" ry="5.8" fill="currentColor"/>
@@ -35,7 +35,8 @@
           <span>EntomoBase</span>
         </a>
         <div class="topbar-actions">
-          <div class="search-wrap" @click.stop>
+          <!-- the search looks inside the laboratory being shown, so it is left out elsewhere -->
+          <div v-if="inLab" class="search-wrap" @click.stop>
             <label class="search">
               <span class="search-label">{{ t('search.label') }}</span>
               <input v-model="searchTerm" type="text" :placeholder="t('search.placeholder')" autocomplete="off" role="combobox" :aria-label="t('search.aria')" :aria-expanded="showSuggestions"
@@ -71,7 +72,7 @@
         </template>
       </nav>
 
-      <nav v-if="route.name !== 'labs' && route.name !== 'shared'" class="tabs" :aria-label="t('nav.aria')">
+      <nav v-if="inLab" class="tabs" :aria-label="t('nav.aria')">
         <a v-for="tab in tabs" :key="tab.id" :href="tab.href" :class="['tab', { current: activeTab === tab.id }]" :aria-current="activeTab === tab.id ? 'page' : null">{{ tab.label }}</a>
       </nav>
 
@@ -129,9 +130,31 @@
           </template>
         </div>
 
-        <!-- LABORATORIES (the public list) -->
-        <div class="sheet" v-else-if="route.name === 'labs'">
-          <h1 class="page-title">{{ t('labs.title') }}</h1>
+        <!-- HOME PAGE AND LABORATORIES: the home page is the public list with an introduction around it -->
+        <div class="sheet" v-else-if="route.name === 'labs' || route.name === 'home'">
+          <template v-if="route.name === 'home'">
+            <h1 class="page-title">{{ t('home.title') }}</h1>
+            <p class="home-lead">{{ t('home.lead') }}</p>
+            <ul class="home-points">
+              <li v-for="k in ['specimens', 'open', 'private']" :key="k">
+                <h2 class="home-point-title">{{ t(`home.${k}_title`) }}</h2>
+                <p>{{ t(`home.${k}_text`) }}</p>
+              </li>
+            </ul>
+            <template v-if="me && me.laboratories.length">
+              <h2 class="members-heading">{{ t('home.your_labs') }}</h2>
+              <ul class="home-mine">
+                <li v-for="l in me.laboratories" :key="l.slug">
+                  <a class="link" :href="link('projects', { lab: l.slug })">{{ l.name }}</a>
+                  <span class="muted">{{ t(`role.${l.role}`) }}</span>
+                </li>
+              </ul>
+            </template>
+            <h2 class="members-heading">{{ t('labs.title') }}</h2>
+          </template>
+          <template v-else>
+            <h1 class="page-title">{{ t('labs.title') }}</h1>
+          </template>
           <p class="subtitle">{{ t('labs.subtitle') }}</p>
           <div v-if="labsError" class="error-banner" role="alert">
             {{ labsError }} <button type="button" class="link" @click="loadLabs">{{ t('api.retry') }}</button>
@@ -149,6 +172,14 @@
             </a>
           </div>
           <p v-else class="empty-state">{{ t('labs.empty') }}</p>
+          <div v-if="route.name === 'home' && !labAccess" class="home-join">
+            <h2 class="home-point-title">{{ t('home.join_title') }}</h2>
+            <p>{{ t('home.join_text') }}</p>
+            <div class="actions">
+              <button type="button" class="btn-dark" @click="openSignup()">{{ t('signup.title') }}</button>
+              <button type="button" class="btn-light" @click="openLogin()">{{ t('auth.login') }}</button>
+            </div>
+          </div>
         </div>
 
         <!-- ABOUT -->

@@ -287,8 +287,11 @@ const app = createApp({
     // the laboratory named above the tabs: the one of the address, or the owner of a shared project
     barLab() {
       if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
+      if (this.route.name === 'home') return null;
       return this.labInfo;
     },
+    // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
+    inLab() { return !['home', 'labs', 'shared'].includes(this.route.name); },
     sharedSpeciesCount() { return this.shared && this.shared.specimens ? this.countSpecies(this.shared.specimens) : 0; },
     // the laboratories the signed-in person manages; the API checks this again on every request
     adminLabs() { return this.me ? this.me.laboratories.filter((l) => l.role === 'admin') : []; },
@@ -313,6 +316,7 @@ const app = createApp({
 
     pageTitle() {
       const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title' };
+      if (this.route.name === 'home') return `EntomoBase · ${this.t('home.title')}`;
       if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
         return this.currentProject ? `${this.currentProject.title} · EntomoBase` : `${this.t('title.project')} · EntomoBase`;
@@ -702,6 +706,8 @@ const app = createApp({
     // current one, null leaves it out (the old addresses, which show the first laboratory)
     link(name, { id, view, q, lab } = {}, lang = this.lang) {
       const w = ROUTE_WORDS[lang];
+      // the home page belongs to the platform, not to a laboratory
+      if (name === 'home') return lang === 'en' ? '#/en/' : '#/';
       const slug = lab === undefined ? this.labSlug : lab;
       const prefix = (lang === 'en' ? '#/en/' : '#/') + (slug ? `${LAB_WORD}/${encodeURIComponent(slug)}/` : '');
       if (name === 'project') return `${prefix}${w.projects}/${id}${view && view !== 'table' ? '/' + w[view] : ''}`;
@@ -767,7 +773,7 @@ const app = createApp({
       else if (!parts.length) {
         // first visit without an address: the saved choice, otherwise the browser language
         const preferred = savedLanguage() || ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'pt');
-        if (preferred === 'en') { location.replace(this.link('about', { lab: null }, 'en')); return; }
+        if (preferred === 'en') { location.replace(this.link('home', {}, 'en')); return; }
       }
       this.lang = lang;
       let slug = null;
@@ -791,9 +797,11 @@ const app = createApp({
       else if (page === 'members') route = { name: 'members' };
       else if (page === 'labs') route = { name: 'labs' };
       else if (page === 'shared') route = { name: 'shared' };
+      // #/ alone is the home page; #/lab/<slug> alone and unknown words keep showing a laboratory
+      else if (!parts.length && !slug) route = { name: 'home' };
       else route = { name: 'about' };
       if (route.name === 'members') this.loadMembers();
-      if (route.name === 'labs') this.loadLabs();
+      if (route.name === 'labs' || route.name === 'home') this.loadLabs();
       if (route.name === 'shared') {
         let token = b || '';
         try { token = decodeURIComponent(token); } catch { /* keep it as typed */ }
@@ -962,6 +970,7 @@ const app = createApp({
       this.showLogin = true;
     },
     switchAuthMode(mode) { this.loginError = null; this.authMode = mode; },
+    openSignup() { this.openLogin(); this.authMode = 'signup'; },
     // the answer is the same whether or not the address already has an account, so the site cannot say which
     async signup() {
       this.loginError = null;
