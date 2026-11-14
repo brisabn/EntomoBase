@@ -24,6 +24,15 @@ const SORT_WORDS = {
 };
 
 // the internal key for a word of the address bar, accepting the words of both languages
+// "Ana Lima" -> "AL", "Carla (demonstração)" -> "C": the first and the last word that start with a letter
+function initialsOf(name) {
+  const words = (name || '').split(/\s+/).filter((w) => /^\p{L}/u.test(w));
+  if (!words.length) return '?';
+  const first = words[0][0];
+  const last = words.length > 1 ? words[words.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+
 function wordKey(table, word) {
   for (const lang of LANGUAGES) {
     const found = Object.entries(table[lang]).find(([, w]) => w === word);
@@ -286,7 +295,8 @@ const app = createApp({
       toast: null,
       projectFilterKeys: ['year', 'group', 'status', 'locality'],
       importFields: IMPORT_FIELDS,
-      teamSize: 3
+      // the window where an admin writes the About page: { name, institution, about, contact_email, team }
+      aboutForm: null
     };
   },
 
@@ -349,11 +359,14 @@ const app = createApp({
     },
     sortOptions() { return this.sortKeys.map((value) => ({ value, label: this.t(`sort.${value}`) })); },
     projectFilters() { return this.projectFilterKeys.map((key) => ({ key, label: this.t(`filter.${key}`) })); },
-    aboutText() { return this.t('about.text'); },
-    contact() { return this.t('contact.value'); },
+    // the About page is written by each laboratory's admins; the same text in both languages, like a project's
+    aboutText() { return (this.labInfo && this.labInfo.about) || ''; },
+    aboutParagraphs() { return this.aboutText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); },
     team() {
-      return Array.from({ length: this.teamSize }, () => ({ initials: 'NS', name: this.t('about.team_name'), role: this.t('about.team_role') }));
+      return ((this.labInfo && this.labInfo.team) || []).map((m) => ({ initials: initialsOf(m.name), name: m.name, role: m.role || '' }));
     },
+    // inside a laboratory, its own contact; elsewhere (or when it has none), the one of the platform
+    contact() { return (this.inLab && this.labInfo && this.labInfo.contact_email) || this.t('contact.value'); },
     contactIsEmail() { return /^[^\s@\[\]]+@[^\s@\[\]]+\.[^\s@\[\]]+$/.test(this.contact); },
 
     citationText() {
@@ -909,7 +922,7 @@ const app = createApp({
     },
     closePopups() { this.openMenu = null; this.popover = null; this.suggestionsOpen = false; },
     onKey(ev) {
-      const modalOpen = this.confirmation || this.specimenForm || this.projectForm || this.importJob || this.info || this.showLogin;
+      const modalOpen = this.confirmation || this.specimenForm || this.projectForm || this.importJob || this.info || this.showLogin || this.aboutForm;
       if (this.panel && !modalOpen) {
         if (ev.key === 'ArrowLeft') { this.movePanel(-1); return; }
         if (ev.key === 'ArrowRight') { this.movePanel(1); return; }
@@ -919,6 +932,7 @@ const app = createApp({
       if (this.confirmation) this.confirmation = null;
       else if (this.specimenForm) this.specimenForm = null;
       else if (this.projectForm) this.projectForm = null;
+      else if (this.aboutForm) this.aboutForm = null;
       else if (this.importJob) this.importJob = null;
       else if (this.info) this.info = null;
       else if (this.showLogin) this.showLogin = false;
@@ -1549,6 +1563,42 @@ const app = createApp({
         }
       };
     },
+    // ---------- the About page (admins write it) ----------
+    openAboutForm() {
+      const lab = this.labInfo;
+      this.formError = null;
+      this.aboutForm = {
+        name: lab.name, institution: lab.institution, about: lab.about || '', contact_email: lab.contact_email || '',
+        team: (lab.team || []).map((m) => ({ name: m.name, role: m.role || '' }))
+      };
+    },
+    addTeamMember() { this.aboutForm.team.push({ name: '', role: '' }); },
+    removeTeamMember(i) { this.aboutForm.team.splice(i, 1); },
+    moveTeamMember(i, step) {
+      const team = this.aboutForm.team;
+      const j = i + step;
+      if (j < 0 || j >= team.length) return;
+      [team[i], team[j]] = [team[j], team[i]];
+    },
+    async saveAbout() {
+      this.formError = null;
+      this.submitting = true;
+      const slug = this.labInfo.slug;
+      try {
+        // rows left without a name are dropped instead of refused
+        const team = this.aboutForm.team.filter((m) => m.name.trim()).map((m) => ({ name: m.name, role: m.role || null }));
+        const info = await this.api(`/labs/${encodeURIComponent(slug)}/laboratory`, { method: 'PUT', body: { ...this.aboutForm, team } });
+        if (this.labInfo && this.labInfo.slug === slug) this.labInfo = info;
+        this.aboutForm = null;
+        this.notify(this.t('notify.about_saved'));
+        // the name shows in the list of laboratories and in the person's own list
+        await Promise.all([this.loadMe(), this.loadLabs()]);
+      } catch (e) {
+        this.formError = e.message;
+      }
+      this.submitting = false;
+    },
+
     // ---------- laboratory members (admins only) ----------
     // keepError: reloading after a refused change must not hide the reason it was refused
     async loadMembers({ keepError = false } = {}) {

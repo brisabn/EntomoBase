@@ -92,6 +92,18 @@ def test_the_seed_creates_three_laboratories_one_of_them_unlisted(run_seed, db):
     assert projects_by_lab == {"ufmg": 8, "borboletas": 3, "formigas": 1}
 
 
+# the demo laboratories have an About page, marked as made up; the first laboratory is the real one and is
+# left for its admins to write
+def test_the_demo_laboratories_come_with_a_presentation_contact_and_team(run_seed, client, db):
+    run_seed()
+    for slug in ("borboletas", "formigas"):
+        page = client.get(f"/labs/{slug}/laboratory").json()
+        assert "demonstrar o EntomoBase" in page["about"] and page["contact_email"].endswith("@entomobase.test")
+        assert page["team"] and all("(demonstração)" in person["name"] for person in page["team"])
+    first = client.get("/labs/ufmg/laboratory").json()
+    assert (first["about"], first["contact_email"], first["team"]) == (None, None, [])
+
+
 def test_each_specimen_belongs_to_the_laboratory_of_its_project(run_seed, db):
     run_seed()
     wrong = db.query(models.Specimen).join(models.Project, models.Specimen.project_id == models.Project.id).filter(

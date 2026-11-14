@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 from typing import Annotated, Literal, Optional, List
 from datetime import date, datetime
 
@@ -205,6 +205,34 @@ class LaboratoryPublic(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# a person of the team on the About page
+class TeamMember(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    role: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]] = None
+
+
+# the About page of a laboratory: public, like the rest of what the laboratory shows
+class LaboratoryDetails(LaboratoryPublic):
+    about: Optional[str] = None
+    contact_email: Optional[str] = None
+    team: List[TeamMember] = []
+
+    @field_validator("team", mode="before")
+    @classmethod
+    def no_team_is_an_empty_one(cls, value):
+        return value or []
+
+
+# what the admins of a laboratory change about it; a field left out stays as it is. The address (slug), the
+# Darwin Core collection code and the public list stay with the platform administrator
+class LaboratoryUpdate(BaseModel):
+    name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    institution: Optional[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]] = None
+    about: Optional[str] = Field(None, max_length=5000)
+    contact_email: Optional[str] = Field(None, max_length=254)
+    team: Optional[List[TeamMember]] = Field(None, max_length=30)
 
 
 # a public specimen whose picture illustrates a laboratory; the site builds the image address from these

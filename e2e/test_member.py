@@ -1,5 +1,6 @@
 # Scenario 3: a researcher of a laboratory creates a project, imports a CSV (first with a wrong row,
 # which blocks the whole file), shares the project by link and opens the link without an account.
+# And an admin writes the About page of the laboratory, which a visitor then reads.
 import re
 
 from playwright.sync_api import expect
@@ -75,3 +76,29 @@ def test_a_researcher_imports_a_csv_and_shares_the_project_by_link(new_page, ser
     visitor.reload()
     expect(visitor.locator(".grid .card").first).to_be_visible()
     expect(visitor.locator(".grid")).not_to_contain_text(TITLE)
+
+
+def test_an_admin_writes_the_about_page_and_a_visitor_reads_it(new_page, servers):
+    admin = new_page()
+    admin.goto(servers.site + "/#/lab/ufmg/sobre")
+    sign_in(admin, "admin.ufmg@entomobase.test", servers.passwords["admin.ufmg@entomobase.test"])
+    admin.get_by_role("button", name="Editar apresentação").click()
+    admin.get_by_label("Apresentação", exact=True).fill("Coleção de insetos do laboratório.")
+    admin.get_by_label("E-mail de contato").fill("colecao@ufmg.br")
+    for n, (name, role) in enumerate([("Ana Lima", "Coordenadora"), ("Bruno Reis", "")]):
+        admin.get_by_role("button", name="Adicionar pessoa").click()
+        admin.get_by_label(f"Nome da pessoa {n + 1}").fill(name)
+        admin.get_by_label(f"Função da pessoa {n + 1}").fill(role)
+    # the order is the one chosen in the window
+    admin.get_by_role("button", name="Subir a pessoa 2").click()
+    admin.get_by_role("button", name="Salvar").click()
+    expect(admin.get_by_text("Apresentação salva.")).to_be_visible()
+
+    visitor = new_page()
+    visitor.goto(servers.site + "/#/lab/ufmg/sobre")
+    expect(visitor.locator(".about-text")).to_have_text("Coleção de insetos do laboratório.")
+    expect(visitor.locator(".team .member-name")).to_have_text(["Bruno Reis", "Ana Lima"])
+    expect(visitor.get_by_role("button", name="Editar apresentação")).to_have_count(0)
+    # the contact at the bottom is the laboratory's
+    visitor.get_by_role("button", name="Contato").click()
+    expect(visitor.get_by_role("link", name="colecao@ufmg.br").last).to_be_visible()

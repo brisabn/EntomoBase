@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date, DateTime, UniqueConstraint
+from sqlalchemy import JSON, Column, Integer, String, Float, Boolean, ForeignKey, Date, DateTime, UniqueConstraint
 from sqlalchemy.sql import expression
 from sqlalchemy.orm import relationship
 from database import Base
@@ -22,6 +22,11 @@ class Laboratory(Base):
     license = Column(String, nullable=False)
     # whether the laboratory appears in the public list of the platform
     listed = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    # what the About page shows, written by the laboratory's admins: a presentation, a public contact
+    # e-mail and the team, a list of {"name", "role"} in the order they chose
+    about = Column(String, nullable=True)
+    contact_email = Column(String, nullable=True)
+    team = Column(JSON, nullable=True)
 
     memberships = relationship("Membership", back_populates="laboratory", cascade="all, delete-orphan")
 

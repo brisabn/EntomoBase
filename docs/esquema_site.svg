@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1730 1704" width="1730" height="1704" font-family="Segoe UI, Arial, sans-serif">
-<rect width="1730" height="1704" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1730 1766" width="1730" height="1766" font-family="Segoe UI, Arial, sans-serif">
+<rect width="1730" height="1766" fill="#ffffff"/>
 <text x="40" y="50" font-size="27" fill="#1d2a24" font-weight="700">EntomoBase: esquema do site</text>
 <text x="40" y="78" font-size="14" fill="#5a6660">Páginas e janelas que a pessoa vê, as rotas da API com quem pode usar cada uma, o banco e os serviços externos</text>
-<rect x="30" y="104" width="600" height="1374" rx="12" fill="#eaf1fa" stroke="#2a5f9e" stroke-width="2.5"/>
+<rect x="30" y="104" width="600" height="1402" rx="12" fill="#eaf1fa" stroke="#2a5f9e" stroke-width="2.5"/>
 <text x="50" y="136" font-size="19" fill="#2a5f9e" font-weight="700">NAVEGADOR</text>
 <text x="50" y="160" font-size="12.5" fill="#5a6660">JavaScript (Vue 3), sem etapa de build; o mesmo site em português e em inglês</text>
 <rect x="46" y="178" width="568" height="118" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
@@ -63,7 +63,7 @@
 <text x="346" y="770" font-size="11.5" fill="#5a6660" font-weight="700">em português</text>
 <text x="478" y="770" font-size="11.5" fill="#5a6660" font-weight="700">em inglês</text>
 <text x="62" y="798" font-size="14" fill="#1d2a24" font-weight="700">Sobre</text>
-<text x="62" y="816" font-size="12" fill="#5a6660">equipe e descrição; membro: deixar o laboratório</text>
+<text x="62" y="816" font-size="12" fill="#5a6660">apresentação, contato e equipe; membro: deixar o laboratório</text>
 <text x="346" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">sobre</text>
 <text x="478" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">about</text>
 <path d="M62 828 H598" stroke="#e1e8f0"/>
@@ -94,7 +94,7 @@
 <text x="346" y="1032" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">membros</text>
 <text x="478" y="1032" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">members</text>
 <text x="62" y="1068" font-size="11.5" fill="#5a6660" font-style="italic">todas depois de #/lab/&lt;slug&gt;/; sem esse prefixo, mostram o primeiro laboratório</text>
-<rect x="46" y="1112" width="568" height="242" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<rect x="46" y="1112" width="568" height="270" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
 <text x="62" y="1136" font-size="14" fill="#2a5f9e" font-weight="700">Janelas</text>
 <rect x="62" y="1154" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
 <text x="87.0" y="1167.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
@@ -117,12 +117,15 @@
 <rect x="62" y="1322" width="57.2" height="18" rx="4" fill="#c0661c"/>
 <text x="90.6" y="1335.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
 <text x="138" y="1336" font-size="13.5" fill="#1d2a24">Confirmar exclusão (projeto: só administrador) ou saída</text>
-<rect x="46" y="1368" width="568" height="96" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
-<text x="62" y="1392" font-size="14" fill="#2a5f9e" font-weight="700">Arquivos</text>
-<text x="62" y="1416" font-size="13" fill="#1d2a24">index.html (estrutura) · style.css (aparência)</text>
-<text x="62" y="1436" font-size="13" fill="#1d2a24">app.js (telas e comportamento) · i18n.js (textos PT/EN)</text>
-<text x="62" y="1456" font-size="13" fill="#1d2a24">config.js (endereço da API) · bibliotecas Vue e Leaflet</text>
-<rect x="730" y="104" width="560" height="1398" rx="12" fill="#e9f3ec" stroke="#2e6b4f" stroke-width="2.5"/>
+<rect x="62" y="1350" width="50.0" height="18" rx="4" fill="#a33f2c"/>
+<text x="87.0" y="1363.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
+<text x="138" y="1364" font-size="13.5" fill="#1d2a24">Apresentação do laboratório (texto, contato, equipe)</text>
+<rect x="46" y="1396" width="568" height="96" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<text x="62" y="1420" font-size="14" fill="#2a5f9e" font-weight="700">Arquivos</text>
+<text x="62" y="1444" font-size="13" fill="#1d2a24">index.html (estrutura) · style.css (aparência)</text>
+<text x="62" y="1464" font-size="13" fill="#1d2a24">app.js (telas e comportamento) · i18n.js (textos PT/EN)</text>
+<text x="62" y="1484" font-size="13" fill="#1d2a24">config.js (endereço da API) · bibliotecas Vue e Leaflet</text>
+<rect x="730" y="104" width="560" height="1460" rx="12" fill="#e9f3ec" stroke="#2e6b4f" stroke-width="2.5"/>
 <text x="750" y="136" font-size="19" fill="#2e6b4f" font-weight="700">API</text>
 <text x="750" y="160" font-size="12.5" fill="#5a6660">Python (FastAPI); responde dados em JSON</text>
 <text x="748" y="190" font-size="13" fill="#2e6b4f" font-weight="700">Contas e plataforma</text>
@@ -173,54 +176,59 @@
 <text x="832.4" y="751" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET /laboratory · /projects · /specimens</text>
 <text x="832.4" y="771" font-size="12" fill="#5a6660">visitante: só projetos públicos; membro: tudo do laboratório</text>
 <rect x="746" y="790" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
-<rect x="758" y="800" width="64.4" height="18" rx="4" fill="#2e6b4f"/>
-<text x="790.2" y="813.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">público</text>
-<text x="832.4" y="813" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET /export/csv · /export/dwc</text>
-<text x="832.4" y="833" font-size="12" fill="#5a6660">dados públicos; ?full=true (campos internos) exige membro</text>
+<rect x="758" y="800" width="50.0" height="18" rx="4" fill="#a33f2c"/>
+<text x="783.0" y="813.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
+<text x="832" y="813" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">PUT /laboratory</text>
+<text x="832" y="833" font-size="12" fill="#5a6660">nome, instituição, apresentação, contato e equipe (aba Sobre)</text>
 <rect x="746" y="852" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
-<rect x="758" y="862" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="786.6" y="875.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="832" y="875" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST PUT /projects · /specimens</text>
-<text x="832" y="895" font-size="12" fill="#5a6660">criar e editar (e excluir espécimes)</text>
+<rect x="758" y="862" width="64.4" height="18" rx="4" fill="#2e6b4f"/>
+<text x="790.2" y="875.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">público</text>
+<text x="832.4" y="875" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET /export/csv · /export/dwc</text>
+<text x="832.4" y="895" font-size="12" fill="#5a6660">dados públicos; ?full=true (campos internos) exige membro</text>
 <rect x="746" y="914" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
 <rect x="758" y="924" width="57.2" height="18" rx="4" fill="#c0661c"/>
 <text x="786.6" y="937.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="832" y="937" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /specimens/import</text>
-<text x="832" y="957" font-size="12" fill="#5a6660">?dry_run=true só simula e mostra a prévia</text>
+<text x="832" y="937" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST PUT /projects · /specimens</text>
+<text x="832" y="957" font-size="12" fill="#5a6660">criar e editar (e excluir espécimes)</text>
 <rect x="746" y="976" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
 <rect x="758" y="986" width="57.2" height="18" rx="4" fill="#c0661c"/>
 <text x="786.6" y="999.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="832" y="999" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /taxonomy/validate</text>
-<text x="832" y="1019" font-size="12" fill="#5a6660">confere os nomes científicos no GBIF</text>
+<text x="832" y="999" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /specimens/import</text>
+<text x="832" y="1019" font-size="12" fill="#5a6660">?dry_run=true só simula e mostra a prévia</text>
 <rect x="746" y="1038" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
-<rect x="758" y="1048" width="50.0" height="18" rx="4" fill="#a33f2c"/>
-<text x="783.0" y="1061.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
-<text x="832" y="1061" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">DELETE /projects/{id}</text>
-<text x="832" y="1081" font-size="12" fill="#5a6660">apaga o projeto e os espécimes dele</text>
+<rect x="758" y="1048" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="786.6" y="1061.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="832" y="1061" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /taxonomy/validate</text>
+<text x="832" y="1081" font-size="12" fill="#5a6660">confere os nomes científicos no GBIF</text>
 <rect x="746" y="1100" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
-<rect x="758" y="1110" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="786.6" y="1123.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="832" y="1123" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">DELETE /membership</text>
-<text x="832" y="1143" font-size="12" fill="#5a6660">deixar o laboratório (o último administrador não sai)</text>
+<rect x="758" y="1110" width="50.0" height="18" rx="4" fill="#a33f2c"/>
+<text x="783.0" y="1123.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
+<text x="832" y="1123" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">DELETE /projects/{id}</text>
+<text x="832" y="1143" font-size="12" fill="#5a6660">apaga o projeto e os espécimes dele</text>
 <rect x="746" y="1162" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
-<rect x="758" y="1172" width="50.0" height="18" rx="4" fill="#a33f2c"/>
-<text x="783.0" y="1185.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
-<text x="832" y="1185" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET PUT DELETE /members</text>
-<text x="832" y="1205" font-size="12" fill="#5a6660">mudar papel, remover</text>
+<rect x="758" y="1172" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="786.6" y="1185.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="832" y="1185" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">DELETE /membership</text>
+<text x="832" y="1205" font-size="12" fill="#5a6660">deixar o laboratório (o último administrador não sai)</text>
 <rect x="746" y="1224" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
 <rect x="758" y="1234" width="50.0" height="18" rx="4" fill="#a33f2c"/>
 <text x="783.0" y="1247.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
-<text x="832" y="1247" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET POST DELETE /invitations</text>
-<text x="832" y="1267" font-size="12" fill="#5a6660">convidar por e-mail (vale 7 dias), reenviar, cancelar</text>
-<rect x="746" y="1292" width="528" height="194" rx="8" fill="#fbfaf2" stroke="#e2d9b8" stroke-width="1"/>
-<text x="762" y="1318" font-size="14" fill="#5a5230" font-weight="700">Regras que a API garante</text>
-<text x="762" y="1342" font-size="12.5" fill="#4a4630">• visitante só vê projetos públicos; o não listado só abre pelo link</text>
-<text x="762" y="1364" font-size="12.5" fill="#4a4630">• o papel vem do banco a cada pedido: quem sai perde o acesso na hora</text>
-<text x="762" y="1386" font-size="12.5" fill="#4a4630">• ninguém entra num laboratório sem aceitar um convite</text>
-<text x="762" y="1408" font-size="12.5" fill="#4a4630">• o que a pessoa não pode ver responde 404, igual ao que não existe</text>
-<text x="762" y="1430" font-size="12.5" fill="#4a4630">• campos internos (coletor, empréstimo...) só para membros</text>
-<text x="762" y="1452" font-size="12.5" fill="#4a4630">• erros saem como código; a tela traduz para PT ou EN</text>
-<text x="762" y="1474" font-size="12.5" fill="#4a4630">• só o site autorizado (CORS); migrações do banco ao iniciar</text>
+<text x="832" y="1247" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET PUT DELETE /members</text>
+<text x="832" y="1267" font-size="12" fill="#5a6660">mudar papel, remover</text>
+<rect x="746" y="1286" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
+<rect x="758" y="1296" width="50.0" height="18" rx="4" fill="#a33f2c"/>
+<text x="783.0" y="1309.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
+<text x="832" y="1309" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">GET POST DELETE /invitations</text>
+<text x="832" y="1329" font-size="12" fill="#5a6660">convidar por e-mail (vale 7 dias), reenviar, cancelar</text>
+<rect x="746" y="1354" width="528" height="194" rx="8" fill="#fbfaf2" stroke="#e2d9b8" stroke-width="1"/>
+<text x="762" y="1380" font-size="14" fill="#5a5230" font-weight="700">Regras que a API garante</text>
+<text x="762" y="1404" font-size="12.5" fill="#4a4630">• visitante só vê projetos públicos; o não listado só abre pelo link</text>
+<text x="762" y="1426" font-size="12.5" fill="#4a4630">• o papel vem do banco a cada pedido: quem sai perde o acesso na hora</text>
+<text x="762" y="1448" font-size="12.5" fill="#4a4630">• ninguém entra num laboratório sem aceitar um convite</text>
+<text x="762" y="1470" font-size="12.5" fill="#4a4630">• o que a pessoa não pode ver responde 404, igual ao que não existe</text>
+<text x="762" y="1492" font-size="12.5" fill="#4a4630">• campos internos (coletor, empréstimo...) só para membros</text>
+<text x="762" y="1514" font-size="12.5" fill="#4a4630">• erros saem como código; a tela traduz para PT ou EN</text>
+<text x="762" y="1536" font-size="12.5" fill="#4a4630">• só o site autorizado (CORS); migrações do banco ao iniciar</text>
 <path d="M634 470 L726 470" fill="none" stroke="#2a5f9e" stroke-width="2.5"/>
 <path d="M726 470 L710 461 L710 479 Z" fill="#2a5f9e"/>
 <text x="680.0" y="458" font-size="13.5" fill="#2a5f9e" font-weight="700" text-anchor="middle">pede</text>
@@ -307,27 +315,27 @@
 <text x="1522" y="1228" font-size="12" fill="#33423a">acesso direto do navegador</text>
 <path d="M1446 1250 H1504" stroke="#2a5f9e" stroke-width="2.5"/>
 <text x="1522" y="1254" font-size="12" fill="#33423a">chamada à API</text>
-<path d="M330.0 1478 V1524" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
-<path d="M180.0 1524 H840.0" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
-<path d="M180.0 1524 L180.0 1570" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
-<path d="M180.0 1570 L171.0 1554 L189.0 1554 Z" fill="#8a6a2c"/>
-<path d="M510.0 1524 L510.0 1570" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
-<path d="M510.0 1570 L501.0 1554 L519.0 1554 Z" fill="#8a6a2c"/>
-<path d="M840.0 1524 L840.0 1570" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
-<path d="M840.0 1570 L831.0 1554 L849.0 1554 Z" fill="#8a6a2c"/>
-<rect x="30" y="1572" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
-<text x="48" y="1602" font-size="17" fill="#8a6a2c" font-weight="700">Zenodo</text>
-<text x="48" y="1628" font-size="13" fill="#1d2a24" font-weight="700">fotos dos espécimes</text>
-<text x="48" y="1650" font-size="12.5" fill="#5a6660">repositório de dados de cada projeto</text>
-<rect x="360" y="1572" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
-<text x="378" y="1602" font-size="17" fill="#8a6a2c" font-weight="700">Esri</text>
-<text x="378" y="1628" font-size="13" fill="#1d2a24" font-weight="700">mapa de fundo</text>
-<text x="378" y="1650" font-size="12.5" fill="#5a6660">imagens dos mapas (Leaflet)</text>
-<rect x="690" y="1572" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
-<text x="708" y="1602" font-size="17" fill="#8a6a2c" font-weight="700">CDN</text>
-<text x="708" y="1628" font-size="13" fill="#1d2a24" font-weight="700">bibliotecas e fontes</text>
-<text x="708" y="1650" font-size="12.5" fill="#5a6660">Vue, Leaflet, Google Fonts</text>
-<text x="1020" y="1602" font-size="15" fill="#8a6a2c" font-weight="700">Serviços externos</text>
-<text x="1020" y="1626" font-size="12.5" fill="#5a6660">que o navegador acessa direto,</text>
-<text x="1020" y="1646" font-size="12.5" fill="#5a6660">sem passar pela API</text>
+<path d="M330.0 1506 V1586" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M180.0 1586 H840.0" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M180.0 1586 L180.0 1632" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M180.0 1632 L171.0 1616 L189.0 1616 Z" fill="#8a6a2c"/>
+<path d="M510.0 1586 L510.0 1632" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M510.0 1632 L501.0 1616 L519.0 1616 Z" fill="#8a6a2c"/>
+<path d="M840.0 1586 L840.0 1632" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M840.0 1632 L831.0 1616 L849.0 1616 Z" fill="#8a6a2c"/>
+<rect x="30" y="1634" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
+<text x="48" y="1664" font-size="17" fill="#8a6a2c" font-weight="700">Zenodo</text>
+<text x="48" y="1690" font-size="13" fill="#1d2a24" font-weight="700">fotos dos espécimes</text>
+<text x="48" y="1712" font-size="12.5" fill="#5a6660">repositório de dados de cada projeto</text>
+<rect x="360" y="1634" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
+<text x="378" y="1664" font-size="17" fill="#8a6a2c" font-weight="700">Esri</text>
+<text x="378" y="1690" font-size="13" fill="#1d2a24" font-weight="700">mapa de fundo</text>
+<text x="378" y="1712" font-size="12.5" fill="#5a6660">imagens dos mapas (Leaflet)</text>
+<rect x="690" y="1634" width="300" height="96" rx="12" fill="#f6efe0" stroke="#8a6a2c" stroke-width="2.5"/>
+<text x="708" y="1664" font-size="17" fill="#8a6a2c" font-weight="700">CDN</text>
+<text x="708" y="1690" font-size="13" fill="#1d2a24" font-weight="700">bibliotecas e fontes</text>
+<text x="708" y="1712" font-size="12.5" fill="#5a6660">Vue, Leaflet, Google Fonts</text>
+<text x="1020" y="1664" font-size="15" fill="#8a6a2c" font-weight="700">Serviços externos</text>
+<text x="1020" y="1688" font-size="12.5" fill="#5a6660">que o navegador acessa direto,</text>
+<text x="1020" y="1708" font-size="12.5" fill="#5a6660">sem passar pela API</text>
 </svg>

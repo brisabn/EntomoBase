@@ -46,6 +46,7 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira *
 | Criar e editar projetos e espécimes, importar CSV, **publicar** | não | não | sim | sim |
 | Excluir espécimes | não | não | sim | sim |
 | Excluir projetos (apaga os espécimes dele) | não | não | não | sim |
+| Escrever a aba Sobre (apresentação, contato, equipe) e renomear o laboratório | não | não | não | sim |
 
 ### Contas, laboratórios e membros
 
@@ -56,6 +57,7 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira *
 - **Trocar a própria senha** (página Minha conta, pelo e-mail no topo do site; `PUT /me/password`): pede a senha atual, com o mesmo limite de tentativas do login. Trocar a senha por qualquer caminho cancela os links de senha pendentes. As sessões já abertas continuam valendo até expirarem (8 horas).
 - **Laboratórios** são criados pelo administrador da plataforma (`create_admin.py email --superadmin`), na página Administração da plataforma (em Minha conta, ou `#/plataforma`) ou com `POST /labs`. Informa-se nome, endereço (sugerido a partir do nome; não muda depois), instituição, código da coleção, licença, se aparece na lista pública e o e-mail do primeiro administrador, que precisa já ter conta com e-mail confirmado. A mesma página lista todos os laboratórios, inclusive os fora da lista pública, com quem administra cada um (`GET /platform/laboratories`); o administrador da plataforma não vê os dados dos laboratórios.
 - **Convites**: o administrador do laboratório convida pelo e-mail, como pesquisador ou administrador (`POST /labs/<slug>/invitations`). A pessoa recebe um link que vale 7 dias. Sem conta, ela informa nome e senha na página do link e a conta já nasce confirmada; com conta, ela entra e aceita. Ninguém entra num laboratório sem aceitar. A resposta ao administrador é a mesma exista ou não a conta. Convidar de novo troca o link (o anterior para de funcionar), e um convite deixa de valer se quem o enviou deixar de ser administrador ali. Cada administrador envia até 20 convites por hora. Os pendentes ficam na página de membros, com reenviar e cancelar.
+- **Aba Sobre**: cada laboratório tem a sua apresentação, um e-mail de contato público e a equipe (nome e função, até 30 pessoas, na ordem escolhida). Quem escreve é o administrador do laboratório, em "Editar apresentação" (`PUT /labs/<slug>/laboratory`), que também muda o nome e a instituição. O texto é o mesmo nos dois idiomas, como as descrições de projeto. Dentro de um laboratório, o "Contato" do rodapé mostra o e-mail dele.
 - **Membros**: o administrador muda o papel (`PUT /labs/<slug>/members/<id>`) e remove (`DELETE`). Qualquer membro também deixa o laboratório por conta própria, no fim da aba Sobre (`DELETE /labs/<slug>/membership`); para voltar, precisa de um novo convite. Um laboratório nunca fica sem administrador: o último não pode sair nem ser removido.
 
 A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.

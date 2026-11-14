@@ -163,6 +163,7 @@ class Case:
 CASES = [
     # the laboratory
     Case("GET", "/laboratory", "public", 200, lambda i: ("/laboratory", None)),
+    Case("PUT", "/laboratory", "admin", 200, lambda i: ("/laboratory", {"about": "A new presentation"})),
     # projects
     Case("GET", "/projects", "public", 200, lambda i: ("/projects", None)),
     Case("POST", "/projects", "member", 201, lambda i: ("/projects", {"title": "New", "year": 2026, "insect_group": "Diptera"})),

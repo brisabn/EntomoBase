@@ -156,8 +156,18 @@ mark { background: #f3e08a; color: inherit; border-radius: 3px; padding: 0 1px; 
 .error-banner .link { margin-left: 0.5rem; color: inherit; }
 
 /* ---------- about ---------- */
-.about-text { max-width: 62rem; font-size: 1.3rem; line-height: 1.5; margin-bottom: 3.5rem; }
+.about-text { max-width: 62rem; font-size: 1.3rem; line-height: 1.5; }
 .team { display: flex; justify-content: space-around; gap: 2.5rem; flex-wrap: wrap; padding: 0 2rem 1rem; }
+/* the About page of a laboratory */
+.about-actions { display: flex; justify-content: flex-end; margin-bottom: 0.6rem; }
+.about-body { margin-bottom: 2.5rem; }
+.about-text + .about-text { margin-top: 0.9rem; }
+.about-contact { margin-top: 1.2rem; font-size: 1.02rem; overflow-wrap: anywhere; }
+.team-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) auto auto auto; gap: 0.5rem; align-items: center; margin-bottom: 0.55rem; }
+.team-row input { height: 2.6rem; border: 1.5px solid var(--line); border-radius: 10px; padding: 0 0.7rem; background: #fff; font: inherit; min-width: 0; }
+.icon-btn { width: 2.2rem; height: 2.2rem; border-radius: 8px; border: 1.5px solid var(--line); background: #fff; font-weight: 700; }
+.icon-btn:disabled { opacity: 0.35; cursor: default; }
+@media (max-width: 620px) { .team-row { grid-template-columns: 1fr 1fr; } .team-row input { grid-column: 1 / -1; } }
 /* leaving the laboratory: set apart at the end of the About page */
 .lab-membership { margin-top: 2.4rem; padding-top: 0.4rem; border-top: 1px solid var(--fold); max-width: 40rem; }
 .lab-membership p { margin-bottom: 1rem; }

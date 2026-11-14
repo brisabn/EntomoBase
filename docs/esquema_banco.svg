@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1306" width="1700" height="1306" font-family="Segoe UI, Arial, sans-serif">
 <rect width="1700" height="1306" fill="#ffffff"/>
 <text x="44" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
-<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0005) · 11 tabelas · SQLite ou PostgreSQL</text>
-<rect x="64" y="130" width="290" height="212" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
+<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0006) · 11 tabelas · SQLite ou PostgreSQL</text>
+<rect x="64" y="130" width="290" height="284" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M64 168 V138 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V168 Z" fill="#2a5f9e"/>
 <text x="78" y="155" font-size="16" fill="#ffffff" font-weight="700">laboratories</text>
-<text x="340" y="155" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">7 colunas</text>
+<text x="340" y="155" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">10 colunas</text>
 <text x="78" y="184" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
 <text x="266" y="184" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
 <rect x="314" y="173" width="26" height="15" rx="3" fill="#b8860b"/>
@@ -27,28 +27,36 @@
 <text x="266" y="304" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
 <text x="78" y="328" font-size="13.5" fill="#1d2a24" font-weight="700">listed</text>
 <text x="266" y="328" font-size="12" fill="#6b7770" text-anchor="end">sim/não</text>
-<text x="64" y="361" font-size="11.5" fill="#5a6660" font-style="italic">dono dos projetos e espécimes; listed = aparece na lista pública</text>
-<rect x="64" y="400" width="290" height="140" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
-<path d="M64 438 V408 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V438 Z" fill="#2a5f9e"/>
-<text x="78" y="425" font-size="16" fill="#ffffff" font-weight="700">memberships</text>
-<text x="340" y="425" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">4 colunas</text>
-<text x="78" y="454" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
-<text x="266" y="454" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="443" width="26" height="15" rx="3" fill="#b8860b"/>
-<text x="327" y="454.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
-<rect x="66" y="462" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
-<text x="78" y="478" font-size="13.5" fill="#1d2a24" font-weight="700">user_id</text>
-<text x="266" y="478" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="467" width="26" height="15" rx="3" fill="#2a6fb0"/>
-<text x="327" y="478.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
-<text x="78" y="502" font-size="13.5" fill="#1d2a24" font-weight="700">laboratory_id</text>
-<text x="266" y="502" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="491" width="26" height="15" rx="3" fill="#2a6fb0"/>
-<text x="327" y="502.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
-<rect x="66" y="510" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
-<text x="78" y="526" font-size="13.5" fill="#1d2a24" font-weight="700">role</text>
-<text x="266" y="526" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
-<text x="64" y="559" font-size="11.5" fill="#5a6660" font-style="italic">papel: admin ou researcher; um vínculo por usuário e laboratório</text>
+<rect x="66" y="336" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="78" y="352" font-size="13.5" fill="#1d2a24">about</text>
+<text x="266" y="352" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="78" y="376" font-size="13.5" fill="#1d2a24">contact_email</text>
+<text x="266" y="376" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="66" y="384" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="78" y="400" font-size="13.5" fill="#1d2a24">team</text>
+<text x="266" y="400" font-size="12" fill="#6b7770" text-anchor="end">lista (JSON)</text>
+<text x="64" y="433" font-size="11.5" fill="#5a6660" font-style="italic">dono dos projetos e espécimes; about e team: a aba Sobre</text>
+<rect x="64" y="480" width="290" height="140" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
+<path d="M64 518 V488 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V518 Z" fill="#2a5f9e"/>
+<text x="78" y="505" font-size="16" fill="#ffffff" font-weight="700">memberships</text>
+<text x="340" y="505" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">4 colunas</text>
+<text x="78" y="534" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
+<text x="266" y="534" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="523" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="327" y="534.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
+<rect x="66" y="542" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="78" y="558" font-size="13.5" fill="#1d2a24" font-weight="700">user_id</text>
+<text x="266" y="558" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="547" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="327" y="558.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<text x="78" y="582" font-size="13.5" fill="#1d2a24" font-weight="700">laboratory_id</text>
+<text x="266" y="582" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="571" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="327" y="582.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<rect x="66" y="590" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="78" y="606" font-size="13.5" fill="#1d2a24" font-weight="700">role</text>
+<text x="266" y="606" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="64" y="639" font-size="11.5" fill="#5a6660" font-style="italic">papel: admin ou researcher; um vínculo por usuário e laboratório</text>
 <rect x="500" y="130" width="290" height="380" rx="8" fill="#ffffff" stroke="#2e6b4f" stroke-width="2"/>
 <path d="M500 168 V138 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V168 Z" fill="#2e6b4f"/>
 <text x="514" y="155" font-size="16" fill="#ffffff" font-weight="700">projects</text>
@@ -199,53 +207,53 @@
 <text x="1374" y="280" font-size="13.5" fill="#1d2a24" font-weight="700">unit</text>
 <text x="1562" y="280" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
 <text x="1360" y="313" font-size="11.5" fill="#5a6660" font-style="italic">uma medida por traço e unidade</text>
-<rect x="64" y="610" width="290" height="188" rx="8" fill="#ffffff" stroke="#5a6a7a" stroke-width="2"/>
-<path d="M64 648 V618 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V648 Z" fill="#5a6a7a"/>
-<text x="78" y="635" font-size="16" fill="#ffffff" font-weight="700">users</text>
-<text x="340" y="635" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">6 colunas</text>
-<text x="78" y="664" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
-<text x="266" y="664" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="653" width="26" height="15" rx="3" fill="#b8860b"/>
-<text x="327" y="664.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
-<rect x="66" y="672" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
-<text x="78" y="688" font-size="13.5" fill="#1d2a24" font-weight="700">email</text>
-<text x="266" y="688" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
-<rect x="314" y="677" width="26" height="15" rx="3" fill="#8a3fa0"/>
-<text x="327" y="688.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">UQ</text>
-<text x="78" y="712" font-size="13.5" fill="#1d2a24" font-weight="700">password_hash</text>
-<text x="266" y="712" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
-<rect x="66" y="720" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
-<text x="78" y="736" font-size="13.5" fill="#1d2a24">name</text>
-<text x="266" y="736" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
-<text x="78" y="760" font-size="13.5" fill="#1d2a24" font-weight="700">is_superadmin</text>
-<text x="266" y="760" font-size="12" fill="#6b7770" text-anchor="end">sim/não</text>
-<rect x="66" y="768" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
-<text x="78" y="784" font-size="13.5" fill="#1d2a24">email_verified_at</text>
-<text x="266" y="784" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
-<text x="64" y="817" font-size="11.5" fill="#5a6660" font-style="italic">login; senha só como hash; email_verified_at vazio até confirmar</text>
-<rect x="64" y="870" width="290" height="164" rx="8" fill="#ffffff" stroke="#5a6a7a" stroke-width="2"/>
-<path d="M64 908 V878 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V908 Z" fill="#5a6a7a"/>
-<text x="78" y="895" font-size="16" fill="#ffffff" font-weight="700">email_confirmations</text>
-<text x="340" y="895" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">5 colunas</text>
-<text x="78" y="924" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
-<text x="266" y="924" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="913" width="26" height="15" rx="3" fill="#b8860b"/>
-<text x="327" y="924.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
-<rect x="66" y="932" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
-<text x="78" y="948" font-size="13.5" fill="#1d2a24" font-weight="700">user_id</text>
-<text x="266" y="948" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="314" y="937" width="26" height="15" rx="3" fill="#2a6fb0"/>
-<text x="327" y="948.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
-<text x="78" y="972" font-size="13.5" fill="#1d2a24" font-weight="700">code_hash</text>
-<text x="266" y="972" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
-<rect x="314" y="961" width="26" height="15" rx="3" fill="#8a3fa0"/>
-<text x="327" y="972.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">UQ</text>
-<rect x="66" y="980" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
-<text x="78" y="996" font-size="13.5" fill="#1d2a24" font-weight="700">created_at</text>
-<text x="266" y="996" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
-<text x="78" y="1020" font-size="13.5" fill="#1d2a24" font-weight="700">expires_at</text>
-<text x="266" y="1020" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
-<text x="64" y="1053" font-size="11.5" fill="#5a6660" font-style="italic">código do e-mail de confirmação (só o hash), vale 24 horas</text>
+<rect x="64" y="690" width="290" height="188" rx="8" fill="#ffffff" stroke="#5a6a7a" stroke-width="2"/>
+<path d="M64 728 V698 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V728 Z" fill="#5a6a7a"/>
+<text x="78" y="715" font-size="16" fill="#ffffff" font-weight="700">users</text>
+<text x="340" y="715" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">6 colunas</text>
+<text x="78" y="744" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
+<text x="266" y="744" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="733" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="327" y="744.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
+<rect x="66" y="752" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
+<text x="78" y="768" font-size="13.5" fill="#1d2a24" font-weight="700">email</text>
+<text x="266" y="768" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="314" y="757" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="327" y="768.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">UQ</text>
+<text x="78" y="792" font-size="13.5" fill="#1d2a24" font-weight="700">password_hash</text>
+<text x="266" y="792" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="66" y="800" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
+<text x="78" y="816" font-size="13.5" fill="#1d2a24">name</text>
+<text x="266" y="816" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="78" y="840" font-size="13.5" fill="#1d2a24" font-weight="700">is_superadmin</text>
+<text x="266" y="840" font-size="12" fill="#6b7770" text-anchor="end">sim/não</text>
+<rect x="66" y="848" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
+<text x="78" y="864" font-size="13.5" fill="#1d2a24">email_verified_at</text>
+<text x="266" y="864" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<text x="64" y="897" font-size="11.5" fill="#5a6660" font-style="italic">login; senha só como hash; email_verified_at vazio até confirmar</text>
+<rect x="64" y="950" width="290" height="164" rx="8" fill="#ffffff" stroke="#5a6a7a" stroke-width="2"/>
+<path d="M64 988 V958 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V988 Z" fill="#5a6a7a"/>
+<text x="78" y="975" font-size="16" fill="#ffffff" font-weight="700">email_confirmations</text>
+<text x="340" y="975" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">5 colunas</text>
+<text x="78" y="1004" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
+<text x="266" y="1004" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="993" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="327" y="1004.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
+<rect x="66" y="1012" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
+<text x="78" y="1028" font-size="13.5" fill="#1d2a24" font-weight="700">user_id</text>
+<text x="266" y="1028" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="314" y="1017" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="327" y="1028.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<text x="78" y="1052" font-size="13.5" fill="#1d2a24" font-weight="700">code_hash</text>
+<text x="266" y="1052" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="314" y="1041" width="26" height="15" rx="3" fill="#8a3fa0"/>
+<text x="327" y="1052.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">UQ</text>
+<rect x="66" y="1060" width="286" height="24" fill="#eef0f3" opacity="0.6"/>
+<text x="78" y="1076" font-size="13.5" fill="#1d2a24" font-weight="700">created_at</text>
+<text x="266" y="1076" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<text x="78" y="1100" font-size="13.5" fill="#1d2a24" font-weight="700">expires_at</text>
+<text x="266" y="1100" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<text x="64" y="1133" font-size="11.5" fill="#5a6660" font-style="italic">código do e-mail de confirmação (só o hash), vale 24 horas</text>
 <rect x="500" y="1010" width="290" height="236" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M500 1048 V1018 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V1048 Z" fill="#2a5f9e"/>
 <text x="514" y="1035" font-size="16" fill="#ffffff" font-weight="700">invitations</text>
@@ -362,16 +370,16 @@
 <rect x="1610" y="413" width="26" height="15" rx="3" fill="#b8860b"/>
 <text x="1623" y="424.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
 <text x="1360" y="457" font-size="11.5" fill="#5a6660" font-style="italic">controle das migrações (1 linha)</text>
-<path d="M64 660 L26 660 L26 474 L64 474" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<circle cx="64" cy="660" r="4" fill="#2a6fb0"/>
-<text x="50" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
-<path d="M50 467 L64 474 L50 481" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<text x="48" y="464" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M64 180 L44 180 L44 498 L64 498" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<path d="M64 740 L26 740 L26 554 L64 554" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="64" cy="740" r="4" fill="#2a6fb0"/>
+<text x="50" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M50 547 L64 554 L50 561" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="48" y="544" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M64 180 L44 180 L44 578 L64 578" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="64" cy="180" r="4" fill="#2a6fb0"/>
 <text x="50" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
-<path d="M50 491 L64 498 L50 505" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<text x="48" y="488" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M50 571 L64 578 L50 585" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="48" y="568" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <path d="M354 180 L384 180 L384 204 L500 204" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="354" cy="180" r="4" fill="#2a6fb0"/>
 <text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
@@ -392,29 +400,29 @@
 <text x="1274" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M1346 197 L1360 204 L1346 211" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="1344" y="194" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M64 660 L26 660 L26 944 L64 944" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<circle cx="64" cy="660" r="4" fill="#2a6fb0"/>
-<text x="50" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
-<path d="M50 937 L64 944 L50 951" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<text x="48" y="934" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M64 740 L26 740 L26 1024 L64 1024" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="64" cy="740" r="4" fill="#2a6fb0"/>
+<text x="50" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M50 1017 L64 1024 L50 1031" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="48" y="1014" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <path d="M354 180 L420 180 L420 1084 L500 1084" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="354" cy="180" r="4" fill="#2a6fb0"/>
 <text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 1077 L500 1084 L486 1091" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="1074" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M354 660 L476 660 L476 1156 L500 1156" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<circle cx="354" cy="660" r="4" fill="#2a6fb0"/>
-<text x="368" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M354 740 L476 740 L476 1156 L500 1156" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="740" r="4" fill="#2a6fb0"/>
+<text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 1149 L500 1156 L486 1163" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="1146" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M354 660 L436 660 L436 664 L500 664" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<circle cx="354" cy="660" r="4" fill="#2a6fb0"/>
-<text x="368" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M354 740 L436 740 L436 664 L500 664" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="740" r="4" fill="#2a6fb0"/>
+<text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 657 L500 664 L486 671" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="654" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M354 660 L456 660 L456 904 L500 904" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<circle cx="354" cy="660" r="4" fill="#2a6fb0"/>
-<text x="368" y="651" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M354 740 L456 740 L456 904 L500 904" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="740" r="4" fill="#2a6fb0"/>
+<text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 897 L500 904 L486 911" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="894" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <path d="M354 180 L404 180 L404 928 L500 928" fill="none" stroke="#2a6fb0" stroke-width="2"/>

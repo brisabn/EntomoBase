@@ -415,9 +415,34 @@ def platform_map_points(db: Session = Depends(get_db)):
 
 # what anyone may know about the laboratory of the address, listed or not: whoever has the address can
 # already see its public data. Without a laboratory in the address it is the first one, like the other old routes
-@lab_router.get("/laboratory", response_model=schemas.LaboratoryPublic)
+@lab_router.get("/laboratory", response_model=schemas.LaboratoryDetails)
 def laboratory_info(ctx: Context = Depends(get_context)):
     return ctx.laboratory
+
+
+# the admins of the laboratory write its About page and may rename it. An empty presentation or contact means
+# none; the team is replaced as a whole, in the order sent
+@lab_router.put("/laboratory", response_model=schemas.LaboratoryDetails)
+def update_laboratory(data: schemas.LaboratoryUpdate, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    fields = data.model_dump(exclude_unset=True)
+    laboratory = ctx.laboratory
+    # the name and the institution can change, but never to nothing
+    for key in ("name", "institution"):
+        if fields.get(key):
+            setattr(laboratory, key, fields[key])
+    if "about" in fields:
+        laboratory.about = (fields["about"] or "").strip() or None
+    if "contact_email" in fields:
+        email = (fields["contact_email"] or "").strip()
+        if email and not valid_address(email):
+            raise api_error(400, "invalid_email")
+        laboratory.contact_email = email or None
+    if "team" in fields:
+        # exclude_unset also leaves out the role of a person sent without one
+        laboratory.team = [{"name": m["name"], "role": m.get("role") or None} for m in (fields["team"] or [])]
+    db.commit()
+    db.refresh(laboratory)
+    return laboratory
 
 
 # every laboratory, also the ones out of the public list, for the platform administrator: to see what exists,

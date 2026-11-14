@@ -243,9 +243,19 @@ PROJECTS = [
 # by its address
 DEMO_LABORATORIES = [
     {"slug": "borboletas", "name": "Laboratório de Lepidoptera (demonstração)", "institution": "Universidade Fictícia",
-     "collection_code": "LEPF", "listed": True},
+     "collection_code": "LEPF", "listed": True,
+     "about": "Laboratório fictício, criado para demonstrar o EntomoBase.\n\n"
+              "Estudamos borboletas frugívoras e papilionídeos de unidades de conservação de Minas Gerais, "
+              "com armadilhas de isca e busca ativa. Cada projeto publica os espécimes com fotos e medidas das asas.",
+     "contact_email": "lepidoptera@entomobase.test",
+     "team": [{"name": "Carla (demonstração)", "role": "Coordenadora"},
+              {"name": "Davi (demonstração)", "role": "Mestrando em Ecologia"},
+              {"name": "Elisa (demonstração)", "role": "Iniciação científica"}]},
     {"slug": "formigas", "name": "Grupo de Mirmecologia (demonstração)", "institution": "Instituto Fictício de Biologia",
-     "collection_code": "MIRF", "listed": False},
+     "collection_code": "MIRF", "listed": False,
+     "about": "Grupo fictício, criado para demonstrar o EntomoBase. Ele fica fora da lista pública e só abre pelo endereço.",
+     "contact_email": "formigas@entomobase.test",
+     "team": [{"name": "Eva (demonstração)", "role": "Coordenadora"}]},
 ]
 
 # one demo account for each kind of person; the e-mails use the .test domain, which never exists

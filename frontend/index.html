@@ -209,8 +209,16 @@
 
         <!-- ABOUT -->
         <div class="sheet" v-else-if="route.name === 'about'">
-          <p class="about-text">{{ aboutText }}</p>
-          <div class="team">
+          <div v-if="currentRole === 'admin' && labInfo" class="about-actions">
+            <button type="button" class="btn-light" @click="openAboutForm">{{ t('about.edit') }}</button>
+          </div>
+          <div v-if="aboutParagraphs.length" class="about-body">
+            <p v-for="(paragraph, i) in aboutParagraphs" :key="i" class="about-text">{{ paragraph }}</p>
+          </div>
+          <p v-else-if="labInfo" class="subtitle">{{ currentRole === 'admin' ? t('about.empty_admin') : t('about.empty') }}</p>
+          <p v-if="labInfo && labInfo.contact_email" class="about-contact">{{ t('about.contact') }}: <a class="link" :href="'mailto:' + labInfo.contact_email">{{ labInfo.contact_email }}</a></p>
+          <h2 v-if="team.length" class="members-heading">{{ t('about.team_title') }}</h2>
+          <div v-if="team.length" class="team">
             <div class="member" v-for="(m, i) in team" :key="i">
               <div class="avatar">{{ m.initials }}</div>
               <p class="member-name">{{ m.name }}</p>
@@ -1011,6 +1019,45 @@
             <button type="button" class="btn-dark" @click="showLogin = false">{{ t('common.close') }}</button>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- ABOUT PAGE FORM (admins of the laboratory) -->
+    <div v-if="aboutForm" class="modal-backdrop" @click.self="aboutForm = null">
+      <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="t-about">
+        <h2 id="t-about" class="modal-title">{{ t('aboutForm.title') }}</h2>
+        <form @submit.prevent="saveAbout">
+          <div class="fields-2">
+            <label class="field"><span>{{ t('field.name') }}</span><input v-autofocus v-model="aboutForm.name" required maxlength="200"></label>
+            <label class="field"><span>{{ t('field.institution') }}</span><input v-model="aboutForm.institution" required maxlength="200"></label>
+          </div>
+          <div class="field">
+            <label for="about-text">{{ t('aboutForm.about') }}</label>
+            <textarea id="about-text" v-model="aboutForm.about" rows="7" maxlength="5000" aria-describedby="about-text-hint"></textarea>
+            <small id="about-text-hint" class="field-hint">{{ t('aboutForm.about_hint') }}</small>
+          </div>
+          <div class="field">
+            <label for="about-contact">{{ t('aboutForm.contact') }}</label>
+            <input id="about-contact" v-model="aboutForm.contact_email" type="email" maxlength="254" aria-describedby="about-contact-hint">
+            <small id="about-contact-hint" class="field-hint">{{ t('aboutForm.contact_hint') }}</small>
+          </div>
+          <fieldset class="form-group">
+            <legend>{{ t('about.team_title') }}</legend>
+            <div class="team-row" v-for="(m, i) in aboutForm.team" :key="i">
+              <input v-model="m.name" maxlength="120" :placeholder="t('aboutForm.member_name')" :aria-label="t('aboutForm.member_name_aria', { n: i + 1 })">
+              <input v-model="m.role" maxlength="120" :placeholder="t('aboutForm.member_role')" :aria-label="t('aboutForm.member_role_aria', { n: i + 1 })">
+              <button type="button" class="icon-btn" :disabled="i === 0" :aria-label="t('aboutForm.up', { n: i + 1 })" @click="moveTeamMember(i, -1)">↑</button>
+              <button type="button" class="icon-btn" :disabled="i === aboutForm.team.length - 1" :aria-label="t('aboutForm.down', { n: i + 1 })" @click="moveTeamMember(i, 1)">↓</button>
+              <button type="button" class="link danger" :aria-label="t('aboutForm.remove_aria', { n: i + 1 })" @click="removeTeamMember(i)">{{ t('sf.remove') }}</button>
+            </div>
+            <button v-if="aboutForm.team.length < 30" type="button" class="link" @click="addTeamMember">{{ t('aboutForm.add_member') }}</button>
+          </fieldset>
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn-light" @click="aboutForm = null">{{ t('common.cancel') }}</button>
+            <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('aboutForm.saving') : t('aboutForm.save') }}</button>
+          </div>
+        </form>
       </div>
     </div>
 
