@@ -192,3 +192,60 @@ def test_names_are_stored_without_surrounding_spaces(client, superadmin, user, d
 def test_the_new_laboratory_is_reachable_at_its_address(client, superadmin, user):
     client.post("/labs", json=lab_body(), headers=superadmin)
     assert client.get("/labs/new-lab/projects").json() == []
+
+
+# ---------- every laboratory, for the platform administrator ----------
+def platform_list(client, headers):
+    return client.get("/platform/laboratories", headers=headers)
+
+
+def test_the_platform_administrator_sees_every_laboratory_listed_or_not(client, superadmin, user, db):
+    db.add(models.Laboratory(slug="hidden", name="A hidden one", institution="H", collection_code="H", license="l", listed=False))
+    db.commit()
+    response = platform_list(client, superadmin)
+    assert response.status_code == 200
+    by_slug = {lab["slug"]: lab for lab in response.json()}
+    assert set(by_slug) == {"ufmg", "hidden"}
+    assert by_slug["hidden"]["listed"] is False and by_slug["ufmg"]["listed"] is True
+
+
+def test_each_laboratory_says_who_manages_it_and_how_many_people_it_has(client, superadmin, user, password_hash, db):
+    from conftest import add_user
+    add_user("second.admin@lab.br", password_hash, role="admin")
+    add_user("a.researcher@lab.br", password_hash, role="researcher")
+    lab = {l["slug"]: l for l in platform_list(client, superadmin).json()}["ufmg"]
+    assert lab["members"] == 3 and lab["admins"] == [EMAIL, "second.admin@lab.br"]
+
+
+def test_a_laboratory_with_nobody_says_so(client, superadmin, db):
+    db.add(models.Laboratory(slug="empty", name="Empty", institution="E", collection_code="E", license="l"))
+    db.commit()
+    lab = {l["slug"]: l for l in platform_list(client, superadmin).json()}["empty"]
+    assert (lab["members"], lab["admins"]) == (0, [])
+
+
+def test_the_list_is_ordered_by_name_and_has_only_these_fields(client, superadmin, user, db):
+    db.add(models.Laboratory(slug="zz", name="Zoology", institution="Z", collection_code="Z", license="l"))
+    db.add(models.Laboratory(slug="aa", name="Ants", institution="A", collection_code="A", license="l"))
+    db.commit()
+    labs = platform_list(client, superadmin).json()
+    assert [l["name"] for l in labs] == sorted(l["name"] for l in labs)
+    assert set(labs[0]) == {"slug", "name", "institution", "collection_code", "license", "listed", "members", "admins"}
+
+
+def test_the_list_has_no_projects_specimens_or_passwords(client, superadmin, admin, db):
+    from helpers import create_project
+    create_project(client, admin, title="SECRET-PROJECT", visibility="private")
+    text = platform_list(client, superadmin).text
+    assert "SECRET-PROJECT" not in text and "argon2" not in text and "password" not in text
+
+
+def test_a_new_laboratory_shows_up_in_the_list(client, superadmin, user):
+    client.post("/labs", json={"slug": "fresh", "name": "Fresh", "institution": "F", "collection_code": "F", "admin_email": EMAIL}, headers=superadmin)
+    lab = {l["slug"]: l for l in platform_list(client, superadmin).json()}["fresh"]
+    assert lab["admins"] == [EMAIL] and lab["members"] == 1 and lab["listed"] is False
+
+
+def test_only_the_platform_administrator_sees_the_list(client, admin, researcher, outsider):
+    for headers, status in ((admin, 403), (researcher, 403), (outsider, 403), ({}, 401)):
+        assert platform_list(client, headers).status_code == status

@@ -179,3 +179,37 @@ def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_p
     page.get_by_role("button", name="Sair").click()
     sign_in(page, FORGETFUL, "senha-trocada-na-conta")
     expect(page.get_by_role("button", name="Sair")).to_be_visible()
+
+
+def test_the_platform_administrator_creates_a_laboratory_for_an_existing_account(new_page, servers):
+    page = new_page()
+    page.goto(servers.site + "/#/conta")
+    sign_in(page, "super@entomobase.test", servers.passwords["super@entomobase.test"])
+    page.get_by_role("link", name="Laboratórios da plataforma").click()
+    expect(page.get_by_role("heading", name="Criar laboratório")).to_be_visible()
+    # every laboratory is listed, also the one out of the public list
+    expect(page.locator(".member-list")).to_contain_text("Grupo de Mirmecologia (demonstração)")
+
+    # the address follows the name
+    page.get_by_label("Nome", exact=True).fill("Laboratório de Abelhas Nativas")
+    expect(page.get_by_label("Endereço", exact=True)).to_have_value("laboratorio-de-abelhas-nativas")
+    page.get_by_label("Endereço", exact=True).fill("abelhas")
+    page.get_by_label("Instituição").fill("Universidade Fictícia")
+    page.get_by_label("Código da coleção").fill("ABN")
+    page.get_by_label("E-mail do primeiro administrador").fill("sem.laboratorio@entomobase.test")
+    page.get_by_role("button", name="Criar laboratório").click()
+    expect(page.get_by_text("Laboratório Laboratório de Abelhas Nativas criado.")).to_be_visible()
+    expect(page.locator(".member-list")).to_contain_text("sem.laboratorio@entomobase.test")
+
+    # the person named as admin now manages it. It stays out of the public list (unticked, the default), which
+    # also keeps the numbers of the home page that the other tests check
+    admin = new_page()
+    admin.goto(servers.site + "/#/lab/abelhas/membros")
+    sign_in(admin, "sem.laboratorio@entomobase.test", servers.passwords["sem.laboratorio@entomobase.test"])
+    expect(admin.get_by_role("heading", name="Convidar para o laboratório")).to_be_visible()
+    visitor = new_page()
+    visitor.goto(servers.site + "/#/laboratorios")
+    expect(visitor.get_by_text("Laboratório de Lepidoptera (demonstração)").first).to_be_visible()
+    expect(visitor.get_by_text("Laboratório de Abelhas Nativas")).to_have_count(0)
+    visitor.goto(servers.site + "/#/lab/abelhas/sobre")
+    expect(visitor.locator(".lab-bar")).to_contain_text("Laboratório de Abelhas Nativas")

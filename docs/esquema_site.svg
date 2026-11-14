@@ -2,7 +2,7 @@
 <rect width="1730" height="1704" fill="#ffffff"/>
 <text x="40" y="50" font-size="27" fill="#1d2a24" font-weight="700">EntomoBase: esquema do site</text>
 <text x="40" y="78" font-size="14" fill="#5a6660">Páginas e janelas que a pessoa vê, as rotas da API com quem pode usar cada uma, o banco e os serviços externos</text>
-<rect x="30" y="104" width="600" height="1328" rx="12" fill="#eaf1fa" stroke="#2a5f9e" stroke-width="2.5"/>
+<rect x="30" y="104" width="600" height="1374" rx="12" fill="#eaf1fa" stroke="#2a5f9e" stroke-width="2.5"/>
 <text x="50" y="136" font-size="19" fill="#2a5f9e" font-weight="700">NAVEGADOR</text>
 <text x="50" y="160" font-size="12.5" fill="#5a6660">JavaScript (Vue 3), sem etapa de build; o mesmo site em português e em inglês</text>
 <rect x="46" y="178" width="568" height="118" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
@@ -11,7 +11,7 @@
 <text x="62" y="248" font-size="13" fill="#1d2a24">caminho: Laboratórios / laboratório aberto</text>
 <text x="62" y="270" font-size="13" fill="#1d2a24">dentro de um laboratório: busca com sugestões e as abas</text>
 <text x="62" y="288" font-size="13" fill="#1d2a24">Sobre · Projetos · Coleção · Membros (só administradores)</text>
-<rect x="46" y="310" width="568" height="376" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<rect x="46" y="310" width="568" height="422" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
 <text x="62" y="334" font-size="14" fill="#2a5f9e" font-weight="700">Páginas da plataforma</text>
 <text x="346" y="334" font-size="11.5" fill="#5a6660" font-weight="700">em português</text>
 <text x="478" y="334" font-size="11.5" fill="#5a6660" font-weight="700">em inglês</text>
@@ -51,70 +51,77 @@
 <text x="62" y="656" font-size="12" fill="#5a6660">laboratórios e papéis; trocar a senha</text>
 <text x="346" y="642" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">#/conta</text>
 <text x="478" y="642" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">#/en/account</text>
-<rect x="46" y="700" width="568" height="352" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
-<text x="62" y="724" font-size="14" fill="#2a5f9e" font-weight="700">Páginas de um laboratório</text>
-<text x="346" y="724" font-size="11.5" fill="#5a6660" font-weight="700">em português</text>
-<text x="478" y="724" font-size="11.5" fill="#5a6660" font-weight="700">em inglês</text>
-<text x="62" y="752" font-size="14" fill="#1d2a24" font-weight="700">Sobre</text>
-<text x="62" y="770" font-size="12" fill="#5a6660">equipe e descrição; membro: deixar o laboratório</text>
-<text x="346" y="756" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">sobre</text>
-<text x="478" y="756" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">about</text>
-<path d="M62 782 H598" stroke="#e1e8f0"/>
-<text x="62" y="798" font-size="14" fill="#1d2a24" font-weight="700">Projetos</text>
-<text x="62" y="816" font-size="12" fill="#5a6660">lista com filtros, ordem e quem pode ver</text>
-<text x="346" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projetos</text>
-<text x="478" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projects</text>
+<path d="M62 668 H598" stroke="#e1e8f0"/>
+<text x="62" y="684" font-size="14" fill="#1d2a24" font-weight="700">Plataforma</text>
+<rect x="152.0" y="671" width="50.0" height="18" rx="4" fill="#6b3f8a"/>
+<text x="177.0" y="684.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">super</text>
+<text x="62" y="702" font-size="12" fill="#5a6660">criar laboratório; todos os laboratórios</text>
+<text x="346" y="688" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">#/plataforma</text>
+<text x="478" y="688" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">#/en/platform</text>
+<rect x="46" y="746" width="568" height="352" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<text x="62" y="770" font-size="14" fill="#2a5f9e" font-weight="700">Páginas de um laboratório</text>
+<text x="346" y="770" font-size="11.5" fill="#5a6660" font-weight="700">em português</text>
+<text x="478" y="770" font-size="11.5" fill="#5a6660" font-weight="700">em inglês</text>
+<text x="62" y="798" font-size="14" fill="#1d2a24" font-weight="700">Sobre</text>
+<text x="62" y="816" font-size="12" fill="#5a6660">equipe e descrição; membro: deixar o laboratório</text>
+<text x="346" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">sobre</text>
+<text x="478" y="802" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">about</text>
 <path d="M62 828 H598" stroke="#e1e8f0"/>
-<text x="62" y="844" font-size="14" fill="#1d2a24" font-weight="700">Projeto</text>
-<text x="62" y="862" font-size="12" fill="#5a6660">Tabela · Galeria · Mapa · link para compartilhar</text>
-<text x="346" y="848" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projetos/3</text>
-<text x="478" y="848" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projects/3</text>
+<text x="62" y="844" font-size="14" fill="#1d2a24" font-weight="700">Projetos</text>
+<text x="62" y="862" font-size="12" fill="#5a6660">lista com filtros, ordem e quem pode ver</text>
+<text x="346" y="848" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projetos</text>
+<text x="478" y="848" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projects</text>
 <path d="M62 874 H598" stroke="#e1e8f0"/>
-<text x="62" y="890" font-size="14" fill="#1d2a24" font-weight="700">Coleção</text>
-<text x="62" y="908" font-size="12" fill="#5a6660">Árvore · Repositórios · Mapa</text>
-<text x="346" y="894" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">colecao</text>
-<text x="478" y="894" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">collection</text>
+<text x="62" y="890" font-size="14" fill="#1d2a24" font-weight="700">Projeto</text>
+<text x="62" y="908" font-size="12" fill="#5a6660">Tabela · Galeria · Mapa · link para compartilhar</text>
+<text x="346" y="894" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projetos/3</text>
+<text x="478" y="894" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">projects/3</text>
 <path d="M62 920 H598" stroke="#e1e8f0"/>
-<text x="62" y="936" font-size="14" fill="#1d2a24" font-weight="700">Busca</text>
-<text x="62" y="954" font-size="12" fill="#5a6660">projetos, espécies, espécimes</text>
-<text x="346" y="940" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">busca/termo</text>
-<text x="478" y="940" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">search/term</text>
+<text x="62" y="936" font-size="14" fill="#1d2a24" font-weight="700">Coleção</text>
+<text x="62" y="954" font-size="12" fill="#5a6660">Árvore · Repositórios · Mapa</text>
+<text x="346" y="940" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">colecao</text>
+<text x="478" y="940" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">collection</text>
 <path d="M62 966 H598" stroke="#e1e8f0"/>
-<text x="62" y="982" font-size="14" fill="#1d2a24" font-weight="700">Membros</text>
-<rect x="127.39999999999999" y="969" width="50.0" height="18" rx="4" fill="#a33f2c"/>
-<text x="152.39999999999998" y="982.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
-<text x="62" y="1000" font-size="12" fill="#5a6660">convidar por e-mail, mudar papel, remover</text>
-<text x="346" y="986" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">membros</text>
-<text x="478" y="986" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">members</text>
-<text x="62" y="1022" font-size="11.5" fill="#5a6660" font-style="italic">todas depois de #/lab/&lt;slug&gt;/; sem esse prefixo, mostram o primeiro laboratório</text>
-<rect x="46" y="1066" width="568" height="242" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
-<text x="62" y="1090" font-size="14" fill="#2a5f9e" font-weight="700">Janelas</text>
-<rect x="62" y="1108" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
-<text x="87.0" y="1121.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
-<text x="138" y="1122" font-size="13.5" fill="#1d2a24">Detalhe do espécime (fotos, medidas e mapa)</text>
-<rect x="62" y="1136" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
-<text x="87.0" y="1149.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
-<text x="138" y="1150" font-size="13.5" fill="#1d2a24">Entrar · Criar conta · Esqueci minha senha</text>
-<rect x="62" y="1164" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
-<text x="87.0" y="1177.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
-<text x="138" y="1178" font-size="13.5" fill="#1d2a24">Como citar · Contato</text>
-<rect x="62" y="1192" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="90.6" y="1205.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="138" y="1206" font-size="13.5" fill="#1d2a24">Formulário de projeto (quem pode ver)</text>
-<rect x="62" y="1220" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="90.6" y="1233.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="138" y="1234" font-size="13.5" fill="#1d2a24">Formulário de espécime (confere o nome no GBIF)</text>
-<rect x="62" y="1248" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="90.6" y="1261.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="138" y="1262" font-size="13.5" fill="#1d2a24">Importar CSV (mostra uma prévia antes de gravar)</text>
-<rect x="62" y="1276" width="57.2" height="18" rx="4" fill="#c0661c"/>
-<text x="90.6" y="1289.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
-<text x="138" y="1290" font-size="13.5" fill="#1d2a24">Confirmar exclusão (projeto: só administrador) ou saída</text>
-<rect x="46" y="1322" width="568" height="96" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
-<text x="62" y="1346" font-size="14" fill="#2a5f9e" font-weight="700">Arquivos</text>
-<text x="62" y="1370" font-size="13" fill="#1d2a24">index.html (estrutura) · style.css (aparência)</text>
-<text x="62" y="1390" font-size="13" fill="#1d2a24">app.js (telas e comportamento) · i18n.js (textos PT/EN)</text>
-<text x="62" y="1410" font-size="13" fill="#1d2a24">config.js (endereço da API) · bibliotecas Vue e Leaflet</text>
+<text x="62" y="982" font-size="14" fill="#1d2a24" font-weight="700">Busca</text>
+<text x="62" y="1000" font-size="12" fill="#5a6660">projetos, espécies, espécimes</text>
+<text x="346" y="986" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">busca/termo</text>
+<text x="478" y="986" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">search/term</text>
+<path d="M62 1012 H598" stroke="#e1e8f0"/>
+<text x="62" y="1028" font-size="14" fill="#1d2a24" font-weight="700">Membros</text>
+<rect x="127.39999999999999" y="1015" width="50.0" height="18" rx="4" fill="#a33f2c"/>
+<text x="152.39999999999998" y="1028.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">admin</text>
+<text x="62" y="1046" font-size="12" fill="#5a6660">convidar por e-mail, mudar papel, remover</text>
+<text x="346" y="1032" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">membros</text>
+<text x="478" y="1032" font-size="12" fill="#1d2a24" font-family="Consolas, 'Courier New', monospace">members</text>
+<text x="62" y="1068" font-size="11.5" fill="#5a6660" font-style="italic">todas depois de #/lab/&lt;slug&gt;/; sem esse prefixo, mostram o primeiro laboratório</text>
+<rect x="46" y="1112" width="568" height="242" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<text x="62" y="1136" font-size="14" fill="#2a5f9e" font-weight="700">Janelas</text>
+<rect x="62" y="1154" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
+<text x="87.0" y="1167.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
+<text x="138" y="1168" font-size="13.5" fill="#1d2a24">Detalhe do espécime (fotos, medidas e mapa)</text>
+<rect x="62" y="1182" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
+<text x="87.0" y="1195.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
+<text x="138" y="1196" font-size="13.5" fill="#1d2a24">Entrar · Criar conta · Esqueci minha senha</text>
+<rect x="62" y="1210" width="50.0" height="18" rx="4" fill="#2e6b4f"/>
+<text x="87.0" y="1223.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">todos</text>
+<text x="138" y="1224" font-size="13.5" fill="#1d2a24">Como citar · Contato</text>
+<rect x="62" y="1238" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="90.6" y="1251.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="138" y="1252" font-size="13.5" fill="#1d2a24">Formulário de projeto (quem pode ver)</text>
+<rect x="62" y="1266" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="90.6" y="1279.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="138" y="1280" font-size="13.5" fill="#1d2a24">Formulário de espécime (confere o nome no GBIF)</text>
+<rect x="62" y="1294" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="90.6" y="1307.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="138" y="1308" font-size="13.5" fill="#1d2a24">Importar CSV (mostra uma prévia antes de gravar)</text>
+<rect x="62" y="1322" width="57.2" height="18" rx="4" fill="#c0661c"/>
+<text x="90.6" y="1335.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">membro</text>
+<text x="138" y="1336" font-size="13.5" fill="#1d2a24">Confirmar exclusão (projeto: só administrador) ou saída</text>
+<rect x="46" y="1368" width="568" height="96" rx="8" fill="#ffffff" stroke="#cfdbea" stroke-width="1"/>
+<text x="62" y="1392" font-size="14" fill="#2a5f9e" font-weight="700">Arquivos</text>
+<text x="62" y="1416" font-size="13" fill="#1d2a24">index.html (estrutura) · style.css (aparência)</text>
+<text x="62" y="1436" font-size="13" fill="#1d2a24">app.js (telas e comportamento) · i18n.js (textos PT/EN)</text>
+<text x="62" y="1456" font-size="13" fill="#1d2a24">config.js (endereço da API) · bibliotecas Vue e Leaflet</text>
 <rect x="730" y="104" width="560" height="1398" rx="12" fill="#e9f3ec" stroke="#2e6b4f" stroke-width="2.5"/>
 <text x="750" y="136" font-size="19" fill="#2e6b4f" font-weight="700">API</text>
 <text x="750" y="160" font-size="12.5" fill="#5a6660">Python (FastAPI); responde dados em JSON</text>
@@ -147,8 +154,8 @@
 <rect x="746" y="510" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
 <rect x="758" y="520" width="50.0" height="18" rx="4" fill="#6b3f8a"/>
 <text x="783.0" y="533.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">super</text>
-<text x="832" y="533" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /labs</text>
-<text x="832" y="553" font-size="12" fill="#5a6660">criar um laboratório e seu primeiro administrador</text>
+<text x="832" y="533" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">POST /labs · GET /platform/laboratories</text>
+<text x="832" y="553" font-size="12" fill="#5a6660">criar laboratório; todos, com quem administra cada um</text>
 <rect x="746" y="572" width="528" height="54" rx="8" fill="#ffffff" stroke="#cfe0d5" stroke-width="1"/>
 <rect x="758" y="582" width="64.4" height="18" rx="4" fill="#2e6b4f"/>
 <text x="790.2" y="595.5" font-size="11.5" fill="#ffffff" font-weight="700" text-anchor="middle">público</text>
@@ -300,7 +307,7 @@
 <text x="1522" y="1228" font-size="12" fill="#33423a">acesso direto do navegador</text>
 <path d="M1446 1250 H1504" stroke="#2a5f9e" stroke-width="2.5"/>
 <text x="1522" y="1254" font-size="12" fill="#33423a">chamada à API</text>
-<path d="M330.0 1432 V1524" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
+<path d="M330.0 1478 V1524" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
 <path d="M180.0 1524 H840.0" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
 <path d="M180.0 1524 L180.0 1570" fill="none" stroke="#8a6a2c" stroke-width="2.5" stroke-dasharray="8 6"/>
 <path d="M180.0 1570 L171.0 1554 L189.0 1554 Z" fill="#8a6a2c"/>

@@ -10,8 +10,8 @@ const LOCALES = { pt: 'pt-BR', en: 'en-US' };
 
 // words used in the address bar for each language: #/projetos/1/galeria and #/en/projects/1/gallery
 const ROUTE_WORDS = {
-  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado', invite: 'convite', reset: 'nova-senha', account: 'conta' },
-  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared', invite: 'invite', reset: 'new-password', account: 'account' }
+  pt: { about: 'sobre', projects: 'projetos', collection: 'colecao', search: 'busca', gallery: 'galeria', map: 'mapa', repos: 'repositorios', confirm: 'confirmar', members: 'membros', labs: 'laboratorios', shared: 'compartilhado', invite: 'convite', reset: 'nova-senha', account: 'conta', platform: 'plataforma' },
+  en: { about: 'about', projects: 'projects', collection: 'collection', search: 'search', gallery: 'gallery', map: 'map', repos: 'repositories', confirm: 'confirm', members: 'members', labs: 'laboratories', shared: 'shared', invite: 'invite', reset: 'new-password', account: 'account', platform: 'platform' }
 };
 // the word before a laboratory in the address bar, the same in both languages: #/lab/ufmg/projetos
 const LAB_WORD = 'lab';
@@ -222,6 +222,13 @@ const app = createApp({
       // the account page: changing one's own password
       passwordForm: { current: '', next: '' },
       passwordError: null,
+      // the platform page (platform administrators only): every laboratory, and the form to create one
+      platformLabs: [],
+      platformLoading: false,
+      platformError: null,
+      labForm: { name: '', slug: '', institution: '', collection_code: '', license: '', listed: false, admin_email: '' },
+      // the address follows the name until someone types an address of their own
+      slugTouched: false,
       signupForm: { name: '', email: '', password: '' },
       signupSentTo: null,
       // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
@@ -307,11 +314,14 @@ const app = createApp({
       if (this.route.name === 'shared') return this.shared && this.shared.project ? this.shared.project.laboratory : null;
       if (this.route.name === 'invite') return this.invite && this.invite.data ? this.invite.data.laboratory : null;
       // the pages of the whole platform name no laboratory
-      if (['home', 'account', 'reset'].includes(this.route.name)) return null;
+      if (['home', 'account', 'reset', 'platform'].includes(this.route.name)) return null;
       return this.labInfo;
     },
     // pages that show one laboratory, with its tabs and its search; the others belong to the whole platform
-    inLab() { return !['home', 'labs', 'shared', 'invite', 'reset', 'account'].includes(this.route.name); },
+    inLab() { return !['home', 'labs', 'shared', 'invite', 'reset', 'account', 'platform'].includes(this.route.name); },
+    isSuperadmin() { return !!this.me && !!this.me.is_superadmin; },
+    // the address the new laboratory will have, only to show (link() would encode the "…" of an empty one)
+    labAddressPreview() { return `${this.lang === 'en' ? '#/en/' : '#/'}lab/${this.labForm.slug || '…'}`; },
     // whether the signed-in account is the one the invitation was sent to
     inviteIsForMe() {
       return !!this.userEmail && !!this.invite && !!this.invite.data && this.invite.data.email === this.userEmail.toLowerCase();
@@ -352,7 +362,7 @@ const app = createApp({
     },
 
     pageTitle() {
-      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title', invite: 'invite.title', reset: 'reset.title', account: 'account.title' };
+      const names = { about: 'tab.about', projects: 'tab.projects', collection: 'tab.collection', search: 'title.search', confirm: 'verify.title', members: 'tab.members', labs: 'labs.title', shared: 'shared.title', invite: 'invite.title', reset: 'reset.title', account: 'account.title', platform: 'platform.title' };
       if (this.route.name === 'home') return `EntomoBase · ${this.t('home.title')}`;
       if (this.route.name === 'shared' && this.shared && this.shared.project) return `${this.shared.project.title} · EntomoBase`;
       if (this.route.name === 'project') {
@@ -837,6 +847,7 @@ const app = createApp({
       else if (page === 'invite') route = { name: 'invite' };
       else if (page === 'reset') route = { name: 'reset' };
       else if (page === 'account') route = { name: 'account' };
+      else if (page === 'platform') route = { name: 'platform' };
       // #/ alone is the home page; #/lab/<slug> alone and unknown words keep showing a laboratory
       else if (!parts.length && !slug) route = { name: 'home' };
       else route = { name: 'about' };
@@ -867,6 +878,7 @@ const app = createApp({
         history.replaceState(null, '', this.link('reset', { lab: null }, lang));
       }
       if (route.name === 'account') { this.passwordError = null; this.loadMe(); }
+      if (route.name === 'platform') this.loadPlatform();
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
       this.route = route;
@@ -1104,6 +1116,40 @@ const app = createApp({
       }
       this.submitting = false;
     },
+    // ---------- the platform page ----------
+    async loadPlatform() {
+      if (!this.token) { this.platformLabs = []; return; }
+      this.platformLoading = true;
+      this.platformError = null;
+      try {
+        this.platformLabs = await this.api('/platform/laboratories');
+      } catch (e) {
+        this.platformLabs = [];
+        this.platformError = e.message;
+      }
+      this.platformLoading = false;
+    },
+    // "Laboratório de Formigas" -> "laboratorio-de-formigas": no accents, only letters, digits and hyphens
+    slugFrom(name) {
+      return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+    },
+    onLabName() { if (!this.slugTouched) this.labForm.slug = this.slugFrom(this.labForm.name); },
+    async createLab() {
+      this.platformError = null;
+      this.submitting = true;
+      try {
+        const body = { ...this.labForm, license: this.labForm.license.trim() || null };
+        const lab = await this.api('/labs', { method: 'POST', body });
+        this.labForm = { name: '', slug: '', institution: '', collection_code: '', license: '', listed: false, admin_email: '' };
+        this.slugTouched = false;
+        this.notify(this.t('platform.created', { name: lab.name }));
+        await Promise.all([this.loadPlatform(), this.loadLabs()]);
+      } catch (e) {
+        this.platformError = e.message;
+      }
+      this.submitting = false;
+    },
     async changePassword() {
       this.passwordError = null;
       this.submitting = true;
@@ -1169,6 +1215,8 @@ const app = createApp({
         this.me = null;
       }
       if (this.route.name === 'members') this.loadMembers();
+      // the platform page was opened before signing in: its list comes now
+      if (this.route.name === 'platform') this.loadPlatform();
     },
     endSession() {
       this.token = null;

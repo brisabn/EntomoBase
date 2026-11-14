@@ -258,6 +258,19 @@ class SharedProjectResponse(ProjectResponse):
 SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
 
 
+# every laboratory, listed or not, as the platform administrator sees it: who manages each one and how many
+# people it has, but none of its data (the platform administrator has no access to it)
+class PlatformLaboratory(BaseModel):
+    slug: str
+    name: str
+    institution: str
+    collection_code: str
+    license: str
+    listed: bool
+    members: int
+    admins: List[str]
+
+
 class LaboratoryCreate(BaseModel):
     slug: str = Field(..., min_length=2, max_length=40, pattern=SLUG_PATTERN)
     name: str = Field(..., min_length=1)

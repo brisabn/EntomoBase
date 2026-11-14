@@ -420,6 +420,28 @@ def laboratory_info(ctx: Context = Depends(get_context)):
     return ctx.laboratory
 
 
+# every laboratory, also the ones out of the public list, for the platform administrator: to see what exists,
+# which addresses are taken and who manages each one. No projects or specimens: those stay with the members
+@app.get("/platform/laboratories", response_model=List[schemas.PlatformLaboratory])
+def platform_laboratories(db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
+    labs = db.query(models.Laboratory).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    rows = db.query(models.Membership.laboratory_id, models.Membership.role, models.User.email).join(
+        models.User, models.Membership.user_id == models.User.id
+    ).order_by(models.User.email).all()
+    members, admins = {}, {}
+    for lab_id, role, email in rows:
+        members[lab_id] = members.get(lab_id, 0) + 1
+        if role == "admin":
+            admins.setdefault(lab_id, []).append(email)
+    return [
+        schemas.PlatformLaboratory(
+            slug=lab.slug, name=lab.name, institution=lab.institution, collection_code=lab.collection_code,
+            license=lab.license, listed=lab.listed, members=members.get(lab.id, 0), admins=admins.get(lab.id, []),
+        )
+        for lab in labs
+    ]
+
+
 # only a platform administrator creates laboratories. The new one starts with a single member, the admin named
 # in the request; the platform administrator has no access to the laboratory's data unless also a member
 @app.post("/labs", response_model=schemas.LaboratoryPublic, status_code=201)

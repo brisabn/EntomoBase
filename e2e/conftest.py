@@ -140,6 +140,9 @@ def new_page(browser, servers):
     def make(locale="pt-BR", width=1280, height=900):
         context = browser.new_context(locale=locale, viewport={"width": width, "height": height})
         context.set_default_timeout(10_000)
+        # opening a page waits for Vue, Leaflet, the fonts and the images from the internet, which can be slow;
+        # the checks themselves keep the 10 seconds above
+        context.set_default_navigation_timeout(30_000)
         context.route("**/config.js", lambda route: route.fulfill(
             content_type="application/javascript", body=f"window.ENTOMOBASE_CONFIG = {{ apiUrl: '{servers.api}' }};"))
         page = context.new_page()

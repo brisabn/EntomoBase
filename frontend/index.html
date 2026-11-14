@@ -350,6 +350,11 @@
               </li>
             </ul>
 
+            <template v-if="isSuperadmin">
+              <h2 class="members-heading">{{ t('platform.title') }}</h2>
+              <p><a class="btn-light" :href="link('platform', { lab: null })">{{ t('platform.open') }}</a></p>
+            </template>
+
             <h2 class="members-heading">{{ t('account.password_title') }}</h2>
             <form class="invite-form" @submit.prevent="changePassword">
               <label class="field"><span>{{ t('account.current') }}</span><input v-model="passwordForm.current" type="password" required maxlength="128" autocomplete="current-password"></label>
@@ -361,6 +366,59 @@
               <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
               <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('account.saving') : t('account.save') }}</button>
             </form>
+          </template>
+        </div>
+
+        <!-- PLATFORM (platform administrators only; the API refuses anyone else) -->
+        <div class="sheet" v-else-if="route.name === 'platform'">
+          <h1 class="page-title">{{ t('platform.title') }}</h1>
+          <p v-if="!labAccess" class="subtitle">{{ t('platform.login_needed') }}</p>
+          <p v-else-if="me && !isSuperadmin" class="subtitle">{{ t('platform.not_superadmin') }}</p>
+          <template v-else-if="me">
+            <section class="members-add" :aria-label="t('platform.create_title')">
+              <h2 class="members-heading">{{ t('platform.create_title') }}</h2>
+              <form class="lab-form" @submit.prevent="createLab">
+                <label class="field"><span>{{ t('field.name') }}</span><input v-model="labForm.name" type="text" required maxlength="200" @input="onLabName"></label>
+                <div class="field">
+                  <label for="lab-slug">{{ t('field.slug') }}</label>
+                  <input id="lab-slug" v-model="labForm.slug" type="text" required minlength="2" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" aria-describedby="lab-slug-hint" @input="slugTouched = true">
+                  <small id="lab-slug-hint" class="field-hint">{{ t('platform.slug_hint', { address: labAddressPreview }) }}</small>
+                </div>
+                <div class="fields-2">
+                  <label class="field"><span>{{ t('field.institution') }}</span><input v-model="labForm.institution" type="text" required maxlength="200"></label>
+                  <div class="field">
+                    <label for="lab-code">{{ t('field.collection_code') }}</label>
+                    <input id="lab-code" v-model="labForm.collection_code" type="text" required maxlength="60" aria-describedby="lab-code-hint">
+                    <small id="lab-code-hint" class="field-hint">{{ t('platform.code_hint') }}</small>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="lab-license">{{ t('field.license') }}</label>
+                  <input id="lab-license" v-model="labForm.license" type="text" maxlength="300" :placeholder="t('platform.license_placeholder')" aria-describedby="lab-license-hint">
+                  <small id="lab-license-hint" class="field-hint">{{ t('platform.license_hint') }}</small>
+                </div>
+                <div class="field">
+                  <label for="lab-admin">{{ t('field.admin_email') }}</label>
+                  <input id="lab-admin" v-model="labForm.admin_email" type="email" required maxlength="254" autocomplete="off" aria-describedby="lab-admin-hint">
+                  <small id="lab-admin-hint" class="field-hint">{{ t('platform.admin_hint') }}</small>
+                </div>
+                <label class="check-field"><input v-model="labForm.listed" type="checkbox"> {{ t('platform.listed') }}</label>
+                <p v-if="platformError" class="form-error" role="alert">{{ platformError }}</p>
+                <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('platform.creating') : t('platform.create') }}</button>
+              </form>
+            </section>
+
+            <h2 class="members-heading">{{ t('platform.list_title', { n: platformLabs.length }) }}</h2>
+            <p v-if="platformLoading && !platformLabs.length" class="subtitle">{{ t('platform.loading') }}</p>
+            <ul v-else class="member-list">
+              <li v-for="l in platformLabs" :key="l.slug" class="member-row">
+                <div class="member-who">
+                  <a class="member-email" :href="link('about', { lab: l.slug })">{{ l.name }}</a>
+                  <span class="member-fullname">{{ l.institution }} · <code>{{ l.slug }}</code> · {{ l.listed ? t('platform.is_listed') : t('platform.not_listed') }}</span>
+                  <span class="member-fullname">{{ l.admins.length ? t('platform.admins', { list: l.admins.join(', ') }) : t('platform.no_admin') }} · {{ count('member', l.members) }}</span>
+                </div>
+              </li>
+            </ul>
           </template>
         </div>
 

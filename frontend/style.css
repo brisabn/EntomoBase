@@ -348,14 +348,19 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 /* the page of an invitation link */
 .invite-email { color: var(--ink-2); overflow-wrap: anywhere; }
 .invite-form { max-width: 26rem; }
-a.btn-dark { text-decoration: none; }
+a.btn-dark, a.btn-light { text-decoration: none; }
+/* the platform page */
+.lab-form { max-width: 40rem; }
+.check-field { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.1rem; font-size: 0.98rem; }
+.check-field input { width: 1.1rem; height: 1.1rem; accent-color: var(--ink); }
+.member-fullname code { font-size: 0.9rem; }
 .auth-forgot { margin: -0.4rem 0 0.9rem; font-size: 0.92rem; }
 .account-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.2rem; margin-top: 1rem; }
 .account-facts dt { font-weight: 600; color: var(--ink-2); }
 .account-facts dd { margin: 0; overflow-wrap: anywhere; }
 .member-role-select { border: 1px solid var(--line); border-radius: 10px; padding: 0.45rem 0.6rem; background: var(--white); color: var(--ink); font: inherit; }
 .field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; min-width: 0; }
-.field > span { font-size: 0.88rem; font-weight: 600; color: var(--ink-2); }
+.field > span, .field > label { font-size: 0.88rem; font-weight: 600; color: var(--ink-2); }
 .field input, .field select, .field textarea {
   width: 100%; background: var(--white); border: 1.5px solid var(--line); border-radius: 12px; padding: 0.6rem 0.9rem; outline: none; font-size: 1rem;
 }
@@ -411,6 +416,8 @@ a.btn-dark { text-decoration: none; }
 @media (max-width: 420px) {
   .tab { padding: 0.7rem 0.6rem; font-size: 0.9rem; }
   .tabs { margin-left: 0.2rem; gap: 3px; }
+  /* long single words ("Administração") must fit a phone, clear of the folded corner */
+  .page-title { font-size: 2rem; overflow-wrap: break-word; padding-right: 1.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

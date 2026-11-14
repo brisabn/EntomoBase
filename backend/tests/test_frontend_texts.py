@@ -58,6 +58,9 @@ def test_dynamic_text_keys_exist():
     source = read("app.js")
     fields = re.search(r"const IMPORT_FIELDS = \[(.*?)\];", source, re.S).group(1)
     expected |= {f"importField.{f}" for f in re.findall(r"'(\w+)'", fields)}
+    # count('specimen', n) reads 'count.specimen'
+    for page in ("app.js", "index.html"):
+        expected |= {f"count.{kind}" for kind in re.findall(r"\bcount\('(\w+)'", read(page))}
     assert expected - portuguese == set()
 
 
