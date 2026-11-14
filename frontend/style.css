@@ -367,6 +367,16 @@ a.btn-dark, a.btn-light { text-decoration: none; }
 .check-field { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.1rem; font-size: 0.98rem; }
 .check-field input { width: 1.1rem; height: 1.1rem; accent-color: var(--ink); }
 .member-fullname code { font-size: 0.9rem; }
+/* laboratory requests: on the account page and, to decide them, on the platform page */
+.members-subheading { font-weight: 600; font-size: 1.02rem; margin: 1.4rem 0 0.5rem; }
+.request-message { margin: 0.4rem 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.8rem; }
+.request-actions .check-field { margin: 0; font-size: 0.92rem; }
+.refuse-form { margin-top: 0.8rem; max-width: 32rem; }
+.refuse-form .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.request-cta { margin: 1.2rem 0 0; color: var(--ink-2); }
+.request-intro { max-width: 40rem; margin: 0 0 1rem; color: var(--ink-2); }
+.request-buttons { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .auth-forgot { margin: -0.4rem 0 0.9rem; font-size: 0.92rem; }
 .account-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.2rem; margin-top: 1rem; }
 .account-facts dt { font-weight: 600; color: var(--ink-2); }

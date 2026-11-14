@@ -434,6 +434,9 @@ def remove_demo_data(db):
         # nothing may point to a removed account: its invitations go, and the history keeps only its e-mail
         db.query(models.Invitation).filter(models.Invitation.invited_by_id == user.id).delete()
         db.query(models.VisibilityChange).filter(models.VisibilityChange.user_id == user.id).update({"user_id": None})
+        # its laboratory requests go too, and the ones it decided forget who decided
+        db.query(models.LaboratoryRequest).filter(models.LaboratoryRequest.requester_id == user.id).delete()
+        db.query(models.LaboratoryRequest).filter(models.LaboratoryRequest.decided_by_id == user.id).update({"decided_by_id": None})
         db.delete(user)
     print(f"{len(users)} demo accounts removed")
     db.flush()
@@ -449,6 +452,7 @@ def remove_demo_data(db):
         # and nothing may point to a removed laboratory
         db.query(models.Invitation).filter(models.Invitation.laboratory_id == lab.id).delete()
         db.query(models.VisibilityChange).filter(models.VisibilityChange.laboratory_id == lab.id).delete()
+        db.query(models.LaboratoryRequest).filter(models.LaboratoryRequest.laboratory_id == lab.id).update({"laboratory_id": None})
         db.delete(lab)
         print(f"removed: laboratory {lab.slug}")
     db.commit()

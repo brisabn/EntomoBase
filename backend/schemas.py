@@ -310,6 +310,52 @@ class LaboratoryCreate(BaseModel):
     admin_email: str = Field(..., min_length=3)
 
 
+# the platform administrator puts a laboratory in the public list of the platform, or takes it out
+class PlatformLaboratoryUpdate(BaseModel):
+    listed: bool
+
+
+# someone with an account asks for a laboratory of their own; whoever asks becomes its first admin
+class LaboratoryRequestCreate(BaseModel):
+    slug: str = Field(..., min_length=2, max_length=40, pattern=SLUG_PATTERN)
+    name: str = Field(..., min_length=1, max_length=200)
+    institution: str = Field(..., min_length=1, max_length=200)
+    collection_code: str = Field(..., min_length=1, max_length=60)
+    # what the person tells the platform administrator: who they are, what the collection is
+    message: Optional[str] = Field(None, max_length=2000)
+
+
+# a request as the person who made it sees it; laboratory_slug is the address of the laboratory once it exists
+class LaboratoryRequestResponse(BaseModel):
+    id: int
+    slug: str
+    name: str
+    institution: str
+    collection_code: str
+    message: Optional[str] = None
+    status: str
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+    decision_reason: Optional[str] = None
+    laboratory_slug: Optional[str] = None
+
+
+# the same, for the platform administrator, who also sees who asked and who decided (nobody, when the
+# e-mail domain approved it)
+class PlatformLaboratoryRequest(LaboratoryRequestResponse):
+    requester_email: str
+    requester_name: Optional[str] = None
+    decided_by_email: Optional[str] = None
+
+
+class LaboratoryRequestApproval(BaseModel):
+    listed: bool = False
+
+
+class LaboratoryRequestRejection(BaseModel):
+    reason: Optional[str] = Field(None, max_length=1000)
+
+
 # a member of a laboratory, as the laboratory's admins see them; the id is the membership, not the user
 class MemberResponse(BaseModel):
     id: int

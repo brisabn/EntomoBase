@@ -111,6 +111,12 @@ def build_world() -> World:
             "a_invitation": invitation(first, "invited_a@lab.br", "admin", INVITE_CODE),
             "b_invitation": invitation(other, "invited_b@lab.br", "admin_elsewhere", "invite-code-of-b-0123456789"),
         }
+        # a laboratory request waiting for the platform administrator, made by someone who is not in PEOPLE
+        request = models.LaboratoryRequest(requester_id=people["second_admin"].id, slug="requested-lab", name="Requested",
+                                           institution="I", collection_code="RQ", status="pending", created_at=datetime(2026, 11, 14))
+        db.add(request)
+        db.flush()
+        ids["lab_request"] = request.id
         # who published what: one change in each laboratory
         for lab, project, who in ((first, a_public, "admin"), (other, b_private, "researcher_b")):
             db.add(models.VisibilityChange(laboratory_id=lab.id, project_id=project.id, project_title=project.title,
@@ -150,6 +156,9 @@ RULES = {
     "admin": {"visitor": 401, "no_lab": 403, "admin_elsewhere": 403, "superadmin": 403, "researcher": 403, "admin": "ok"},
     # the administrator of the platform
     "superadmin": {"visitor": 401, "no_lab": 403, "admin_elsewhere": 403, "superadmin": "ok", "researcher": 403, "admin": 403},
+    # something that belongs to one account, which is none of these people: to each of them it is the same as
+    # something that does not exist (the owner's own access is in the file of the route)
+    "someone_else": {**{p: 404 for p in PEOPLE}, "visitor": 401},
 }
 
 
@@ -204,6 +213,17 @@ CASES = [
          lambda i: ("/me/password", {"current_password": WORLD_PASSWORD, "new_password": "a-new-password"}), in_lab=False),
     Case("GET", "/platform/laboratories", "superadmin", 200, lambda i: ("/platform/laboratories", None), in_lab=False),
     Case("POST", "/labs", "superadmin", 201, lambda i: ("/labs", {"slug": "lab-new", "name": "N", "institution": "I", "collection_code": "N", "admin_email": "no_lab@lab.br"}), in_lab=False),
+    Case("PUT", "/platform/laboratories/{slug}", "superadmin", 200, lambda i: (f"/platform/laboratories/{OTHER}", {"listed": False}), in_lab=False),
+    # laboratory requests: anyone with an account asks; the platform administrator decides
+    Case("POST", "/laboratory-requests", "account", 201,
+         lambda i: ("/laboratory-requests", {"slug": "asked-lab", "name": "Asked", "institution": "I", "collection_code": "AS"}), in_lab=False),
+    Case("GET", "/me/laboratory-requests", "account", 200, lambda i: ("/me/laboratory-requests", None), in_lab=False),
+    Case("DELETE", "/me/laboratory-requests/{request_id}", "someone_else", 204, lambda i: (f"/me/laboratory-requests/{i['lab_request']}", None), in_lab=False),
+    Case("GET", "/platform/laboratory-requests", "superadmin", 200, lambda i: ("/platform/laboratory-requests", None), in_lab=False),
+    Case("POST", "/platform/laboratory-requests/{request_id}/approve", "superadmin", 200,
+         lambda i: (f"/platform/laboratory-requests/{i['lab_request']}/approve", {}), in_lab=False),
+    Case("POST", "/platform/laboratory-requests/{request_id}/reject", "superadmin", 200,
+         lambda i: (f"/platform/laboratory-requests/{i['lab_request']}/reject", {"reason": "No"}), in_lab=False),
     Case("GET", "/shared/{token}", "public", 200, lambda i: ("/shared/token-of-a-0123456789", None), in_lab=False),
     Case("GET", "/shared/{token}/specimens", "public", 200, lambda i: ("/shared/token-of-a-0123456789/specimens", None), in_lab=False),
     # the link of an invitation: whoever has the code (it went to that mailbox). This one is for an address with
@@ -259,7 +279,7 @@ MATRIX = [(case, form, prefix, person) for case in CASES for form, prefix in add
 
 
 def case_id(case, form, person):
-    url, _ = case.request({k: 1 for k in ("a_public", "a_unlisted", "a_private", "a_spec", "a_member", "a_invitation")})
+    url, _ = case.request({k: 1 for k in ("a_public", "a_unlisted", "a_private", "a_spec", "a_member", "a_invitation", "lab_request")})
     return f"{case.method} {url.replace('1', '<id>') if '{' in case.path else url} [{form}] {person}"
 
 

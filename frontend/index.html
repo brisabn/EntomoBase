@@ -180,6 +180,8 @@
             </a>
           </div>
           <p v-else class="empty-state">{{ t('labs.empty') }}</p>
+          <!-- anyone with an account may ask for a laboratory of their own, on the account page -->
+          <p v-if="route.name === 'labs' || labAccess" class="request-cta">{{ t('requests.cta') }} <a class="link" :href="link('account', { lab: null })">{{ t('requests.cta_link') }}</a></p>
           <template v-if="route.name === 'home'">
             <!-- left out until there is at least one public point -->
             <template v-if="homePoints.length">
@@ -367,7 +369,7 @@
 
             <h2 class="members-heading">{{ t('account.labs') }}</h2>
             <p v-if="me && !me.laboratories.length" class="subtitle">{{ t('account.no_labs') }}</p>
-            <ul v-else-if="me" class="member-list">
+            <ul v-else-if="me" class="member-list account-labs">
               <li v-for="l in me.laboratories" :key="l.slug" class="member-row">
                 <div class="member-who">
                   <a class="member-email" :href="link('about', { lab: l.slug })">{{ l.name }}</a>
@@ -375,6 +377,54 @@
                 </div>
               </li>
             </ul>
+
+            <!-- asking for a laboratory of one's own; whoever asks becomes its admin. While a request waits, the form gives way to it -->
+            <section class="lab-request" :aria-label="t('requests.title')">
+              <h2 class="members-heading">{{ t('requests.title') }}</h2>
+              <p v-if="pendingRequest" class="subtitle">{{ t('requests.waiting', { name: pendingRequest.name }) }}</p>
+              <p v-else class="request-intro">{{ t('requests.hint') }}</p>
+              <p v-if="!pendingRequest && !requestOpen"><button type="button" class="btn-light" @click="requestOpen = true">{{ t('requests.open_form') }}</button></p>
+              <form v-if="!pendingRequest && requestOpen" class="lab-form" @submit.prevent="sendLabRequest">
+                <label class="field"><span>{{ t('requests.lab_name') }}</span><input v-model="requestForm.name" type="text" required maxlength="200" @input="onRequestName"></label>
+                <div class="field">
+                  <label for="request-slug">{{ t('field.slug') }}</label>
+                  <input id="request-slug" v-model="requestForm.slug" type="text" required minlength="2" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" aria-describedby="request-slug-hint" @input="requestSlugTouched = true">
+                  <small id="request-slug-hint" class="field-hint">{{ t('platform.slug_hint', { address: requestAddressPreview }) }}</small>
+                </div>
+                <div class="fields-2">
+                  <label class="field"><span>{{ t('field.institution') }}</span><input v-model="requestForm.institution" type="text" required maxlength="200"></label>
+                  <div class="field">
+                    <label for="request-code">{{ t('field.collection_code') }}</label>
+                    <input id="request-code" v-model="requestForm.collection_code" type="text" required maxlength="60" aria-describedby="request-code-hint">
+                    <small id="request-code-hint" class="field-hint">{{ t('platform.code_hint') }}</small>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="request-message">{{ t('requests.message') }}</label>
+                  <textarea id="request-message" v-model="requestForm.message" rows="3" maxlength="2000" aria-describedby="request-message-hint"></textarea>
+                  <small id="request-message-hint" class="field-hint">{{ t('requests.message_hint') }}</small>
+                </div>
+                <p v-if="requestError" class="form-error" role="alert">{{ requestError }}</p>
+                <div class="actions request-buttons">
+                  <button type="button" class="btn-light" @click="requestOpen = false; requestError = null">{{ t('common.cancel') }}</button>
+                  <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('requests.sending') : t('requests.send') }}</button>
+                </div>
+              </form>
+              <template v-if="labRequests.length">
+                <h3 class="members-subheading">{{ t('requests.mine') }}</h3>
+                <ul class="member-list">
+                  <li v-for="r in labRequests" :key="r.id" class="member-row">
+                    <div class="member-who">
+                      <span class="member-email">{{ r.name }}</span>
+                      <span class="member-fullname">{{ t(`requests.status_${r.status}`) }} · {{ requestWhen(r.decided_at || r.created_at) }}</span>
+                      <span v-if="r.decision_reason" class="member-fullname">{{ t('requests.reason', { reason: r.decision_reason }) }}</span>
+                    </div>
+                    <a v-if="r.laboratory_slug" class="btn-light" :href="link('about', { lab: r.laboratory_slug })">{{ t('requests.open_lab') }}</a>
+                    <button v-else-if="r.status === 'pending'" type="button" class="btn-light" @click="askWithdrawRequest(r)">{{ t('requests.withdraw') }}</button>
+                  </li>
+                </ul>
+              </template>
+            </section>
 
             <template v-if="isSuperadmin">
               <h2 class="members-heading">{{ t('platform.title') }}</h2>
@@ -401,6 +451,53 @@
           <p v-if="!labAccess" class="subtitle">{{ t('platform.login_needed') }}</p>
           <p v-else-if="me && !isSuperadmin" class="subtitle">{{ t('platform.not_superadmin') }}</p>
           <template v-else-if="me">
+            <!-- the laboratory requests: the ones that wait for a decision, then the latest decided -->
+            <section class="lab-requests" :aria-label="t('requests.platform_aria')">
+              <h2 class="members-heading">{{ t('requests.platform_title', { n: waitingRequests.length }) }}</h2>
+              <p v-if="platformActionError" class="form-error" role="alert">{{ platformActionError }}</p>
+              <p v-if="!waitingRequests.length && !platformLoading" class="subtitle">{{ t('requests.none_waiting') }}</p>
+              <ul v-else class="member-list">
+                <li v-for="r in waitingRequests" :key="r.id" class="member-row request-row">
+                  <div class="member-who">
+                    <span class="member-email">{{ r.name }}</span>
+                    <span class="member-fullname">{{ r.institution }} · {{ r.collection_code }} · <code>{{ r.slug }}</code></span>
+                    <span class="member-fullname">{{ t('requests.asked_by', { who: r.requester_name ? `${r.requester_name} (${r.requester_email})` : r.requester_email, when: requestWhen(r.created_at) }) }}</span>
+                    <p v-if="r.message" class="request-message">{{ r.message }}</p>
+                    <form v-if="refusing && refusing.id === r.id" class="refuse-form" @submit.prevent="refuseRequest(r)">
+                      <div class="field">
+                        <label :for="`refuse-${r.id}`">{{ t('requests.reason_label') }}</label>
+                        <textarea :id="`refuse-${r.id}`" v-model="refusing.reason" rows="2" maxlength="1000" :aria-describedby="`refuse-hint-${r.id}`"></textarea>
+                        <small :id="`refuse-hint-${r.id}`" class="field-hint">{{ t('requests.reason_hint') }}</small>
+                      </div>
+                      <div class="actions">
+                        <button type="button" class="btn-light" @click="refusing = null">{{ t('common.cancel') }}</button>
+                        <button type="submit" class="btn-danger-solid" :disabled="submitting">{{ t('requests.refuse_confirm') }}</button>
+                      </div>
+                    </form>
+                  </div>
+                  <div v-if="!refusing || refusing.id !== r.id" class="request-actions">
+                    <label class="check-field"><input v-model="approveListed[r.id]" type="checkbox"> {{ t('requests.list_it') }}</label>
+                    <button type="button" class="btn-dark" :disabled="submitting" :aria-label="t('requests.approve_aria', { name: r.name })" @click="approveRequest(r)">{{ t('requests.approve') }}</button>
+                    <button type="button" class="btn-light" :aria-label="t('requests.refuse_aria', { name: r.name })" @click="startRefusing(r)">{{ t('requests.refuse') }}</button>
+                  </div>
+                </li>
+              </ul>
+              <template v-if="decidedRequests.length">
+                <h3 class="members-subheading">{{ t('requests.decided_title') }}</h3>
+                <ul class="member-list">
+                  <li v-for="r in decidedRequests.slice(0, 10)" :key="r.id" class="member-row">
+                    <div class="member-who">
+                      <a v-if="r.laboratory_slug" class="member-email" :href="link('about', { lab: r.laboratory_slug })">{{ r.name }}</a>
+                      <span v-else class="member-email">{{ r.name }}</span>
+                      <span class="member-fullname">{{ t(`requests.status_${r.status}`) }} · {{ r.decided_by_email || t('requests.by_domain') }} · {{ requestWhen(r.decided_at) }}</span>
+                      <span class="member-fullname">{{ t('requests.asked_by', { who: r.requester_email, when: requestWhen(r.created_at) }) }}</span>
+                      <span v-if="r.decision_reason" class="member-fullname">{{ t('requests.reason', { reason: r.decision_reason }) }}</span>
+                    </div>
+                  </li>
+                </ul>
+              </template>
+            </section>
+
             <section class="members-add" :aria-label="t('platform.create_title')">
               <h2 class="members-heading">{{ t('platform.create_title') }}</h2>
               <form class="lab-form" @submit.prevent="createLab">
@@ -436,13 +533,14 @@
 
             <h2 class="members-heading">{{ t('platform.list_title', { n: platformLabs.length }) }}</h2>
             <p v-if="platformLoading && !platformLabs.length" class="subtitle">{{ t('platform.loading') }}</p>
-            <ul v-else class="member-list">
+            <ul v-else class="member-list platform-labs">
               <li v-for="l in platformLabs" :key="l.slug" class="member-row">
                 <div class="member-who">
                   <a class="member-email" :href="link('about', { lab: l.slug })">{{ l.name }}</a>
                   <span class="member-fullname">{{ l.institution }} · <code>{{ l.slug }}</code> · {{ l.listed ? t('platform.is_listed') : t('platform.not_listed') }}</span>
                   <span class="member-fullname">{{ l.admins.length ? t('platform.admins', { list: l.admins.join(', ') }) : t('platform.no_admin') }} · {{ count('member', l.members) }}</span>
                 </div>
+                <button type="button" class="btn-light" :aria-label="t(l.listed ? 'platform.unlist_aria' : 'platform.list_aria', { name: l.name })" @click="toggleListed(l)">{{ l.listed ? t('platform.unlist') : t('platform.list') }}</button>
               </li>
             </ul>
           </template>

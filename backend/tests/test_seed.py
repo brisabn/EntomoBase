@@ -1,5 +1,6 @@
 import re
 import sys
+from datetime import datetime
 
 import pytest
 
@@ -189,8 +190,23 @@ def test_remove_leaves_nothing_pointing_to_what_it_removed(run_seed, client, adm
     demo_project = next(p for p in client.get("/labs/ufmg/projects", headers=admin).json() if p["title"] in {d["title"] for d in seed.PROJECTS})
     target = "private" if demo_project["visibility"] != "private" else "public"
     assert client.put(f"/labs/ufmg/projects/{demo_project['id']}", json={"visibility": target}, headers=admin).status_code == 200
+    # laboratory requests: one of a demo account; one of the fixture admin refused by the demo platform
+    # administrator; and one of the fixture admin that points to a demo laboratory
+    body = {"name": "N", "institution": "I", "collection_code": "N"}
+    no_lab = {"Authorization": f"Bearer {make_token(email='sem.laboratorio@entomobase.test')}"}
+    assert client.post("/laboratory-requests", json={**body, "slug": "pedido-demo"}, headers=no_lab).status_code == 201
+    refused = client.post("/laboratory-requests", json={**body, "slug": "pedido-recusado"}, headers=admin).json()
+    demo_super = {"Authorization": f"Bearer {make_token(email='super@entomobase.test')}"}
+    assert client.post(f"/platform/laboratory-requests/{refused['id']}/reject", json={}, headers=demo_super).status_code == 200
+    fixture_admin = db.query(models.User).filter_by(email=EMAIL).one().id
+    borboletas = db.query(models.Laboratory).filter_by(slug="borboletas").one().id
+    db.add(models.LaboratoryRequest(requester_id=fixture_admin, slug="borboletas", name="N", institution="I", collection_code="N",
+                                    status="approved", created_at=datetime(2026, 1, 1), laboratory_id=borboletas))
+    db.commit()
     run_seed("--remove")
     db.expire_all()
+    requests = {(r.slug, r.requester_id, r.decided_by_id, r.laboratory_id) for r in db.query(models.LaboratoryRequest).all()}
+    assert requests == {("pedido-recusado", fixture_admin, None, None), ("borboletas", fixture_admin, None, None)}
     assert db.query(models.Invitation).count() == 0
     labs = {lab.id for lab in db.query(models.Laboratory).all()}
     users = {user.id for user in db.query(models.User).all()}
@@ -198,7 +214,6 @@ def test_remove_leaves_nothing_pointing_to_what_it_removed(run_seed, client, adm
     changes = db.query(models.VisibilityChange).all()
     assert all(c.laboratory_id in labs and c.user_id in users | {None} and c.project_id in projects | {None} for c in changes)
     left = {(c.project_title, c.project_id, c.user_id, c.user_email) for c in changes}
-    fixture_admin = db.query(models.User).filter_by(email=EMAIL).one().id
     assert left == {("Kept", kept["id"], None, "pesquisa.ufmg@entomobase.test"),
                     (demo_project["title"], None, fixture_admin, EMAIL)}
 

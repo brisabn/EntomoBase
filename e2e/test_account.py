@@ -1,7 +1,8 @@
 # Scenario 2: accounts. Someone creates an account, cannot sign in before confirming the e-mail,
 # opens the link of the e-mail and then signs in. And an admin invites someone without an account, who
 # opens the link of the invitation, creates the account there and is already in the laboratory. And someone who
-# forgot the password gets a link by e-mail, chooses a new one, and later changes it on the account page.
+# forgot the password gets a link by e-mail, chooses a new one, and later changes it on the account page. And
+# someone asks for a laboratory of their own, which the platform administrator approves.
 import re
 
 from playwright.sync_api import expect
@@ -167,7 +168,7 @@ def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_p
     # on the account page, through the e-mail at the top: the laboratory, and changing the password
     page.locator("a.user").click()
     expect(page.get_by_role("heading", name="Minha conta")).to_be_visible()
-    expect(page.locator(".member-list")).to_contain_text("Laboratório de Lepidoptera (demonstração)")
+    expect(page.locator(".account-labs")).to_contain_text("Laboratório de Lepidoptera (demonstração)")
     page.get_by_label("Senha atual").fill("nao-e-a-senha")
     page.get_by_label("Nova senha").fill("senha-trocada-na-conta")
     page.get_by_role("button", name="Trocar a senha").click()
@@ -181,6 +182,49 @@ def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_p
     expect(page.get_by_role("button", name="Sair")).to_be_visible()
 
 
+ASKER = "sem.laboratorio@entomobase.test"
+
+
+def test_someone_asks_for_a_laboratory_and_the_platform_administrator_approves_it(new_page, servers):
+    page = new_page()
+    page.goto(servers.site + "/#/conta")
+    sign_in(page, ASKER, servers.passwords[ASKER])
+    page.get_by_role("button", name="Fazer um pedido").click()
+    page.get_by_label("Nome do laboratório").fill("Coleção de Vespas")
+    expect(page.get_by_label("Endereço", exact=True)).to_have_value("colecao-de-vespas")
+    page.get_by_label("Endereço", exact=True).fill("vespas")
+    page.get_by_label("Instituição").fill("Universidade Fictícia")
+    page.get_by_label("Código da coleção").fill("VES")
+    page.get_by_label("Mensagem (opcional)").fill("Cuido da coleção de vespas do departamento.")
+    page.get_by_role("button", name="Enviar pedido").click()
+    # the address is not from a trusted domain, so the request waits, and the form gives way to it
+    expect(page.locator(".lab-request")).to_contain_text("aguarda a resposta")
+    expect(page.get_by_role("button", name="Fazer um pedido")).to_have_count(0)
+
+    admin = new_page()
+    admin.goto(servers.site + "/#/plataforma")
+    sign_in(admin, "super@entomobase.test", servers.passwords["super@entomobase.test"])
+    row = admin.locator(".request-row").filter(has_text="Coleção de Vespas")
+    expect(row).to_contain_text("Cuido da coleção de vespas do departamento.")
+    expect(row).to_contain_text(ASKER)
+    # approved out of the public list (the default), which keeps the numbers the other tests check
+    row.get_by_role("button", name="Aprovar").click()
+    expect(admin.get_by_text("Pedido aprovado: Coleção de Vespas foi criado.")).to_be_visible()
+    expect(admin.locator(".lab-requests")).to_contain_text("Aprovado")
+
+    # the person gets an e-mail with the address, and already manages the laboratory
+    assert any(link.endswith("/#/lab/vespas") for link in re.findall(re.escape(servers.site) + r"/#/lab/[\w-]+",
+                                                                    servers.api_log.read_text(encoding="utf-8", errors="replace")))
+    page.reload()
+    expect(page.locator(".lab-request")).to_contain_text("Aprovado")
+    page.goto(servers.site + "/#/lab/vespas/membros")
+    expect(page.get_by_role("heading", name="Convidar para o laboratório")).to_be_visible()
+    visitor = new_page()
+    visitor.goto(servers.site + "/#/laboratorios")
+    expect(visitor.get_by_text("Laboratório de Lepidoptera (demonstração)").first).to_be_visible()
+    expect(visitor.get_by_text("Coleção de Vespas")).to_have_count(0)
+
+
 def test_the_platform_administrator_creates_a_laboratory_for_an_existing_account(new_page, servers):
     page = new_page()
     page.goto(servers.site + "/#/conta")
@@ -188,7 +232,7 @@ def test_the_platform_administrator_creates_a_laboratory_for_an_existing_account
     page.get_by_role("link", name="Laboratórios da plataforma").click()
     expect(page.get_by_role("heading", name="Criar laboratório")).to_be_visible()
     # every laboratory is listed, also the one out of the public list
-    expect(page.locator(".member-list")).to_contain_text("Grupo de Mirmecologia (demonstração)")
+    expect(page.locator(".platform-labs")).to_contain_text("Grupo de Mirmecologia (demonstração)")
 
     # the address follows the name
     page.get_by_label("Nome", exact=True).fill("Laboratório de Abelhas Nativas")
@@ -199,7 +243,7 @@ def test_the_platform_administrator_creates_a_laboratory_for_an_existing_account
     page.get_by_label("E-mail do primeiro administrador").fill("sem.laboratorio@entomobase.test")
     page.get_by_role("button", name="Criar laboratório").click()
     expect(page.get_by_text("Laboratório Laboratório de Abelhas Nativas criado.")).to_be_visible()
-    expect(page.locator(".member-list")).to_contain_text("sem.laboratorio@entomobase.test")
+    expect(page.locator(".platform-labs")).to_contain_text("sem.laboratorio@entomobase.test")
 
     # the person named as admin now manages it. It stays out of the public list (unticked, the default), which
     # also keeps the numbers of the home page that the other tests check

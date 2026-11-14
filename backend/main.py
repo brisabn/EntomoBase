@@ -32,6 +32,8 @@ from authorization import (
 from errors import api_error
 from invitations import issue_invitation, send_invitation, usable_invitation
 from laboratories import DEFAULT_LABORATORY
+from laboratory_requests import REQUESTS_PER_DAY, open_laboratory, send_decision, send_new_request
+from trusted_domains import is_trusted
 from demo_images import render_svg
 from email_confirmation import (
     RESET_VALID_HOURS, hash_code, issue_code, send_already_registered, send_confirmation, send_no_account,
@@ -449,10 +451,13 @@ def update_laboratory(data: schemas.LaboratoryUpdate, db: Session = Depends(get_
 # which addresses are taken and who manages each one. No projects or specimens: those stay with the members
 @app.get("/platform/laboratories", response_model=List[schemas.PlatformLaboratory])
 def platform_laboratories(db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
-    labs = db.query(models.Laboratory).order_by(models.Laboratory.name, models.Laboratory.id).all()
+    return platform_rows(db, db.query(models.Laboratory).order_by(models.Laboratory.name, models.Laboratory.id).all())
+
+
+def platform_rows(db: Session, labs: List[models.Laboratory]) -> List[schemas.PlatformLaboratory]:
     rows = db.query(models.Membership.laboratory_id, models.Membership.role, models.User.email).join(
         models.User, models.Membership.user_id == models.User.id
-    ).order_by(models.User.email).all()
+    ).filter(models.Membership.laboratory_id.in_([lab.id for lab in labs])).order_by(models.User.email).all()
     members, admins = {}, {}
     for lab_id, role, email in rows:
         members[lab_id] = members.get(lab_id, 0) + 1
@@ -487,6 +492,160 @@ def create_laboratory(data: schemas.LaboratoryCreate, db: Session = Depends(get_
         raise api_error(400, "duplicate_slug")
     db.refresh(laboratory)
     return laboratory
+
+
+# only the platform administrator decides which laboratories the platform advertises
+@app.put("/platform/laboratories/{slug}", response_model=schemas.PlatformLaboratory)
+def update_platform_laboratory(slug: str, data: schemas.PlatformLaboratoryUpdate, db: Session = Depends(get_db),
+                               superadmin: models.User = Depends(require_superadmin)):
+    laboratory = db.query(models.Laboratory).filter(models.Laboratory.slug == slug).first()
+    if laboratory is None:
+        raise api_error(404, "lab_not_found")
+    laboratory.listed = data.listed
+    db.commit()
+    db.refresh(laboratory)
+    return platform_rows(db, [laboratory])[0]
+
+
+# --- Laboratory requests ---
+lab_request_limiter = AttemptLimiter(max_attempts=REQUESTS_PER_DAY, window_seconds=24 * 60 * 60)
+
+
+def lab_request_output(request: models.LaboratoryRequest, schema=schemas.LaboratoryRequestResponse):
+    extra = {}
+    if schema is schemas.PlatformLaboratoryRequest:
+        extra = {"requester_email": request.requester.email, "requester_name": request.requester.name,
+                 "decided_by_email": request.decided_by.email if request.decided_by else None}
+    return schema(
+        id=request.id, slug=request.slug, name=request.name, institution=request.institution,
+        collection_code=request.collection_code, message=request.message, status=request.status,
+        created_at=request.created_at, decided_at=request.decided_at, decision_reason=request.decision_reason,
+        laboratory_slug=request.laboratory.slug if request.laboratory else None, **extra,
+    )
+
+
+def address_taken(db: Session, slug: str) -> bool:
+    return db.query(models.Laboratory).filter(models.Laboratory.slug == slug).first() is not None
+
+
+# anyone with an account asks for a laboratory and becomes its first admin. With an address of a trusted domain
+# (TRUSTED_EMAIL_DOMAINS) the laboratory is created at once, out of the public list; any other waits for the
+# platform administrator. The address asked for is held while the request waits, so two requests never compete
+# for it. One request waits at a time per person, and a few a day are allowed in all
+@app.post("/laboratory-requests", response_model=schemas.LaboratoryRequestResponse, status_code=201)
+def request_laboratory(data: schemas.LaboratoryRequestCreate, db: Session = Depends(get_db), user: models.User = Depends(required_user)):
+    waiting = db.query(models.LaboratoryRequest).filter_by(requester_id=user.id, status="pending").first()
+    if waiting is not None:
+        raise api_error(400, "request_pending")
+    held = db.query(models.LaboratoryRequest).filter_by(slug=data.slug, status="pending").first()
+    if address_taken(db, data.slug) or held is not None:
+        raise api_error(400, "duplicate_slug")
+    ensure_login_allowed((lab_request_limiter, user.id))
+    request = models.LaboratoryRequest(
+        requester_id=user.id, slug=data.slug, name=data.name.strip(), institution=data.institution.strip(),
+        collection_code=data.collection_code.strip(), message=(data.message or "").strip() or None,
+        status="pending", created_at=utc_now(),
+    )
+    db.add(request)
+    try:
+        db.flush()
+        if is_trusted(user.email):
+            open_laboratory(db, request, None, listed=False)
+        send_new_request(db, request)
+        db.commit()
+    except IntegrityError:
+        # the address was taken at the same moment
+        db.rollback()
+        raise api_error(400, "duplicate_slug")
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    lab_request_limiter.record_failure(user.id)
+    db.refresh(request)
+    return lab_request_output(request)
+
+
+@app.get("/me/laboratory-requests", response_model=List[schemas.LaboratoryRequestResponse])
+def my_laboratory_requests(db: Session = Depends(get_db), user: models.User = Depends(required_user)):
+    rows = db.query(models.LaboratoryRequest).filter(models.LaboratoryRequest.requester_id == user.id).order_by(
+        models.LaboratoryRequest.created_at.desc(), models.LaboratoryRequest.id.desc()
+    ).all()
+    return [lab_request_output(r) for r in rows]
+
+
+# a waiting request can be withdrawn by whoever made it; a request of someone else is the same as none
+@app.delete("/me/laboratory-requests/{request_id}", status_code=204)
+def withdraw_laboratory_request(request_id: int, db: Session = Depends(get_db), user: models.User = Depends(required_user)):
+    request = db.query(models.LaboratoryRequest).filter_by(id=request_id, requester_id=user.id).first()
+    if request is None:
+        raise api_error(404, "request_not_found")
+    if request.status != "pending":
+        raise api_error(400, "request_already_decided")
+    db.delete(request)
+    db.commit()
+    return None
+
+
+# the ones that wait come first, oldest first; then the latest decided ones
+LAB_REQUESTS_DECIDED_LIMIT = 50
+
+
+@app.get("/platform/laboratory-requests", response_model=List[schemas.PlatformLaboratoryRequest])
+def platform_laboratory_requests(db: Session = Depends(get_db), superadmin: models.User = Depends(require_superadmin)):
+    query = db.query(models.LaboratoryRequest)
+    waiting = query.filter(models.LaboratoryRequest.status == "pending").order_by(
+        models.LaboratoryRequest.created_at, models.LaboratoryRequest.id
+    ).all()
+    decided = query.filter(models.LaboratoryRequest.status != "pending").order_by(
+        models.LaboratoryRequest.decided_at.desc(), models.LaboratoryRequest.id.desc()
+    ).limit(LAB_REQUESTS_DECIDED_LIMIT).all()
+    return [lab_request_output(r, schemas.PlatformLaboratoryRequest) for r in waiting + decided]
+
+
+def waiting_request(db: Session, request_id: int) -> models.LaboratoryRequest:
+    request = db.query(models.LaboratoryRequest).filter(models.LaboratoryRequest.id == request_id).first()
+    if request is None:
+        raise api_error(404, "request_not_found")
+    if request.status != "pending":
+        raise api_error(400, "request_already_decided")
+    return request
+
+
+@app.post("/platform/laboratory-requests/{request_id}/approve", response_model=schemas.PlatformLaboratoryRequest)
+def approve_laboratory_request(request_id: int, data: schemas.LaboratoryRequestApproval, db: Session = Depends(get_db),
+                               superadmin: models.User = Depends(require_superadmin)):
+    request = waiting_request(db, request_id)
+    # created by the platform administrator in the meantime, under the same address
+    if address_taken(db, request.slug):
+        raise api_error(400, "duplicate_slug")
+    try:
+        open_laboratory(db, request, superadmin, listed=data.listed)
+        send_decision(request)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise api_error(400, "duplicate_slug")
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    db.refresh(request)
+    return lab_request_output(request, schemas.PlatformLaboratoryRequest)
+
+
+@app.post("/platform/laboratory-requests/{request_id}/reject", response_model=schemas.PlatformLaboratoryRequest)
+def reject_laboratory_request(request_id: int, data: schemas.LaboratoryRequestRejection, db: Session = Depends(get_db),
+                              superadmin: models.User = Depends(require_superadmin)):
+    request = waiting_request(db, request_id)
+    request.status, request.decided_at, request.decided_by_id = "rejected", utc_now(), superadmin.id
+    request.decision_reason = (data.reason or "").strip() or None
+    try:
+        send_decision(request)
+        db.commit()
+    except MailError:
+        db.rollback()
+        raise api_error(503, "mail_unavailable")
+    db.refresh(request)
+    return lab_request_output(request, schemas.PlatformLaboratoryRequest)
 
 
 # --- Members ---

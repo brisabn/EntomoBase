@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1620" width="1700" height="1620" font-family="Segoe UI, Arial, sans-serif">
 <rect width="1700" height="1620" fill="#ffffff"/>
 <text x="44" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
-<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0007) · 12 tabelas · SQLite ou PostgreSQL</text>
+<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0008) · 12 tabelas · SQLite ou PostgreSQL</text>
 <rect x="64" y="130" width="290" height="284" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M64 168 V138 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V168 Z" fill="#2a5f9e"/>
 <text x="78" y="155" font-size="16" fill="#ffffff" font-weight="700">laboratories</text>
@@ -322,10 +322,10 @@
 <text x="514" y="1546" font-size="13.5" fill="#1d2a24" font-weight="700">changed_at</text>
 <text x="702" y="1546" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
 <text x="500" y="1579" font-size="11.5" fill="#5a6660" font-style="italic">quem mudou quem pode ver cada projeto; fica mesmo se o projeto for excluído</text>
-<rect x="500" y="590" width="290" height="356" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
+<rect x="500" y="590" width="290" height="380" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M500 628 V598 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V628 Z" fill="#2a5f9e"/>
 <text x="514" y="615" font-size="16" fill="#ffffff" font-weight="700">laboratory_requests</text>
-<text x="776" y="615" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">13 colunas</text>
+<text x="776" y="615" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">14 colunas</text>
 <text x="514" y="644" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
 <text x="702" y="644" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
 <rect x="750" y="633" width="26" height="15" rx="3" fill="#b8860b"/>
@@ -362,11 +362,14 @@
 <text x="702" y="908" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
 <rect x="750" y="897" width="26" height="15" rx="3" fill="#2a6fb0"/>
 <text x="763" y="908.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
-<text x="514" y="932" font-size="13.5" fill="#1d2a24">laboratory_id</text>
-<text x="702" y="932" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
-<rect x="750" y="921" width="26" height="15" rx="3" fill="#2a6fb0"/>
-<text x="763" y="932.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
-<text x="500" y="965" font-size="11.5" fill="#5a6660" font-style="italic">pedidos de laboratório novo (ainda sem tela); status: pending, approved ou rejected</text>
+<text x="514" y="932" font-size="13.5" fill="#1d2a24">decision_reason</text>
+<text x="702" y="932" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="940" width="286" height="24" fill="#eaf1fa" opacity="0.6"/>
+<text x="514" y="956" font-size="13.5" fill="#1d2a24">laboratory_id</text>
+<text x="702" y="956" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="945" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="956.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<text x="500" y="989" font-size="11.5" fill="#5a6660" font-style="italic">pedidos de laboratório novo (ainda sem tela); status: pending, approved ou rejected</text>
 <rect x="1360" y="510" width="290" height="236" rx="8" fill="#ffffff" stroke="#8a6a2c" stroke-width="2"/>
 <path d="M1360 548 V518 a8 8 0 0 1 8 -8 H1642 a8 8 0 0 1 8 8 V548 Z" fill="#8a6a2c"/>
 <text x="1374" y="535" font-size="16" fill="#ffffff" font-weight="700">taxa</text>
@@ -475,11 +478,11 @@
 <text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 897 L500 904 L486 911" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="894" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
-<path d="M354 180 L404 180 L404 928 L500 928" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<path d="M354 180 L404 180 L404 952 L500 952" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="354" cy="180" r="4" fill="#2a6fb0"/>
 <text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
-<path d="M486 921 L500 928 L486 935" fill="none" stroke="#2a6fb0" stroke-width="2"/>
-<text x="484" y="918" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M486 945 L500 952 L486 959" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="942" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <rect x="920" y="900" width="340" height="280" rx="8" fill="#fbfaf4" stroke="#d8d2b8"/>
 <text x="934" y="924" font-size="13" fill="#5a5230" font-weight="700">Regras que o esquema carrega</text>
 <text x="934" y="948" font-size="12" fill="#4a4630">• Visitantes só recebem projetos públicos e os</text>

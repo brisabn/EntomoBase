@@ -238,6 +238,20 @@ const app = createApp({
       labForm: { name: '', slug: '', institution: '', collection_code: '', license: '', listed: false, admin_email: '' },
       // the address follows the name until someone types an address of their own
       slugTouched: false,
+      // the account page: asking for a laboratory of one's own, and the requests made so far (newest first)
+      labRequests: [],
+      requestForm: { name: '', slug: '', institution: '', collection_code: '', message: '' },
+      requestSlugTouched: false,
+      requestError: null,
+      // the form stays closed behind a button, so the account page does not open on a long form
+      requestOpen: false,
+      // the platform page: the laboratory requests; per waiting request, whether to list the laboratory when
+      // approving; and the one being refused, with the reason being typed
+      platformRequests: [],
+      approveListed: {},
+      refusing: null,
+      // what went wrong deciding a request or changing the public list (the form above has its own error)
+      platformActionError: null,
       signupForm: { name: '', email: '', password: '' },
       signupSentTo: null,
       // the result of opening the link of the confirmation e-mail: { code, status: working | done | failed, email, message }
@@ -336,6 +350,11 @@ const app = createApp({
     isSuperadmin() { return !!this.me && !!this.me.is_superadmin; },
     // the address the new laboratory will have, only to show (link() would encode the "…" of an empty one)
     labAddressPreview() { return `${this.lang === 'en' ? '#/en/' : '#/'}lab/${this.labForm.slug || '…'}`; },
+    requestAddressPreview() { return `${this.lang === 'en' ? '#/en/' : '#/'}lab/${this.requestForm.slug || '…'}`; },
+    // one request waits at a time; while it waits, the form gives way to it
+    pendingRequest() { return this.labRequests.find((r) => r.status === 'pending') || null; },
+    waitingRequests() { return this.platformRequests.filter((r) => r.status === 'pending'); },
+    decidedRequests() { return this.platformRequests.filter((r) => r.status !== 'pending'); },
     // whether the signed-in account is the one the invitation was sent to
     inviteIsForMe() {
       return !!this.userEmail && !!this.invite && !!this.invite.data && this.invite.data.email === this.userEmail.toLowerCase();
@@ -894,7 +913,7 @@ const app = createApp({
         }
         history.replaceState(null, '', this.link('reset', { lab: null }, lang));
       }
-      if (route.name === 'account') { this.passwordError = null; this.loadMe(); }
+      if (route.name === 'account') { this.passwordError = null; this.requestError = null; this.loadMe(); }
       if (route.name === 'platform') this.loadPlatform();
       const previous = this.route;
       const samePage = !!previous && previous.name === route.name && previous.id === route.id && !!route.name && (route.name === 'project' || route.name === 'collection');
@@ -1136,16 +1155,105 @@ const app = createApp({
     },
     // ---------- the platform page ----------
     async loadPlatform() {
-      if (!this.token) { this.platformLabs = []; return; }
+      if (!this.token) { this.platformLabs = []; this.platformRequests = []; return; }
       this.platformLoading = true;
       this.platformError = null;
       try {
-        this.platformLabs = await this.api('/platform/laboratories');
+        [this.platformLabs, this.platformRequests] = await Promise.all(
+          ['/platform/laboratories', '/platform/laboratory-requests'].map((path) => this.api(path)));
       } catch (e) {
         this.platformLabs = [];
+        this.platformRequests = [];
         this.platformError = e.message;
       }
       this.platformLoading = false;
+    },
+    async approveRequest(request) {
+      this.platformActionError = null;
+      this.submitting = true;
+      try {
+        await this.api(`/platform/laboratory-requests/${request.id}/approve`, { method: 'POST', body: { listed: !!this.approveListed[request.id] } });
+        this.notify(this.t('requests.approved_notice', { name: request.name }));
+        await Promise.all([this.loadPlatform(), this.loadLabs()]);
+      } catch (e) {
+        this.platformActionError = e.message;
+      }
+      this.submitting = false;
+    },
+    startRefusing(request) { this.platformActionError = null; this.refusing = { id: request.id, reason: '' }; },
+    async refuseRequest(request) {
+      this.platformActionError = null;
+      this.submitting = true;
+      try {
+        await this.api(`/platform/laboratory-requests/${request.id}/reject`, { method: 'POST', body: { reason: this.refusing.reason.trim() || null } });
+        this.refusing = null;
+        this.notify(this.t('requests.refused_notice', { name: request.name }));
+        await this.loadPlatform();
+      } catch (e) {
+        this.platformActionError = e.message;
+      }
+      this.submitting = false;
+    },
+    // puts a laboratory in the public list of the platform, or takes it out
+    async toggleListed(lab) {
+      this.platformActionError = null;
+      try {
+        await this.api(`/platform/laboratories/${encodeURIComponent(lab.slug)}`, { method: 'PUT', body: { listed: !lab.listed } });
+        this.notify(this.t(lab.listed ? 'platform.unlisted_notice' : 'platform.listed_notice', { name: lab.name }));
+        await Promise.all([this.loadPlatform(), this.loadLabs()]);
+      } catch (e) {
+        this.platformActionError = e.message;
+      }
+    },
+    // ---------- asking for a laboratory (the account page) ----------
+    async loadLabRequests() {
+      if (!this.token) { this.labRequests = []; return; }
+      try {
+        this.labRequests = await this.api('/me/laboratory-requests');
+      } catch {
+        this.labRequests = [];
+      }
+    },
+    onRequestName() { if (!this.requestSlugTouched) this.requestForm.slug = this.slugFrom(this.requestForm.name); },
+    // with an address of a trusted domain the laboratory exists at once; otherwise the request waits
+    async sendLabRequest() {
+      this.requestError = null;
+      this.submitting = true;
+      try {
+        const body = { ...this.requestForm, message: this.requestForm.message.trim() || null };
+        const request = await this.api('/laboratory-requests', { method: 'POST', body });
+        this.requestForm = { name: '', slug: '', institution: '', collection_code: '', message: '' };
+        this.requestSlugTouched = false;
+        this.requestOpen = false;
+        if (request.status === 'approved') {
+          this.notify(this.t('requests.created_notice', { name: request.name }));
+          await Promise.all([this.loadMe(), this.loadLabs()]);
+        } else {
+          this.notify(this.t('requests.sent_notice'));
+          await this.loadLabRequests();
+        }
+      } catch (e) {
+        this.requestError = e.message;
+      }
+      this.submitting = false;
+    },
+    askWithdrawRequest(request) {
+      this.formError = null;
+      this.confirmation = {
+        title: this.t('requests.withdraw_title'),
+        text: this.t('requests.withdraw_text', { name: request.name }),
+        button: this.t('requests.withdraw'),
+        busy: this.t('requests.withdrawing'),
+        action: async () => {
+          await this.api(`/me/laboratory-requests/${request.id}`, { method: 'DELETE' });
+          this.notify(this.t('requests.withdrawn_notice'));
+          await this.loadLabRequests();
+        }
+      };
+    },
+    // the moment of a request, in the visitor's time and language (the API keeps it in UTC without a zone)
+    requestWhen(value) {
+      return value ? new Date(value + 'Z').toLocaleDateString(this.locale, { dateStyle: 'short' }) : '';
     },
     // "Laboratório de Formigas" -> "laboratorio-de-formigas": no accents, only letters, digits and hyphens
     slugFrom(name) {
@@ -1235,6 +1343,7 @@ const app = createApp({
       if (this.route.name === 'members') this.loadMembers();
       // the platform page was opened before signing in: its list comes now
       if (this.route.name === 'platform') this.loadPlatform();
+      if (this.route.name === 'account') this.loadLabRequests();
     },
     endSession() {
       this.token = null;
@@ -1242,6 +1351,8 @@ const app = createApp({
       this.me = null;
       this.members = [];
       this.invitations = [];
+      this.labRequests = [];
+      this.platformRequests = [];
       localStorage.removeItem('entomobase_token');
       localStorage.removeItem('entomobase_email');
     },

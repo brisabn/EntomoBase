@@ -221,6 +221,8 @@ class LaboratoryRequest(Base):
     # who decided and when; empty while pending, and no one when it was approved because of the domain
     decided_at = Column(DateTime, nullable=True)
     decided_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # what the platform administrator wrote when refusing it, sent to the person by e-mail; optional
+    decision_reason = Column(String, nullable=True)
     # the laboratory created when the request was approved
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=True)
 
