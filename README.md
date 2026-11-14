@@ -37,6 +37,23 @@ python create_admin.py seu-email@exemplo.br
 
 A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira **administrador do laboratório inicial** (sem vínculo com um laboratório, ninguém consegue criar nem editar nada). Rodar de novo com um e-mail que já existe só troca a senha: a pessoa continua nos laboratórios e com os papéis que tinha.
 
+### Ver os e-mails enquanto desenvolve (Mailpit)
+
+Em modo `dev`, sem configurar nada, os e-mails (confirmação de cadastro, convites, nova senha, pedidos de laboratório) aparecem no terminal da API. Para vê-los como e-mails de verdade, numa caixa de entrada no navegador, use o [Mailpit](https://mailpit.axllent.org): um servidor de e-mail falso que roda no seu computador e **não entrega nada a ninguém**, então serve qualquer endereço, inclusive inventado.
+
+```powershell
+# uma vez: instalar
+winget install axllent.mailpit
+
+# em um terminal à parte, deixar rodando
+mailpit
+
+# no terminal da API, antes do uvicorn
+$env:MAIL_BACKEND = "mailpit"
+```
+
+A caixa de entrada fica em `http://localhost:8025`, e os links dos e-mails abrem o site. `MAIL_BACKEND=mailpit` é um atalho para SMTP em `127.0.0.1:1025`, sem criptografia nem login; `SMTP_HOST` e `SMTP_PORT` mudam o endereço, se o Mailpit estiver em outro lugar. Se o Mailpit não estiver rodando, o site responde que o e-mail não pôde ser enviado.
+
 ### Quem pode o quê
 
 | | Visitante | Logado, sem vínculo | Pesquisador | Administrador |
@@ -147,7 +164,7 @@ Os e-mails não são enviados: a API os mostra no próprio registro, de onde o t
 | `CORS_ORIGINS` | Endereços dos sites que podem usar a API pelo navegador, separados por vírgula (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, valem `http://127.0.0.1:5500` e `http://localhost:5500`. Fora do `dev`, sem ela, nenhum outro site consegue usar a API. |
 | `DATABASE_URL` | Banco de dados. Sem ela, usa SQLite local (`entomobase.db`). |
 | `SITE_URL` | Endereço público do site, usado no link de confirmação do e-mail (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, vale `http://127.0.0.1:5500`. Fora do `dev`, sem ela, o cadastro responde que o e-mail não pôde ser enviado. |
-| `MAIL_BACKEND` | Como os e-mails saem: `smtp` (envio de verdade) ou `console` (só mostra no terminal da API). Em modo `dev`, sem a variável, vale `console`. Fora do `dev`, sem ela, nenhum e-mail é enviado e o cadastro fica indisponível. |
+| `MAIL_BACKEND` | Como os e-mails saem: `smtp` (envio de verdade), `mailpit` (para o Mailpit no seu computador; ver "Ver os e-mails enquanto desenvolve") ou `console` (só mostra no terminal da API). Em modo `dev`, sem a variável, vale `console`. Fora do `dev`, sem ela, nenhum e-mail é enviado e o cadastro fica indisponível. |
 | `MAIL_FROM` | Remetente dos e-mails (ex.: `entomobase@meulab.br`). Obrigatória com `smtp`. |
 | `SMTP_HOST`, `SMTP_PORT` | Servidor de e-mail e porta (padrão 587; 465 com `ssl`). |
 | `SMTP_USER`, `SMTP_PASSWORD` | Login no servidor de e-mail, se ele pedir. Nunca coloque a senha no código nem em um commit. |

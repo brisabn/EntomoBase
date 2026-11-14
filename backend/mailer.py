@@ -8,9 +8,13 @@ from typing import List
 
 # Sends the e-mails the platform needs (confirmation links, approvals). Everything is read from the
 # environment each time a message is sent, so nothing has to be configured to start the API:
-#   MAIL_BACKEND   smtp | console | memory   (console is the default in development, memory is for the tests)
+#   MAIL_BACKEND   smtp | mailpit | console | memory   (console is the default in development, memory is for the tests)
 #   MAIL_FROM      the sender address
 #   SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASSWORD, SMTP_SECURITY (starttls | ssl | none; starttls by default)
+# mailpit is a shortcut for development: Mailpit (https://mailpit.axllent.org) running on this computer, which
+# keeps every e-mail in an inbox in the browser (http://localhost:8025) and delivers nothing. It is SMTP to
+# 127.0.0.1:1025 without encryption or login; SMTP_HOST and SMTP_PORT still change where it is
+MAILPIT = {"host": "127.0.0.1", "port": "1025", "security": "none"}
 
 
 class MailError(Exception):
@@ -52,18 +56,20 @@ def build_message(to: str, subject: str, body: str, sender: str) -> EmailMessage
     return message
 
 
-def send_with_smtp(message: EmailMessage) -> None:
-    host = os.getenv("SMTP_HOST", "").strip()
+def send_with_smtp(message: EmailMessage, mailpit: bool = False) -> None:
+    host = os.getenv("SMTP_HOST", "").strip() or (MAILPIT["host"] if mailpit else "")
     if not host:
         raise MailError("SMTP_HOST is not set")
-    security = os.getenv("SMTP_SECURITY", "starttls").strip().lower()
+    security = MAILPIT["security"] if mailpit else os.getenv("SMTP_SECURITY", "starttls").strip().lower()
     if security not in ("starttls", "ssl", "none"):
         raise MailError("SMTP_SECURITY must be starttls, ssl or none")
+    default_port = MAILPIT["port"] if mailpit else ("465" if security == "ssl" else "587")
     try:
-        port = int(os.getenv("SMTP_PORT", "465" if security == "ssl" else "587"))
+        port = int(os.getenv("SMTP_PORT", "").strip() or default_port)
     except ValueError:
         raise MailError("SMTP_PORT is not a number")
-    user, password = os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASSWORD", "")
+    # Mailpit takes no login: a user and password set for a real server are not sent to it
+    user, password = ("", "") if mailpit else (os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASSWORD", ""))
     context = ssl.create_default_context()
     try:
         if security == "ssl":
@@ -91,9 +97,9 @@ def print_safely(text: str) -> None:
 
 def send_email(to: str, subject: str, body: str) -> None:
     name = backend_name()
-    if name not in ("smtp", "console", "memory"):
-        raise MailError("e-mail is not configured: set MAIL_BACKEND (smtp, or console in development)")
-    # only a real server needs a real sender; the console and memory backends make one up
+    if name not in ("smtp", "mailpit", "console", "memory"):
+        raise MailError("e-mail is not configured: set MAIL_BACKEND (smtp, or console or mailpit in development)")
+    # only a real server needs a real sender; the others make one up
     sender = os.getenv("MAIL_FROM", "").strip() or ("" if name == "smtp" else "noreply@entomobase.invalid")
     message = build_message(to, subject, body, sender)
     if name == "memory":
@@ -101,4 +107,4 @@ def send_email(to: str, subject: str, body: str) -> None:
     elif name == "console":
         print_safely(f"\n--- e-mail (console backend) ---\nTo: {to}\nSubject: {subject}\n\n{body}\n--- end ---\n")
     else:
-        send_with_smtp(message)
+        send_with_smtp(message, mailpit=name == "mailpit")

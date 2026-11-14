@@ -208,6 +208,46 @@ def test_a_failing_server_becomes_a_mail_error_that_does_not_leak_details(monkey
     assert "hunter2" not in str(error.value) and "could not send" in str(error.value)
 
 
+def test_an_empty_port_means_the_default_one(monkeypatch, fake_smtp):
+    configure(monkeypatch, **SMTP_ENV, SMTP_PORT=" ")
+    send_email("person@example.org", "Hi", "text")
+    assert fake_smtp.instances[0].port == 587
+
+
+# ---------- Mailpit, for development ----------
+def test_mailpit_is_smtp_to_this_computer_without_encryption_or_login(monkeypatch, fake_smtp):
+    configure(monkeypatch, MAIL_BACKEND="mailpit")
+    send_email("person@example.org", "Hi", "text with açúcar")
+    server = fake_smtp.instances[0]
+    assert (server.host, server.port, server.calls) == ("127.0.0.1", 1025, [])
+    assert server.sent[0]["From"] == "noreply@entomobase.invalid"
+    assert "açúcar" in server.sent[0].get_content()
+
+
+def test_mailpit_never_receives_the_login_or_the_security_of_a_real_server(monkeypatch, fake_smtp):
+    configure(monkeypatch, MAIL_BACKEND="mailpit", SMTP_USER="user", SMTP_PASSWORD="secret", SMTP_SECURITY="ssl",
+              MAIL_FROM="entomobase@example.org")
+    send_email("person@example.org", "Hi", "text")
+    server = fake_smtp.instances[0]
+    assert server.calls == [] and server.port == 1025
+    assert server.sent[0]["From"] == "entomobase@example.org"
+
+
+def test_mailpit_somewhere_else(monkeypatch, fake_smtp):
+    configure(monkeypatch, MAIL_BACKEND="mailpit", SMTP_HOST="mailpit.local", SMTP_PORT="2525")
+    send_email("person@example.org", "Hi", "text")
+    assert (fake_smtp.instances[0].host, fake_smtp.instances[0].port) == ("mailpit.local", 2525)
+
+
+def test_mailpit_not_running_is_a_mail_error(monkeypatch):
+    def refuse(*args, **kwargs):
+        raise ConnectionRefusedError("nobody home")
+    monkeypatch.setattr(smtplib, "SMTP", refuse)
+    configure(monkeypatch, MAIL_BACKEND="mailpit")
+    with pytest.raises(MailError, match="could not send"):
+        send_email("person@example.org", "Hi", "text")
+
+
 def test_the_connection_itself_failing_is_also_a_mail_error(monkeypatch):
     def refuse(*args, **kwargs):
         raise ConnectionRefusedError("nobody home")
