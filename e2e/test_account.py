@@ -36,7 +36,7 @@ def test_a_new_account_signs_in_only_after_confirming_the_email(new_page, server
     sign_in(page, EMAIL, PASSWORD)
     expect(page.locator(".form-error")).to_contain_text("Confirme seu e-mail")
     page.get_by_role("button", name="Cancelar").click()
-    expect(page.get_by_role("button", name="Sair")).to_have_count(0)
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_have_count(0)
 
     # the link of the e-mail confirms the account and leaves the address bar
     links = servers.confirmation_links()
@@ -50,7 +50,7 @@ def test_a_new_account_signs_in_only_after_confirming_the_email(new_page, server
     expect(page.get_by_label("E-mail")).to_have_value(EMAIL)
     page.get_by_label("Senha").fill(PASSWORD)
     page.get_by_role("button", name="Acessar").click()
-    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_be_visible()
     page.goto(servers.site + "/")
     expect(page.locator(".grid .card").first).to_be_visible()
     expect(page.locator(".home-join")).to_have_count(0)
@@ -93,7 +93,7 @@ def test_an_invited_person_creates_the_account_joins_the_laboratory_and_can_leav
     guest.get_by_label("Senha").fill(PASSWORD)
     guest.get_by_role("button", name="Criar conta e entrar").click()
     expect(guest.locator(".confirm-box")).to_contain_text("Pronto! Agora você faz parte")
-    expect(guest.get_by_role("button", name="Sair")).to_be_visible()
+    expect(guest.get_by_role("button", name="Sair", exact=True)).to_be_visible()
 
     # already a researcher there: the projects page offers to create one
     guest.get_by_role("link", name="Ir para o laboratório").click()
@@ -119,7 +119,7 @@ def test_an_invited_person_creates_the_account_joins_the_laboratory_and_can_leav
     guest.get_by_role("alertdialog").get_by_role("button", name="Deixar o laboratório").click()
     expect(guest.get_by_text("Você deixou o laboratório EntomoBase UFMG.")).to_be_visible()
     expect(guest.get_by_role("heading", name="Sua participação")).to_have_count(0)
-    expect(guest.get_by_role("button", name="Sair")).to_be_visible()
+    expect(guest.get_by_role("button", name="Sair", exact=True)).to_be_visible()
     admin.reload()
     expect(admin.get_by_role("heading", name=re.compile(r"Membros \("))).to_be_visible()
     expect(admin.locator(".member-list").first).not_to_contain_text(INVITED)
@@ -156,7 +156,7 @@ def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_p
     expect(page.locator(".modal .form-error")).to_contain_text("E-mail ou senha incorretos")
     page.get_by_label("Senha").fill("senha-nova-por-email")
     page.get_by_role("button", name="Acessar").click()
-    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_be_visible()
 
     # the link works once
     other = new_page()
@@ -173,13 +173,38 @@ def test_a_forgotten_password_is_replaced_by_e_mail_and_changed_on_the_account_p
     page.get_by_label("Nova senha").fill("senha-trocada-na-conta")
     page.get_by_role("button", name="Trocar a senha").click()
     expect(page.locator(".form-error")).to_contain_text("A senha atual está incorreta")
-    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_be_visible()
     page.get_by_label("Senha atual").fill("senha-nova-por-email")
     page.get_by_role("button", name="Trocar a senha").click()
     expect(page.get_by_text("Senha trocada.")).to_be_visible()
-    page.get_by_role("button", name="Sair").click()
+    # the change ends the old sessions, but this device goes on signed in
+    page.reload()
+    expect(page.locator(".account-labs")).to_contain_text("Laboratório de Lepidoptera (demonstração)")
+    expect(page.locator(".modal")).to_have_count(0)
+    page.get_by_role("button", name="Sair", exact=True).click()
     sign_in(page, FORGETFUL, "senha-trocada-na-conta")
-    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_be_visible()
+
+
+def test_signing_out_of_the_other_devices(new_page, servers):
+    who = "admin.formigas@entomobase.test"
+    laptop, phone = new_page(), new_page(width=360)
+    for page in (laptop, phone):
+        page.goto(servers.site + "/#/conta")
+        sign_in(page, who, servers.passwords[who])
+        expect(page.get_by_role("heading", name="Aparelhos conectados")).to_be_visible()
+    laptop.get_by_role("button", name="Sair dos outros aparelhos").click()
+    expect(laptop.get_by_role("alertdialog")).to_contain_text("Este continua conectado")
+    laptop.get_by_role("alertdialog").get_by_role("button", name="Sair dos outros aparelhos").click()
+    expect(laptop.get_by_text("Os outros aparelhos foram desconectados.")).to_be_visible()
+    # the phone is signed out at its next request, and asked to sign in again
+    phone.reload()
+    expect(phone.locator(".modal .form-error")).to_be_visible()
+    expect(phone.get_by_role("button", name="Sair", exact=True)).to_have_count(0)
+    # the laptop goes on: its account page still loads its laboratories
+    laptop.reload()
+    expect(laptop.locator(".account-labs")).to_contain_text("Grupo de Mirmecologia (demonstração)")
+    expect(laptop.get_by_role("button", name="Sair", exact=True)).to_be_visible()
 
 
 ASKER = "sem.laboratorio@entomobase.test"

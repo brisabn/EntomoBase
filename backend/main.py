@@ -153,7 +153,12 @@ SESSION_HOURS = 8
 
 def new_session_token(user: models.User) -> str:
     exp = datetime.now(timezone.utc) + timedelta(hours=SESSION_HOURS)
-    return jwt.encode({"sub": user.email, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": user.email, "exp": exp, "ver": user.session_version or 0}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+# every login token given so far stops working (see user_from_token)
+def end_sessions(user: models.User) -> None:
+    user.session_version = (user.session_version or 0) + 1
 
 
 # open sign-up, which sends an e-mail to whatever address is typed, so it is limited per IP: every request
@@ -262,6 +267,8 @@ def reset_password(data: schemas.ResetPasswordRequest, db: Session = Depends(get
     user.password_hash = hash_password(data.password)
     if user.email_verified_at is None:
         user.email_verified_at = utc_now()
+    # whoever had the old password (or a session left open somewhere) is signed out; the person signs in again
+    end_sessions(user)
     db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
     db.commit()
     return {"status": "password_changed", "email": user.email}
@@ -284,10 +291,20 @@ def change_password(data: schemas.PasswordChange, request: Request, user: models
     if len(data.new_password) < MIN_PASSWORD_LENGTH:
         raise api_error(400, "weak_password", minimum=MIN_PASSWORD_LENGTH)
     user.password_hash = hash_password(data.new_password)
+    # the sessions open elsewhere end; this one goes on with the new token in the answer
+    end_sessions(user)
     # a link to choose a password, sent before, must not undo this one
     db.query(models.EmailConfirmation).filter(models.EmailConfirmation.user_id == user.id).delete()
     db.commit()
-    return {"status": "password_changed"}
+    return {"status": "password_changed", "access_token": new_session_token(user)}
+
+
+# "sign out of the other devices": every session of the account ends, except this one, which gets a new token
+@app.post("/me/sessions/end-others")
+def end_other_sessions(user: models.User = Depends(required_user), db: Session = Depends(get_db)):
+    end_sessions(user)
+    db.commit()
+    return {"status": "sessions_ended", "access_token": new_session_token(user)}
 
 
 # who is signed in and where they work; the role in each laboratory is read now, not taken from the token

@@ -442,6 +442,11 @@
               <p v-if="passwordError" class="form-error" role="alert">{{ passwordError }}</p>
               <button type="submit" class="btn-dark" :disabled="submitting">{{ submitting ? t('account.saving') : t('account.save') }}</button>
             </form>
+
+            <!-- a session left open on another computer ends here; changing the password also ends them -->
+            <h2 class="members-heading">{{ t('sessions.title') }}</h2>
+            <p class="request-intro">{{ t('sessions.hint') }}</p>
+            <p><button type="button" class="btn-light" @click="askEndOtherSessions">{{ t('sessions.end_others') }}</button></p>
           </template>
         </div>
 

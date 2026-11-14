@@ -393,7 +393,8 @@ a.btn-dark, a.btn-light { text-decoration: none; }
 .fields-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 1rem; }
 .check { display: flex; align-items: center; gap: 0.7rem; margin: 0.4rem 0 1rem; cursor: pointer; }
 .form-error { background: #fbe9e2; color: #6d2a1d; border-radius: 10px; padding: 0.6rem 0.9rem; font-size: 0.95rem; margin-bottom: 1rem; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 0.5rem; }
+/* long button labels go to a second line on narrow screens instead of leaving the window */
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.8rem; margin-top: 0.5rem; }
 .citation { background: var(--white); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1rem; user-select: all; overflow-wrap: anywhere; }
 
 .toast {

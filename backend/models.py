@@ -138,6 +138,9 @@ class User(Base):
     is_superadmin = Column(Boolean, nullable=False, default=False, server_default=expression.false())
     # when the person proved they own the e-mail address; empty until then
     email_verified_at = Column(DateTime, nullable=True)
+    # goes inside every login token; raising it (a new password, or "sign out of the other devices") makes every
+    # token given before stop working at once
+    session_version = Column(Integer, nullable=False, default=0, server_default="0")
 
     memberships = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
     email_confirmations = relationship("EmailConfirmation", back_populates="user", cascade="all, delete-orphan")

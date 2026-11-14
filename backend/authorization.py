@@ -31,7 +31,9 @@ class Context:
         return self.role == "admin"
 
 
-# the user behind a valid token, or None; a token for a user that no longer exists is not valid
+# the user behind a valid token, or None. A token for a user that no longer exists is not valid, and neither is
+# one given before the user's sessions were ended (a new password, or signing out of the other devices): its
+# version is older than the account's. A token with no version is from before versions existed and counts as 0
 def user_from_token(authorization: Optional[str], db: Session) -> Optional[models.User]:
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -39,7 +41,10 @@ def user_from_token(authorization: Optional[str], db: Session) -> Optional[model
         claims = jwt.decode(authorization.split(" ")[1], SECRET_KEY, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
         return None
-    return db.query(models.User).filter(models.User.email == claims.get("sub")).first()
+    user = db.query(models.User).filter(models.User.email == claims.get("sub")).first()
+    if user is None or claims.get("ver", 0) != user.session_version:
+        return None
+    return user
 
 
 def optional_user(authorization: str = Header(None), db: Session = Depends(get_db)) -> Optional[models.User]:

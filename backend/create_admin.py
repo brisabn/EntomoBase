@@ -47,7 +47,9 @@ def main() -> int:
         created = user is None
         if user:
             user.password_hash = hash_password(password)
-            print(f"Password for {email} updated.")
+            # whoever is signed in with the old password is signed out
+            user.session_version = (user.session_version or 0) + 1
+            print(f"Password for {email} updated; the sessions open with the old one were ended.")
         else:
             user = models.User(email=email, password_hash=hash_password(password))
             db.add(user)

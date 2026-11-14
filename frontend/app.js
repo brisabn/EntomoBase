@@ -1280,7 +1280,9 @@ const app = createApp({
       this.passwordError = null;
       this.submitting = true;
       try {
-        await this.api('/me/password', { method: 'PUT', body: { current_password: this.passwordForm.current, new_password: this.passwordForm.next } });
+        const d = await this.api('/me/password', { method: 'PUT', body: { current_password: this.passwordForm.current, new_password: this.passwordForm.next } });
+        // the change ends every session, this one too: it goes on with the token in the answer
+        this.keepToken(d.access_token);
         this.passwordForm = { current: '', next: '' };
         this.notify(this.t('notify.password_changed'));
       } catch (e) {
@@ -1324,6 +1326,25 @@ const app = createApp({
         this.loginError = e.message;
       }
       this.submitting = false;
+    },
+    keepToken(token) {
+      this.token = token;
+      localStorage.setItem('entomobase_token', token);
+    },
+    // every other device is signed out; this one stays, with a new token
+    askEndOtherSessions() {
+      this.formError = null;
+      this.confirmation = {
+        title: this.t('sessions.confirm_title'),
+        text: this.t('sessions.confirm_text'),
+        button: this.t('sessions.end_others'),
+        busy: this.t('sessions.ending'),
+        action: async () => {
+          const d = await this.api('/me/sessions/end-others', { method: 'POST' });
+          this.keepToken(d.access_token);
+          this.notify(this.t('sessions.ended'));
+        }
+      };
     },
     async startSession(token, email) {
       this.token = token;

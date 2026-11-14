@@ -229,7 +229,9 @@ def change(client, headers, current=PASSWORD, new=NEW_PASSWORD):
 
 def test_a_signed_in_person_changes_their_password(client, admin, db):
     response = change(client, admin)
-    assert response.status_code == 200 and response.json() == {"status": "password_changed"}
+    assert response.status_code == 200 and response.json()["status"] == "password_changed"
+    # the answer brings the token that goes on working on this device (test_sessions)
+    assert set(response.json()) == {"status", "access_token"}
     assert can_sign_in(client, NEW_PASSWORD) and not can_sign_in(client, PASSWORD)
 
 
@@ -253,10 +255,13 @@ def test_wrong_current_passwords_are_limited_like_the_login(client, admin):
 def test_a_right_current_password_clears_the_count(client, admin):
     for _ in range(4):
         change(client, admin, current="wrong-guess")
-    assert change(client, admin, new="second-password").status_code == 200
+    changed = change(client, admin, new="second-password")
+    assert changed.status_code == 200
+    # the old token ended with the change; the device goes on with the new one
+    here = {"Authorization": f"Bearer {changed.json()['access_token']}"}
     for _ in range(4):
-        change(client, admin, current="wrong-guess")
-    assert change(client, admin, current="second-password").status_code == 200
+        change(client, here, current="wrong-guess")
+    assert change(client, here, current="second-password").status_code == 200
 
 
 @pytest.mark.parametrize("new", ["", "short", "1234567"])

@@ -24,7 +24,7 @@ def test_a_researcher_imports_a_csv_and_shares_the_project_by_link(new_page, ser
     page = new_page()
     page.goto(servers.site + "/#/lab/ufmg/projetos")
     sign_in(page, "pesquisa.ufmg@entomobase.test", servers.passwords["pesquisa.ufmg@entomobase.test"])
-    expect(page.get_by_role("button", name="Sair")).to_be_visible()
+    expect(page.get_by_role("button", name="Sair", exact=True)).to_be_visible()
 
     # a new project starts private
     page.get_by_role("button", name="Novo projeto").click()

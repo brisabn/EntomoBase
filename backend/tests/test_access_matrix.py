@@ -211,6 +211,7 @@ CASES = [
     Case("GET", "/me", "account", 200, lambda i: ("/me", None), in_lab=False),
     Case("PUT", "/me/password", "account", 200,
          lambda i: ("/me/password", {"current_password": WORLD_PASSWORD, "new_password": "a-new-password"}), in_lab=False),
+    Case("POST", "/me/sessions/end-others", "account", 200, lambda i: ("/me/sessions/end-others", None), in_lab=False),
     Case("GET", "/platform/laboratories", "superadmin", 200, lambda i: ("/platform/laboratories", None), in_lab=False),
     Case("POST", "/labs", "superadmin", 201, lambda i: ("/labs", {"slug": "lab-new", "name": "N", "institution": "I", "collection_code": "N", "admin_email": "no_lab@lab.br"}), in_lab=False),
     Case("PUT", "/platform/laboratories/{slug}", "superadmin", 200, lambda i: (f"/platform/laboratories/{OTHER}", {"listed": False}), in_lab=False),

@@ -48,6 +48,20 @@ def test_running_again_changes_the_password(run, client, db):
     assert client.post("/login", json={"email": EMAIL, "password": PASSWORD}).status_code == 401
 
 
+def test_changing_the_password_here_signs_out_whoever_used_the_old_one(run, client):
+    run([EMAIL], PASSWORD, PASSWORD)
+    token = client.post("/login", json={"email": EMAIL, "password": PASSWORD}).json()["access_token"]
+    assert client.get("/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    code, output = run([EMAIL], "another-password", "another-password")
+    assert "sessions" in output
+    assert client.get("/me", headers={"Authorization": f"Bearer {token}"}).json()["detail"]["code"] == "session_expired"
+
+
+def test_a_new_user_starts_with_no_sessions_ended(run, db):
+    run([EMAIL], PASSWORD, PASSWORD)
+    assert db.query(models.User).one().session_version == 0
+
+
 def test_a_short_password_is_refused(run, db):
     code, output = run([EMAIL], "short", "short")
     assert code == 1 and "8" in output
