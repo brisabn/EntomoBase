@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1306" width="1700" height="1306" font-family="Segoe UI, Arial, sans-serif">
-<rect width="1700" height="1306" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1620" width="1700" height="1620" font-family="Segoe UI, Arial, sans-serif">
+<rect width="1700" height="1620" fill="#ffffff"/>
 <text x="44" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
-<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0006) · 11 tabelas · SQLite ou PostgreSQL</text>
+<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0007) · 12 tabelas · SQLite ou PostgreSQL</text>
 <rect x="64" y="130" width="290" height="284" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M64 168 V138 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V168 Z" fill="#2a5f9e"/>
 <text x="78" y="155" font-size="16" fill="#ffffff" font-weight="700">laboratories</text>
@@ -287,6 +287,41 @@
 <text x="514" y="1232" font-size="13.5" fill="#1d2a24" font-weight="700">expires_at</text>
 <text x="702" y="1232" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
 <text x="500" y="1265" font-size="11.5" fill="#5a6660" font-style="italic">convite por e-mail (só o hash do código), vale 7 dias; um por endereço em cada laboratório</text>
+<rect x="500" y="1300" width="290" height="260" rx="8" fill="#ffffff" stroke="#2e6b4f" stroke-width="2"/>
+<path d="M500 1338 V1308 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V1338 Z" fill="#2e6b4f"/>
+<text x="514" y="1325" font-size="16" fill="#ffffff" font-weight="700">visibility_changes</text>
+<text x="776" y="1325" font-size="12" fill="#ffffff" text-anchor="end" opacity="0.9">9 colunas</text>
+<text x="514" y="1354" font-size="13.5" fill="#1d2a24" font-weight="700">id</text>
+<text x="702" y="1354" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1343" width="26" height="15" rx="3" fill="#b8860b"/>
+<text x="763" y="1354.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">PK</text>
+<rect x="502" y="1362" width="286" height="24" fill="#ebf3ee" opacity="0.6"/>
+<text x="514" y="1378" font-size="13.5" fill="#1d2a24" font-weight="700">laboratory_id</text>
+<text x="702" y="1378" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1367" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="1378.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<text x="514" y="1402" font-size="13.5" fill="#1d2a24">project_id</text>
+<text x="702" y="1402" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1391" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="1402.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<rect x="502" y="1410" width="286" height="24" fill="#ebf3ee" opacity="0.6"/>
+<text x="514" y="1426" font-size="13.5" fill="#1d2a24" font-weight="700">project_title</text>
+<text x="702" y="1426" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="1450" font-size="13.5" fill="#1d2a24">user_id</text>
+<text x="702" y="1450" font-size="12" fill="#6b7770" text-anchor="end">inteiro</text>
+<rect x="750" y="1439" width="26" height="15" rx="3" fill="#2a6fb0"/>
+<text x="763" y="1450.5" font-size="10" fill="#ffffff" font-weight="700" text-anchor="middle">FK</text>
+<rect x="502" y="1458" width="286" height="24" fill="#ebf3ee" opacity="0.6"/>
+<text x="514" y="1474" font-size="13.5" fill="#1d2a24" font-weight="700">user_email</text>
+<text x="702" y="1474" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="1498" font-size="13.5" fill="#1d2a24">from_visibility</text>
+<text x="702" y="1498" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<rect x="502" y="1506" width="286" height="24" fill="#ebf3ee" opacity="0.6"/>
+<text x="514" y="1522" font-size="13.5" fill="#1d2a24" font-weight="700">to_visibility</text>
+<text x="702" y="1522" font-size="12" fill="#6b7770" text-anchor="end">texto</text>
+<text x="514" y="1546" font-size="13.5" fill="#1d2a24" font-weight="700">changed_at</text>
+<text x="702" y="1546" font-size="12" fill="#6b7770" text-anchor="end">data e hora</text>
+<text x="500" y="1579" font-size="11.5" fill="#5a6660" font-style="italic">quem mudou quem pode ver cada projeto; fica mesmo se o projeto for excluído</text>
 <rect x="500" y="590" width="290" height="356" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M500 628 V598 a8 8 0 0 1 8 -8 H782 a8 8 0 0 1 8 8 V628 Z" fill="#2a5f9e"/>
 <text x="514" y="615" font-size="16" fill="#ffffff" font-weight="700">laboratory_requests</text>
@@ -415,6 +450,21 @@
 <text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
 <path d="M486 1149 L500 1156 L486 1163" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <text x="484" y="1146" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M354 180 L396 180 L396 1374 L500 1374" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="180" r="4" fill="#2a6fb0"/>
+<text x="368" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M486 1367 L500 1374 L486 1381" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="1364" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M500 180 L488 180 L488 1398 L500 1398" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="500" cy="180" r="4" fill="#2a6fb0"/>
+<text x="486" y="171" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M486 1391 L500 1398 L486 1405" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="1388" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
+<path d="M354 740 L466 740 L466 1446 L500 1446" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<circle cx="354" cy="740" r="4" fill="#2a6fb0"/>
+<text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>
+<path d="M486 1439 L500 1446 L486 1453" fill="none" stroke="#2a6fb0" stroke-width="2"/>
+<text x="484" y="1436" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">N</text>
 <path d="M354 740 L436 740 L436 664 L500 664" fill="none" stroke="#2a6fb0" stroke-width="2"/>
 <circle cx="354" cy="740" r="4" fill="#2a6fb0"/>
 <text x="368" y="731" font-size="14" fill="#2a6fb0" font-weight="700" text-anchor="middle">1</text>

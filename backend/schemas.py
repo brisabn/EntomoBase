@@ -336,6 +336,21 @@ class MemberUpdate(BaseModel):
     role: Literal["admin", "researcher"]
 
 
+# one change of who can see a project, as the laboratory's admins see it; project_id is empty once the project
+# was deleted (the title is the one it had at the time)
+class VisibilityChangeResponse(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    project_title: str
+    user_email: str
+    from_visibility: Optional[str] = None
+    to_visibility: str
+    changed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class InvitationCreate(BaseModel):
     email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=254)]
     role: Literal["admin", "researcher"] = "researcher"

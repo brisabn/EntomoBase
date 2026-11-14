@@ -554,6 +554,20 @@ def leave_laboratory(db: Session = Depends(get_db), ctx: Context = Depends(requi
     return None
 
 
+# --- Who published what ---
+# the admins of a laboratory see every change of who can see its projects, newest first, also of projects
+# deleted since; project_id narrows it to one project
+VISIBILITY_HISTORY_LIMIT = 500
+
+
+@members_router.get("/visibility-history", response_model=List[schemas.VisibilityChangeResponse])
+def visibility_history(project_id: Optional[int] = None, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
+    query = db.query(models.VisibilityChange).filter(models.VisibilityChange.laboratory_id == ctx.laboratory.id)
+    if project_id is not None:
+        query = query.filter(models.VisibilityChange.project_id == project_id)
+    return query.order_by(models.VisibilityChange.changed_at.desc(), models.VisibilityChange.id.desc()).limit(VISIBILITY_HISTORY_LIMIT).all()
+
+
 # --- Invitations: what the admins do ---
 # every e-mail sent counts, so an admin account cannot be used to send e-mail to anyone in bulk
 INVITATION_WINDOW_SECONDS = 60 * 60
@@ -618,11 +632,24 @@ def project_output(project: models.Project, ctx: Context) -> schemas.ProjectResp
     return output
 
 
+# keeps who changed who can see a project, from what to what; nothing is kept when nothing changed
+def record_visibility(db: Session, project: models.Project, user: models.User, before: Optional[str]) -> None:
+    if before == project.visibility:
+        return
+    db.add(models.VisibilityChange(
+        laboratory_id=project.laboratory_id, project_id=project.id, project_title=project.title,
+        user_id=user.id, user_email=user.email, from_visibility=before, to_visibility=project.visibility,
+        changed_at=utc_now(),
+    ))
+
+
 @lab_router.post("/projects", response_model=schemas.ProjectResponse, status_code=201)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), ctx: Context = Depends(require_member)):
     db_project = models.Project(**project.model_dump(exclude={"visibility"}), laboratory_id=ctx.laboratory.id)
     set_visibility(db_project, project.visibility)
     db.add(db_project)
+    db.flush()
+    record_visibility(db, db_project, ctx.user, None)
     db.commit()
     db.refresh(db_project)
     return db_project
@@ -654,7 +681,9 @@ def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = D
     for key, value in changes.items():
         setattr(db_project, key, value)
     if new_visibility:
+        before = db_project.visibility
         set_visibility(db_project, new_visibility)
+        record_visibility(db, db_project, ctx.user, before)
     db.commit()
     db.refresh(db_project)
     return db_project
@@ -663,7 +692,10 @@ def update_project(project_id: int, data: schemas.ProjectUpdate, db: Session = D
 # deleting a project deletes its specimens too, so only a laboratory admin can do it
 @lab_router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db), ctx: Context = Depends(require_admin)):
-    db.delete(get_visible_project(db, ctx, project_id))
+    project = get_visible_project(db, ctx, project_id)
+    # its history stays, with the title it had; it just no longer points to a project
+    db.query(models.VisibilityChange).filter(models.VisibilityChange.project_id == project.id).update({"project_id": None})
+    db.delete(project)
     db.commit()
     return None
 

@@ -355,6 +355,9 @@ input[type="checkbox"]:checked::after { opacity: 1; }
 .member-you { font-weight: 400; color: var(--ink-2); }
 .member-fullname { color: var(--ink-2); font-size: 0.95rem; }
 .invitation-expired { color: var(--danger); font-weight: 600; }
+.history-when { color: var(--ink-2); font-size: 0.92rem; white-space: nowrap; }
+.visibility-history .member-list { margin-top: 0.6rem; }
+.visibility-history > .link { display: inline-block; margin-top: 0.8rem; }
 /* the page of an invitation link */
 .invite-email { color: var(--ink-2); overflow-wrap: anywhere; }
 .invite-form { max-width: 26rem; }

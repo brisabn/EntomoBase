@@ -168,6 +168,41 @@ def test_remove_also_takes_the_demo_accounts_and_laboratories(run_seed, client, 
     assert db.query(models.Membership).count() == 1
 
 
+# what the demo accounts did on the site points to accounts, projects and laboratories that --remove deletes;
+# nothing may be left pointing to them (PostgreSQL would refuse; SQLite would keep ids of nothing)
+def test_remove_leaves_nothing_pointing_to_what_it_removed(run_seed, client, admin, db, monkeypatch):
+    import mailer
+    from conftest import make_token
+    monkeypatch.setenv("MAIL_BACKEND", "memory")
+    monkeypatch.setenv("SITE_URL", "https://entomobase.example")
+    run_seed()
+    demo_admin = {"Authorization": f"Bearer {make_token(email='admin.borboletas@entomobase.test')}"}
+    project = client.get("/labs/borboletas/projects", headers=demo_admin).json()[0]
+    assert client.put(f"/labs/borboletas/projects/{project['id']}", json={"visibility": "unlisted"}, headers=demo_admin).status_code == 200
+    assert client.post("/labs/borboletas/invitations", json={"email": "someone@lab.br"}, headers=demo_admin).status_code == 201
+    # in the first laboratory, which stays: a demo account creates a project and sends an invitation, and the
+    # admin of the fixture (not a demo account) publishes a demo project
+    researcher = {"Authorization": f"Bearer {make_token(email='pesquisa.ufmg@entomobase.test')}"}
+    kept = client.post("/labs/ufmg/projects", json={"title": "Kept", "year": 2026, "insect_group": "Diptera"}, headers=researcher).json()
+    demo_ufmg_admin = {"Authorization": f"Bearer {make_token(email='admin.ufmg@entomobase.test')}"}
+    assert client.post("/labs/ufmg/invitations", json={"email": "other@lab.br"}, headers=demo_ufmg_admin).status_code == 201
+    demo_project = next(p for p in client.get("/labs/ufmg/projects", headers=admin).json() if p["title"] in {d["title"] for d in seed.PROJECTS})
+    target = "private" if demo_project["visibility"] != "private" else "public"
+    assert client.put(f"/labs/ufmg/projects/{demo_project['id']}", json={"visibility": target}, headers=admin).status_code == 200
+    run_seed("--remove")
+    db.expire_all()
+    assert db.query(models.Invitation).count() == 0
+    labs = {lab.id for lab in db.query(models.Laboratory).all()}
+    users = {user.id for user in db.query(models.User).all()}
+    projects = {p.id for p in db.query(models.Project).all()}
+    changes = db.query(models.VisibilityChange).all()
+    assert all(c.laboratory_id in labs and c.user_id in users | {None} and c.project_id in projects | {None} for c in changes)
+    left = {(c.project_title, c.project_id, c.user_id, c.user_email) for c in changes}
+    fixture_admin = db.query(models.User).filter_by(email=EMAIL).one().id
+    assert left == {("Kept", kept["id"], None, "pesquisa.ufmg@entomobase.test"),
+                    (demo_project["title"], None, fixture_admin, EMAIL)}
+
+
 def test_removing_twice_finds_nothing_left_and_does_not_fail(run_seed, db):
     run_seed()
     run_seed("--remove")

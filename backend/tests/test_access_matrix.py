@@ -111,6 +111,11 @@ def build_world() -> World:
             "a_invitation": invitation(first, "invited_a@lab.br", "admin", INVITE_CODE),
             "b_invitation": invitation(other, "invited_b@lab.br", "admin_elsewhere", "invite-code-of-b-0123456789"),
         }
+        # who published what: one change in each laboratory
+        for lab, project, who in ((first, a_public, "admin"), (other, b_private, "researcher_b")):
+            db.add(models.VisibilityChange(laboratory_id=lab.id, project_id=project.id, project_title=project.title,
+                                           user_id=people[who].id, user_email=f"{who}@lab.br", from_visibility=None,
+                                           to_visibility=project.visibility, changed_at=datetime(2026, 11, 13)))
         db.commit()
         headers = {"visitor": {}}
         headers.update({name: {"Authorization": f"Bearer {make_token(email=f'{name}@lab.br')}"} for name in people})
@@ -186,6 +191,7 @@ CASES = [
     Case("PUT", "/members/{member_id}", "admin", 200, lambda i: (f"/members/{i['a_member']}", {"role": "admin"})),
     Case("DELETE", "/members/{member_id}", "admin", 204, lambda i: (f"/members/{i['a_member']}", None)),
     Case("DELETE", "/membership", "member", 204, lambda i: ("/membership", None)),
+    Case("GET", "/visibility-history", "admin", 200, lambda i: ("/visibility-history", None)),
     Case("GET", "/invitations", "admin", 200, lambda i: ("/invitations", None)),
     Case("POST", "/invitations", "admin", 201, lambda i: ("/invitations", {"email": "someone.new@lab.br", "role": "researcher"})),
     Case("DELETE", "/invitations/{invitation_id}", "admin", 204, lambda i: (f"/invitations/{i['a_invitation']}", None)),
@@ -212,7 +218,7 @@ CASES = [
 OPEN_BY_DESIGN = {("POST", "/login"), ("POST", "/signup"), ("POST", "/confirm"), ("POST", "/forgot-password"), ("POST", "/reset-password")}
 
 # the old addresses without a laboratory mean the first one; the members routes never had them
-MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/membership", "/invitations", "/invitations/{invitation_id}"}
+MEMBERS_ONLY_WITH_SLUG = {"/members", "/members/{member_id}", "/membership", "/visibility-history", "/invitations", "/invitations/{invitation_id}"}
 
 
 def addresses(case):

@@ -423,12 +423,17 @@ def remove_demo_data(db):
     titles = {p["title"] for p in PROJECTS}
     n = 0
     for p in db.query(models.Project).filter(models.Project.title.in_(titles)).all():
+        # the history of who published a project outlives it, like when it is deleted on the site
+        db.query(models.VisibilityChange).filter(models.VisibilityChange.project_id == p.id).update({"project_id": None})
         db.delete(p)
         n += 1
     db.flush()
     print(f"{n} demo projects removed (with their specimens)")
     users = db.query(models.User).filter(models.User.email.in_([u["email"] for u in DEMO_USERS])).all()
     for user in users:
+        # nothing may point to a removed account: its invitations go, and the history keeps only its e-mail
+        db.query(models.Invitation).filter(models.Invitation.invited_by_id == user.id).delete()
+        db.query(models.VisibilityChange).filter(models.VisibilityChange.user_id == user.id).update({"user_id": None})
         db.delete(user)
     print(f"{len(users)} demo accounts removed")
     db.flush()
@@ -441,6 +446,9 @@ def remove_demo_data(db):
         if in_use:
             print(f"kept: laboratory {lab.slug}, which has data that the seed did not create")
             continue
+        # and nothing may point to a removed laboratory
+        db.query(models.Invitation).filter(models.Invitation.laboratory_id == lab.id).delete()
+        db.query(models.VisibilityChange).filter(models.VisibilityChange.laboratory_id == lab.id).delete()
         db.delete(lab)
         print(f"removed: laboratory {lab.slug}")
     db.commit()

@@ -179,6 +179,25 @@ class Invitation(Base):
     invited_by = relationship("User")
 
 
+# every change of who can see a project, kept so the admins of a laboratory know who published what and when
+# (a researcher can publish, and publishing cannot really be undone: someone may have downloaded the data).
+# The title of the project and the e-mail of the person are copied, so the record still reads well after the
+# project or the account is gone; their ids are then emptied
+class VisibilityChange(Base):
+    __tablename__ = "visibility_changes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    laboratory_id = Column(Integer, ForeignKey("laboratories.id"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+    project_title = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_email = Column(String, nullable=False)
+    # empty when the project was created
+    from_visibility = Column(String, nullable=True)
+    to_visibility = Column(String, nullable=False)
+    changed_at = Column(DateTime, nullable=False)
+
+
 LAB_REQUEST_STATUSES = ("pending", "approved", "rejected")
 
 

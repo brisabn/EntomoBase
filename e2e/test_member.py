@@ -1,5 +1,6 @@
 # Scenario 3: a researcher of a laboratory creates a project, imports a CSV (first with a wrong row,
-# which blocks the whole file), shares the project by link and opens the link without an account.
+# which blocks the whole file), shares the project by link and opens the link without an account; the admin
+# then sees who did it in the publishing history.
 # And an admin writes the About page of the laboratory, which a visitor then reads.
 import re
 
@@ -76,6 +77,15 @@ def test_a_researcher_imports_a_csv_and_shares_the_project_by_link(new_page, ser
     visitor.reload()
     expect(visitor.locator(".grid .card").first).to_be_visible()
     expect(visitor.locator(".grid")).not_to_contain_text(TITLE)
+
+    # the admin of the laboratory sees, in the publishing history, who made each change
+    admin = new_page()
+    admin.goto(servers.site + "/#/lab/ufmg/membros")
+    sign_in(admin, "admin.ufmg@entomobase.test", servers.passwords["admin.ufmg@entomobase.test"])
+    entries = admin.locator(".history-list .member-row").filter(has_text=TITLE)
+    expect(entries).to_have_count(2)
+    expect(entries.nth(0)).to_contain_text("pesquisa.ufmg@entomobase.test mudou de Privado para Só com link")
+    expect(entries.nth(1)).to_contain_text("pesquisa.ufmg@entomobase.test criou como Privado")
 
 
 def test_an_admin_writes_the_about_page_and_a_visitor_reads_it(new_page, servers):

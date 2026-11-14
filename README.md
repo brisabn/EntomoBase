@@ -47,6 +47,7 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira *
 | Excluir espécimes | não | não | sim | sim |
 | Excluir projetos (apaga os espécimes dele) | não | não | não | sim |
 | Escrever a aba Sobre (apresentação, contato, equipe) e renomear o laboratório | não | não | não | sim |
+| Ver o histórico de publicação (quem mudou quem pode ver cada projeto) | não | não | não | sim |
 
 ### Contas, laboratórios e membros
 
@@ -60,7 +61,7 @@ A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira *
 - **Aba Sobre**: cada laboratório tem a sua apresentação, um e-mail de contato público e a equipe (nome e função, até 30 pessoas, na ordem escolhida). Quem escreve é o administrador do laboratório, em "Editar apresentação" (`PUT /labs/<slug>/laboratory`), que também muda o nome e a instituição. O texto é o mesmo nos dois idiomas, como as descrições de projeto. Dentro de um laboratório, o "Contato" do rodapé mostra o e-mail dele.
 - **Membros**: o administrador muda o papel (`PUT /labs/<slug>/members/<id>`) e remove (`DELETE`). Qualquer membro também deixa o laboratório por conta própria, no fim da aba Sobre (`DELETE /labs/<slug>/membership`); para voltar, precisa de um novo convite. Um laboratório nunca fica sem administrador: o último não pode sair nem ser removido.
 
-A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.
+A visibilidade de um projeto é `private` (padrão), `unlisted` (só abre com o link de compartilhamento, `/shared/<código>`) ou `public`. Cada mudança, e a visibilidade com que o projeto foi criado, fica no **histórico de publicação**: quem fez, de quê para quê e quando. Os administradores do laboratório o veem na página de membros (`GET /labs/<slug>/visibility-history`), também para projetos já excluídos (o título fica guardado). O histórico começa com esta versão: mudanças anteriores não foram registradas. Espécimes sem projeto são privados. Quem não pode ver algo recebe `404`, como se não existisse.
 
 Dados fictícios para demonstração (dentro de `backend`; não precisa de `SECRET_KEY`):
 

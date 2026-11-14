@@ -312,6 +312,24 @@
                 </li>
               </ul>
             </template>
+
+            <!-- who changed who can see each project; kept even after the project is deleted -->
+            <section class="visibility-history" :aria-label="t('history.title')">
+              <h2 class="members-heading">{{ t('history.title') }}</h2>
+              <p class="field-hint">{{ t('history.hint') }}</p>
+              <p v-if="!visibilityHistory.length && !membersLoading" class="subtitle">{{ t('history.empty') }}</p>
+              <ul v-else class="member-list history-list">
+                <li v-for="entry in (historyShowAll ? visibilityHistory : visibilityHistory.slice(0, 10))" :key="entry.id" class="member-row">
+                  <div class="member-who">
+                    <a v-if="entry.project_id" class="member-email" :href="link('project', { id: entry.project_id, lab: membersLab.slug })">{{ entry.project_title }}</a>
+                    <span v-else class="member-email">{{ entry.project_title }} <span class="member-you">{{ t('history.deleted_project') }}</span></span>
+                    <span class="member-fullname">{{ historyText(entry) }}</span>
+                  </div>
+                  <time class="history-when" :datetime="entry.changed_at + 'Z'">{{ historyWhen(entry) }}</time>
+                </li>
+              </ul>
+              <button v-if="!historyShowAll && visibilityHistory.length > 10" type="button" class="link" @click="historyShowAll = true">{{ t('history.show_all', { n: visibilityHistory.length }) }}</button>
+            </section>
           </template>
         </div>
 

@@ -266,6 +266,10 @@ const app = createApp({
       membersSlug: null,
       members: [],
       invitations: [],
+      // who changed who can see each project (GET .../visibility-history), newest first; the page shows the first
+      // ones until "show all" is pressed
+      visibilityHistory: [],
+      historyShowAll: false,
       membersLoading: false,
       inviteForm: { email: '', role: 'researcher' },
       memberError: null,
@@ -1608,11 +1612,13 @@ const app = createApp({
       if (!keepError) this.memberError = null;
       try {
         const base = `/labs/${encodeURIComponent(lab.slug)}`;
-        const [list, invitations] = await Promise.all([this.api(`${base}/members`), this.api(`${base}/invitations`)]);
+        const [list, invitations, history] = await Promise.all(
+          [`${base}/members`, `${base}/invitations`, `${base}/visibility-history`].map((path) => this.api(path)));
         // an answer for a laboratory that is no longer the chosen one is dropped
         if (this.membersLab && this.membersLab.slug === lab.slug) {
           this.members = list;
           this.invitations = invitations;
+          this.visibilityHistory = history;
         }
       } catch (e) {
         this.memberError = e.message;
@@ -1623,6 +1629,8 @@ const app = createApp({
       this.membersSlug = slug;
       this.members = [];
       this.invitations = [];
+      this.visibilityHistory = [];
+      this.historyShowAll = false;
       this.loadMembers();
     },
     isMe(member) { return !!this.me && member.email === this.me.email; },
@@ -1660,6 +1668,17 @@ const app = createApp({
         this.memberError = e.message;
       }
       await this.loadMembers({ keepError: true });
+    },
+    // "Ana changed it from Private to Public", or "created it as Private"
+    historyText(entry) {
+      const label = (v) => this.t(`badge.${v}`);
+      return entry.from_visibility
+        ? this.t('history.changed', { who: entry.user_email, from: label(entry.from_visibility), to: label(entry.to_visibility) })
+        : this.t('history.created', { who: entry.user_email, to: label(entry.to_visibility) });
+    },
+    // the API keeps the time in UTC without a zone; shown in the visitor's time, in the language of the site
+    historyWhen(entry) {
+      return new Date(entry.changed_at + 'Z').toLocaleString(this.locale, { dateStyle: 'short', timeStyle: 'short' });
     },
     // the deadline comes from the API in UTC without a zone
     invitationExpired(invitation) { return new Date(invitation.expires_at + 'Z') <= new Date(); },
