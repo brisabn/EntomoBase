@@ -151,6 +151,8 @@ pip install -r backend\requirements-dev.txt
 cd backend
 pytest               # roda os testes
 pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
+pytest -m "not integration"   # só os testes de unidade (rápidos, cerca de 10 s)
+pytest -m integration         # só os de integração: passam pela API ou por um banco de verdade
 
 # os mesmos testes no PostgreSQL
 $env:TEST_DATABASE_URL = "postgresql://entomobase:entomobase@localhost:5432/entomobase_test"; pytest

@@ -1,3 +1,4 @@
+import inspect
 import os
 import tempfile
 
@@ -47,6 +48,25 @@ EMAIL = "admin@lab.br"
 RESEARCHER_EMAIL = "researcher@lab.br"
 OUTSIDER_EMAIL = "outsider@lab.br"
 SUPERADMIN_EMAIL = "super@lab.br"
+
+# the tests are of two kinds, so that each kind can run apart: pytest -m "not integration" or pytest -m integration
+# - integration: goes through the API (the test client) or through a real database made by the migrations
+# - unit: checks one piece on its own (a function, a module, the texts of the site), with neither of those
+INTEGRATION_FIXTURES = {
+    "app", "started_app", "client", "db", "user", "admin", "researcher", "superadmin", "outsider", "initialize_at",
+}
+# these build a real database file with the migrations, even when they do not ask for a fixture
+INTEGRATION_FILES = {
+    "test_alembic.py", "test_email_verification_schema.py", "test_multi_laboratory_schema.py",
+    "test_invitations_schema.py", "test_laboratory_about_schema.py", "test_laboratory_requests_schema.py",
+}
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        asked = set(inspect.signature(item.obj).parameters) if hasattr(item, "obj") else set()
+        if asked & INTEGRATION_FIXTURES or item.path.name in INTEGRATION_FILES:
+            item.add_marker(pytest.mark.integration)
 
 
 @pytest.fixture(scope="session")
