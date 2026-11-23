@@ -1,10 +1,31 @@
 import os
 import tempfile
 
+from sqlalchemy import text
+
 # the tests always use their own database and settings, whatever the shell has set;
 # this runs before any test file imports the application
+#
+# by default a temporary SQLite file; with TEST_DATABASE_URL, a PostgreSQL database whose name ends in
+# _test, emptied here before the run (everything in it is erased, so it must be one only the tests use)
 _TEMP_DIR = tempfile.mkdtemp(prefix="entomobase_tests_")
-os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_TEMP_DIR, "test.db").replace("\\", "/")
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+
+if TEST_DATABASE_URL:
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+else:
+    os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_TEMP_DIR, "test.db").replace("\\", "/")
+
+# only now, with DATABASE_URL set, may the application's database module be imported
+import database  # noqa: E402
+
+if TEST_DATABASE_URL:
+    url = database.engine.url
+    if database.is_sqlite(url) or not (url.database or "").endswith("_test"):
+        raise RuntimeError("TEST_DATABASE_URL must be a PostgreSQL database whose name ends in _test")
+    with database.engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
 os.environ["SECRET_KEY"] = "test-secret-key-with-at-least-32-bytes-ok"
 os.environ["CORS_ORIGINS"] = "http://allowed.test"
 os.environ.pop("ENTOMOBASE_ENV", None)
@@ -31,7 +52,8 @@ SUPERADMIN_EMAIL = "super@lab.br"
 @pytest.fixture(scope="session")
 def app():
     import main
-    assert "test.db" in str(engine.url), "tests must never run against a real database"
+    test_database = (engine.url.database or "").endswith(("test.db", "_test"))
+    assert test_database, "tests must never run against a real database"
     return main.app
 
 
@@ -47,6 +69,8 @@ def started_app(app):
 def clean_state():
     import main
     with engine.begin() as conn:
+        # DELETE, not TRUNCATE: on PostgreSQL TRUNCATE takes much longer, run before every test. The ids are not
+        # restarted there (SQLite does restart them), and no test may count on a fixed id
         for table in reversed(models.Base.metadata.sorted_tables):
             conn.execute(table.delete())
     main.account_limiter._failures.clear()

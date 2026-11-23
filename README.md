@@ -37,6 +37,27 @@ python create_admin.py seu-email@exemplo.br
 
 A senha é pedida no terminal (mínimo de 8 caracteres). Um usuário novo vira **administrador do laboratório inicial** (sem vínculo com um laboratório, ninguém consegue criar nem editar nada). Rodar de novo com um e-mail que já existe só troca a senha: a pessoa continua nos laboratórios e com os papéis que tinha.
 
+### Banco de dados: PostgreSQL ou SQLite
+
+O banco do desenvolvimento, e o previsto para produção, é o **PostgreSQL**. Sem configurar nada, a API usa um arquivo **SQLite** (`backend/entomobase.db`), que não precisa de instalação e serve para experimentar; os dois funcionam igual, e os testes rodam nos dois.
+
+Para usar o PostgreSQL no Windows:
+
+```powershell
+# uma vez: instalar (o instalador pede permissão de administrador; anote a senha do usuário postgres, se ele pedir)
+winget install PostgreSQL.PostgreSQL.18
+
+# uma vez: criar um usuário e os bancos do projeto (pede a senha do usuário postgres)
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "CREATE ROLE entomobase LOGIN CREATEDB PASSWORD 'entomobase';" -c "CREATE DATABASE entomobase OWNER entomobase ENCODING 'UTF8' TEMPLATE template0;" -c "CREATE DATABASE entomobase_test OWNER entomobase ENCODING 'UTF8' TEMPLATE template0;" -c "CREATE DATABASE entomobase_e2e_test OWNER entomobase ENCODING 'UTF8' TEMPLATE template0;"
+
+# em cada terminal da API, do seed.py, do create_admin.py ou do alembic, antes de rodá-los
+$env:DATABASE_URL = "postgresql://entomobase:entomobase@localhost:5432/entomobase"
+```
+
+Com o banco novo, a API cria as tabelas ao iniciar; `python seed.py` e `python create_admin.py` funcionam igual. A senha `entomobase` serve só para o seu computador; num servidor, use outra, longa, e nunca a coloque num commit. O endereço segue o formato `postgresql://usuário:senha@servidor:porta/banco`; o `postgres://` que alguns serviços de hospedagem dão também vale. O driver é o `psycopg` (versão 3), que já está no `requirements.txt`.
+
+Os dados do SQLite não passam sozinhos para o PostgreSQL. Como hoje são de demonstração, basta rodar o `seed.py` com o `DATABASE_URL` apontando para o PostgreSQL.
+
 ### Ver os e-mails enquanto desenvolve (Mailpit)
 
 Em modo `dev`, sem configurar nada, os e-mails (confirmação de cadastro, convites, nova senha, pedidos de laboratório) aparecem no terminal da API. Para vê-los como e-mails de verdade, numa caixa de entrada no navegador, use o [Mailpit](https://mailpit.axllent.org): um servidor de e-mail falso que roda no seu computador e **não entrega nada a ninguém**, então serve qualquer endereço, inclusive inventado.
@@ -130,9 +151,12 @@ pip install -r backend\requirements-dev.txt
 cd backend
 pytest               # roda os testes
 pytest --cov         # roda os testes e mostra a cobertura de código (mínimo exigido: 80%)
+
+# os mesmos testes no PostgreSQL
+$env:TEST_DATABASE_URL = "postgresql://entomobase:entomobase@localhost:5432/entomobase_test"; pytest
 ```
 
-Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Uma tabela em `tests/test_access_matrix.py` lista todas as rotas da API e quem pode usar cada uma; o teste falha se alguém criar uma rota sem pô-la na tabela. Os testes cobrem login e limite de tentativas, cadastro e confirmação de e-mail, esqueci a senha e troca de senha, laboratórios, membros e convites, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
+Os testes usam um banco temporário próprio e nunca tocam em `entomobase.db`. Com `TEST_DATABASE_URL`, usam esse banco do PostgreSQL, que **é apagado no início de cada execução**; por isso o nome dele precisa terminar em `_test`, e os testes se recusam a rodar em outro. Os testes das migrações de bancos antigos usam arquivos SQLite próprios nos dois casos; as migrações do zero, para a frente e para trás, rodam também no banco escolhido. Não acessam a internet: o GBIF é simulado. Não enviam e-mail de verdade: as mensagens ficam guardadas na memória. Uma tabela em `tests/test_access_matrix.py` lista todas as rotas da API e quem pode usar cada uma; o teste falha se alguém criar uma rota sem pô-la na tabela. Os testes cobrem login e limite de tentativas, cadastro e confirmação de e-mail, esqueci a senha e troca de senha, laboratórios, membros e convites, o que visitantes veem, o isolamento entre laboratórios, os números e o mapa da página inicial, projetos, espécimes, importação, exportação (CSV nos dois idiomas e Darwin Core), cache do GBIF, as migrações do banco (Alembic), CORS e a conferência de que todo texto do site tem tradução.
 
 ### Testes de ponta a ponta (E2E)
 
@@ -144,6 +168,9 @@ playwright install chromium    # opcional: sem ele, os testes usam o Edge ou o C
 cd e2e
 pytest                         # os testes dos 4 cenários, cerca de 1 minuto
 $env:E2E_HEADED = "1"; pytest  # o mesmo, com a janela do navegador à vista e mais devagar
+
+# no PostgreSQL (o banco é apagado no início; o nome precisa terminar em _test)
+$env:E2E_DATABASE_URL = "postgresql://entomobase:entomobase@localhost:5432/entomobase_e2e_test"; pytest
 ```
 
 | Teste | O que a pessoa faz |
@@ -162,7 +189,8 @@ Os e-mails não são enviados: a API os mostra no próprio registro, de onde o t
 | `SECRET_KEY` | Chave que assina os tokens de login. **Obrigatória** fora do desenvolvimento. |
 | `ENTOMOBASE_ENV` | Com o valor `dev`, a API sobe sem `SECRET_KEY` usando uma chave temporária (os logins caem a cada reinício). Use só em desenvolvimento. |
 | `CORS_ORIGINS` | Endereços dos sites que podem usar a API pelo navegador, separados por vírgula (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, valem `http://127.0.0.1:5500` e `http://localhost:5500`. Fora do `dev`, sem ela, nenhum outro site consegue usar a API. |
-| `DATABASE_URL` | Banco de dados. Sem ela, usa SQLite local (`entomobase.db`). |
+| `DATABASE_URL` | Banco de dados, por exemplo `postgresql://entomobase:entomobase@localhost:5432/entomobase` (ver "Banco de dados: PostgreSQL ou SQLite"). Sem ela, usa SQLite local (`entomobase.db`). |
+| `TEST_DATABASE_URL`, `E2E_DATABASE_URL` | Só para os testes: um banco do PostgreSQL, terminado em `_test`, para os testes de unidade e os E2E rodarem nele. Ele é apagado a cada execução. |
 | `SITE_URL` | Endereço público do site, usado no link de confirmação do e-mail (ex.: `https://acervo.meulab.br`). Em modo `dev`, sem a variável, vale `http://127.0.0.1:5500`. Fora do `dev`, sem ela, o cadastro responde que o e-mail não pôde ser enviado. |
 | `MAIL_BACKEND` | Como os e-mails saem: `smtp` (envio de verdade), `mailpit` (para o Mailpit no seu computador; ver "Ver os e-mails enquanto desenvolve") ou `console` (só mostra no terminal da API). Em modo `dev`, sem a variável, vale `console`. Fora do `dev`, sem ela, nenhum e-mail é enviado e o cadastro fica indisponível. |
 | `MAIL_FROM` | Remetente dos e-mails (ex.: `entomobase@meulab.br`). Obrigatória com `smtp`. |

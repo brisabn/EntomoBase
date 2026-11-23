@@ -260,7 +260,7 @@
 <text x="680.0" y="626" font-size="12" fill="#5a6660" text-anchor="middle">vai no cabeçalho</text>
 <rect x="1430" y="104" width="270" height="674" rx="12" fill="#eef0f3" stroke="#5a6a7a" stroke-width="2.5"/>
 <text x="1450" y="136" font-size="19" fill="#5a6a7a" font-weight="700">BANCO DE DADOS</text>
-<text x="1450" y="160" font-size="12.5" fill="#5a6660">SQLite ou PostgreSQL · 12 tabelas</text>
+<text x="1450" y="160" font-size="12.5" fill="#5a6660">PostgreSQL (ou SQLite) · 12 tabelas</text>
 <rect x="1444" y="174" width="242" height="44" rx="8" fill="#ffffff" stroke="#d3d9de" stroke-width="1"/>
 <text x="1458" y="193" font-size="13" fill="#1d2a24" font-weight="700" font-family="Consolas, 'Courier New', monospace">laboratories</text>
 <text x="1458" y="210" font-size="11.5" fill="#5a6660">laboratórios</text>

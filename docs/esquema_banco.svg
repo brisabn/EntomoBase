@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1620" width="1700" height="1620" font-family="Segoe UI, Arial, sans-serif">
 <rect width="1700" height="1620" fill="#ffffff"/>
 <text x="44" y="52" font-size="26" font-weight="700" fill="#1d2a24">EntomoBase: esquema do banco de dados</text>
-<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0009) · 12 tabelas · SQLite ou PostgreSQL</text>
+<text x="44" y="78" font-size="14" fill="#5a6660">Gerado a partir de models.py · controlado pelo Alembic (revisão atual 0009) · 12 tabelas · PostgreSQL (ou SQLite)</text>
 <rect x="64" y="130" width="290" height="284" rx="8" fill="#ffffff" stroke="#2a5f9e" stroke-width="2"/>
 <path d="M64 168 V138 a8 8 0 0 1 8 -8 H346 a8 8 0 0 1 8 8 V168 Z" fill="#2a5f9e"/>
 <text x="78" y="155" font-size="16" fill="#ffffff" font-weight="700">laboratories</text>

@@ -155,3 +155,23 @@ def test_the_command_line_check_fails_when_the_database_is_behind(tmp_path):
     con.commit()
     con.close()
     assert run_alembic(path, "check").returncode != 0
+
+
+# ---------- the database of this run: SQLite, or PostgreSQL with TEST_DATABASE_URL ----------
+# the tests above use SQLite files of their own; these repeat the main checks on the database the whole run
+# uses, so that on PostgreSQL the migrations are tested there too
+def test_the_database_of_this_run_matches_the_models(started_app):
+    from database import engine
+    assert version(engine) == [head()]
+    assert schema_differences(engine) == []
+
+
+def test_the_database_of_this_run_goes_back_to_the_start_and_forward_again(started_app):
+    from database import engine
+    with engine.begin() as connection:
+        cfg = config()
+        cfg.attributes["connection"] = connection
+        command.downgrade(cfg, "base")
+    assert set(inspect(engine).get_table_names()) == {"alembic_version"}
+    db_setup.run_alembic_upgrade()
+    assert schema_differences(engine) == [] and version(engine) == [head()]

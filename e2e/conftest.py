@@ -20,6 +20,24 @@ ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
 FRONTEND = ROOT / "frontend"
 
+# by default each run uses a new SQLite file; with E2E_DATABASE_URL, a PostgreSQL database whose name ends
+# in _test, emptied at the start of the run (everything in it is erased)
+E2E_DATABASE_URL = os.environ.get("E2E_DATABASE_URL")
+
+
+def empty_postgresql_database(raw_url):
+    sys.path.insert(0, str(BACKEND))
+    from sqlalchemy import text
+    from database import database_url, new_engine
+    url = database_url(raw_url)
+    if url.get_backend_name() != "postgresql" or not (url.database or "").endswith("_test"):
+        raise RuntimeError("E2E_DATABASE_URL must be a PostgreSQL database whose name ends in _test")
+    engine = new_engine(url)
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+    engine.dispose()
+
 
 def free_port():
     with socket.socket() as s:
@@ -50,7 +68,7 @@ class Servers:
         self.env = {
             **os.environ,
             "ENTOMOBASE_ENV": "dev",
-            "DATABASE_URL": "sqlite:///" + (self.work / "e2e.db").as_posix(),
+            "DATABASE_URL": E2E_DATABASE_URL or "sqlite:///" + (self.work / "e2e.db").as_posix(),
             "SITE_URL": self.site,
             "CORS_ORIGINS": self.site,
             # the e-mails are printed in the API log, where the tests read the confirmation link
@@ -63,7 +81,9 @@ class Servers:
         }
 
     def seed(self):
-        out = subprocess.run([sys.executable, "seed.py"], cwd=BACKEND, env=self.env, capture_output=True, text=True,
+        if E2E_DATABASE_URL:
+            empty_postgresql_database(E2E_DATABASE_URL)
+        out =subprocess.run([sys.executable, "seed.py"], cwd=BACKEND, env=self.env, capture_output=True, text=True,
                              encoding="utf-8", check=True).stdout
         self.passwords = dict(re.findall(r"^\s+(\S+@entomobase\.test)\s+(\S+)", out, re.M))
         assert self.passwords, "seed.py printed no demo accounts:\n" + out
